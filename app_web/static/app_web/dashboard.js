@@ -1,0 +1,73 @@
+// app_web/static/app_web/dashboard.js
+(function () {
+  function start() {
+    // 1) Is Chart.js available?
+    if (typeof window.Chart === "undefined") {
+      console.error("[dashboard] Chart.js not loaded yet.");
+      return setTimeout(start, 50); // try again shortly
+    }
+
+    // 2) Find and parse the embedded JSON payload
+    const el = document.getElementById("chart-data");
+    if (!el) {
+      console.error("[dashboard] #chart-data script tag not found.");
+      return;
+    }
+
+    let data;
+    try {
+      data = JSON.parse(el.textContent || "{}");
+    } catch (e) {
+      console.error("[dashboard] Failed to parse chart payload:", e);
+      return;
+    }
+
+    // 3) Build charts only if canvases exist
+    const tsCtx = document.getElementById("tsChart");
+    if (tsCtx && Array.isArray(data.ts_labels)) {
+      new Chart(tsCtx, {
+        type: "line",
+        data: {
+          labels: data.ts_labels,
+          datasets: [
+            { label: "Inflow",  data: data.ts_in  || [], tension: 0.25 },
+            { label: "Outflow", data: data.ts_out || [], tension: 0.25 },
+            { label: "Net",     data: data.ts_net || [], tension: 0.25 }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: "bottom" } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    } else {
+      console.warn("[dashboard] tsChart canvas or data missing.");
+    }
+
+    const catCtx = document.getElementById("catChart");
+    if (catCtx && Array.isArray(data.cat_labels)) {
+      new Chart(catCtx, {
+        type: "bar",
+        data: {
+          labels: data.cat_labels,
+          datasets: [{ label: "Amount", data: data.cat_vals || [] }]
+        },
+        options: {
+          indexAxis: "y",
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true } }
+        }
+      });
+    } else {
+      console.warn("[dashboard] catChart canvas or data missing.");
+    }
+  }
+
+  // Run after DOM is ready so canvases & #chart-data exist
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+})();

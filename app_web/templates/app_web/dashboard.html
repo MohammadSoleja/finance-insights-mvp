@@ -1,10 +1,53 @@
-<!DOCTYPE html>
+{% load static %}
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
+  <meta charset="utf-8">
+  <title>{{ title|default:"Dashboard" }} — Finance Insights</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .card { padding: 1rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; }
+    .kpi { font-size: 1.8rem; font-weight: 700; }
+    .muted { color: #6b7280; }
+    .row { margin: 1rem 0; }
+    .charts { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; }
+    @media (max-width: 900px){ .grid{grid-template-columns:1fr;} .charts{grid-template-columns:1fr;} }
+    a.btn { display:inline-block; padding:.5rem 1rem; border-radius:8px; border:1px solid #d1d5db; text-decoration:none; color:#111827; }
+  </style>
 </head>
 <body>
-$END$
+  <h1>Dashboard</h1>
+  <div class="row">
+    <a class="btn" href="{% url 'app_web:upload' %}">Upload another file</a>
+    <a class="btn" href="?freq=D">Daily</a>
+    <a class="btn" href="?freq=W">Weekly</a>
+    <a class="btn" href="?freq=M">Monthly</a>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="muted">Total Inflow</div><div class="kpi">£{{ kpi.inflow }}</div></div>
+    <div class="card"><div class="muted">Total Outflow</div><div class="kpi">£{{ kpi.outflow }}</div></div>
+    <div class="card"><div class="muted">Net</div><div class="kpi">£{{ kpi.net }}</div></div>
+  </div>
+
+  <div class="row muted">Transactions: {{ tx_count }} • Frequency: {{ freq }}</div>
+
+  <div class="charts">
+    <div class="card">
+      <h3>Revenue vs Expenses vs Net</h3>
+      <canvas id="tsChart"></canvas>
+    </div>
+    <div class="card">
+      <h3>Top Categories</h3>
+      <canvas id="catChart"></canvas>
+    </div>
+  </div>
+  <!-- Embed data as JSON (no inline executable JS) -->
+  <script id="chart-data" type="application/json">{{ chart_payload }}</script>
+  <!-- Our app JS -->
+  <script src="{% static 'app_web/dashboard.js' %}"></script>
 </body>
 </html>
