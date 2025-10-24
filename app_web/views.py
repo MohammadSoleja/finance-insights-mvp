@@ -16,6 +16,8 @@ import math
 import json
 from django.utils.safestring import mark_safe
 
+from app_core.insights import generate_insights
+
 
 def upload_view(request):
     context = {"title": "Upload Transactions"}
@@ -137,6 +139,7 @@ def dashboard_view(request):
     cat_labels = [str(x) for x in (bc["category"].tolist() if not bc.empty else [])]
     cat_vals   = _clean_nums(bc["amount"].tolist() if not bc.empty else [])
 
+    insights = generate_insights(df,ts,bc)
     payload = {
         "ts_labels": ts_labels,
         "ts_in": ts_in,
@@ -155,5 +158,6 @@ def dashboard_view(request):
         "freq": freq,
         "tx_count": kpi["tx_count"],
         "chart_payload": mark_safe(chart_payload),
+        "insights": insights,
     }
     return render(request, "app_web/dashboard.html", context)

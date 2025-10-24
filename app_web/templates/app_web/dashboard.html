@@ -45,6 +45,22 @@
       <canvas id="catChart"></canvas>
     </div>
   </div>
+
+  <div class="card" style="margin:1rem 0;">
+  <h3 style="margin-top:0;">AI-style Insights</h3>
+  {% if insights %}
+    <ul style="margin:.5rem 0 0 1rem;">
+      {% for i in insights %}
+        <li>
+          <strong>{{ i.title }}:</strong> {{ i.text }}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="muted">No insights yet.</div>
+  {% endif %}
+</div>
+
   <!-- Embed data as JSON (no inline executable JS) -->
   <script id="chart-data" type="application/json">{{ chart_payload }}</script>
   <!-- Our app JS -->
