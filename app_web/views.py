@@ -18,6 +18,8 @@ from django.utils.safestring import mark_safe
 
 from app_core.insights import generate_insights
 
+from django.http import HttpResponse
+
 
 def upload_view(request):
     context = {"title": "Upload Transactions"}
@@ -161,3 +163,7 @@ def dashboard_view(request):
         "insights": insights,
     }
     return render(request, "app_web/dashboard.html", context)
+
+
+def health_view(request):
+    return HttpResponse("ok", content_type="text/plain")
