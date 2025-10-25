@@ -1,12 +1,15 @@
 # app_core/models.py
 from django.db import models
+from django.contrib.auth import get_user_model
+User = get_user_model()
 
 class Transaction(models.Model):
     INFLOW = "inflow"
     OUTFLOW = "outflow"
     DIRECTION_CHOICES = [(INFLOW, "Inflow"), (OUTFLOW, "Outflow")]
 
-    user_id = models.IntegerField()  # simple for MVP; replace with FK when auth lands
+    #user_id = models.IntegerField()  # simple for MVP; replace with FK when auth lands
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="transactions")
     date = models.DateField(db_index=True)
     description = models.CharField(max_length=512)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
@@ -19,8 +22,8 @@ class Transaction(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["user_id", "date"]),
-            models.Index(fields=["user_id", "category"]),
+            models.Index(fields=["user", "date"]),
+            models.Index(fields=["user", "category"]),
         ]
         ordering = ["-date", "-id"]
 
@@ -30,7 +33,8 @@ class Transaction(models.Model):
 
 class Rule(models.Model):
     # very simple MVP rules: substring/regex → category/subcategory
-    user_id = models.IntegerField()
+    #user_id = models.IntegerField()
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rules")
     pattern = models.CharField(max_length=256, help_text="Substring or regex to match in description.")
     is_regex = models.BooleanField(default=False)
     category = models.CharField(max_length=128)
@@ -42,8 +46,8 @@ class Rule(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["user_id", "priority"]),
-            models.Index(fields=["user_id", "pattern"]),
+            models.Index(fields=["user", "priority"]),
+            models.Index(fields=["user", "pattern"]),
         ]
         ordering = ["priority", "id"]
 

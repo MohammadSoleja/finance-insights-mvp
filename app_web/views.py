@@ -2,6 +2,7 @@
 import base64, io
 
 import pandas as pd
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from .forms import UploadFileForm
 from app_core.ingest import validate_and_preview, _read_any, _coerce_types, dataframe_to_transactions
@@ -20,7 +21,11 @@ from app_core.insights import generate_insights
 
 from django.http import HttpResponse
 
+from django.contrib.auth.forms import UserCreationForm
+from django.shortcuts import redirect
+from django.contrib.auth import login
 
+@login_required
 def upload_view(request):
     context = {"title": "Upload Transactions"}
 
@@ -48,7 +53,7 @@ def upload_view(request):
         df = _read_any(fobj, filename)
         df, _ = _coerce_types(df)
 
-        rows = dataframe_to_transactions(df, user_id=1)  # TODO: replace with real user later
+        rows = dataframe_to_transactions(df, user_id=request.user)  # TODO: replace with real user later
         with dbtxn.atomic():
             Transaction.objects.bulk_create(rows, batch_size=1000)
 
@@ -94,18 +99,19 @@ def upload_view(request):
     context["form"] = UploadFileForm()
     return render(request, "app_web/upload.html", context)
 
+@login_required
 def dashboard_view(request):
     """
     Simple dashboard for user_id=1 (MVP). Supports optional ?freq=D|W|M
     """
-    user_id = 1  # TODO: replace with real auth later
+    user= request.user
     freq = request.GET.get("freq", "D").upper()
     if freq not in {"D", "W", "M"}:
         freq = "D"
 
     # Optional quick date filters (?days=30)
     days = request.GET.get("days")
-    q = Q(user_id=user_id)
+    q = Q(user=user)
     if days and str(days).isdigit():
         since = timezone.now().date() - timezone.timedelta(days=int(days))
         q &= Q(date__gte=since)
@@ -167,3 +173,14 @@ def dashboard_view(request):
 
 def health_view(request):
     return HttpResponse("ok", content_type="text/plain")
+
+def signup_view(request):
+    if request.method == "POST":
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()                     # creates the new user
+            login(request, user)
+            return redirect("app_web:dashboard")        # built-in auth route
+    else:
+        form = UserCreationForm()
+    return render(request, "registration/signup.html", {"form": form})

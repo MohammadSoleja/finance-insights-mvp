@@ -22,4 +22,5 @@ from django.urls import path, include
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("app_web.urls", namespace="app_web")),  # adds /upload/
+    path('accounts/', include("django.contrib.auth.urls")),
 ]

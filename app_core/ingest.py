@@ -99,7 +99,7 @@ def validate_and_preview(file_obj, filename: str) -> Dict:
         "cols": list(df.columns),
     }
 
-def dataframe_to_transactions(df: pd.DataFrame, user_id: int = 1) -> Iterable[Transaction]:
+def dataframe_to_transactions(df, user) -> Iterable[Transaction]:
     """
     Map a validated/cleaned DataFrame into Transaction model instances (unsaved).
     Assumes columns: date, description, amount, direction, category?, subcategory?, account?, source?
@@ -115,7 +115,7 @@ def dataframe_to_transactions(df: pd.DataFrame, user_id: int = 1) -> Iterable[Tr
         direction = r.get("direction") or ("inflow" if amount >= 0 else "outflow")
         rows.append(
             Transaction(
-                user_id=user_id,
+                user=user,
                 date=r.get("date"),
                 description=str(r.get("description") or "")[:512],
                 amount=amount.copy_abs(),  # store absolute; use direction for sign
