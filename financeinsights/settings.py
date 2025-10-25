@@ -81,11 +81,12 @@ WSGI_APPLICATION = "financeinsights.wsgi.application"
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 # Database: use DATABASE_URL if provided; else fallback to SQLite
+db_url = os.getenv("DATABASE_URL", "").strip()
+if not db_url:
+    db_url = f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
+
 DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
-    )
+    "default": dj_database_url.parse(db_url, conn_max_age=600),
 }
 
 
