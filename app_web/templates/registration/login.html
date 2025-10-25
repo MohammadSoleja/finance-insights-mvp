@@ -1,0 +1,57 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sign in — Finance Insights</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; display:flex; justify-content:center; }
+    .card { width: 420px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.25rem; background:#fff; }
+    h1 { margin: 0 0 .75rem 0; font-size: 1.6rem; }
+    .field { margin-bottom: .75rem; }
+    input[type=text], input[type=password] {
+      width: 100%;
+      padding: .7rem .8rem;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      font-size: 1rem;
+      outline: none;
+    }
+    input[type=text]::placeholder, input[type=password]::placeholder { color: #9ca3af; }
+    .btn {
+      width: 100%; padding: .75rem 1rem; border-radius: 10px; border: 0;
+      background: #000000; color: #fff; font-weight: 600; cursor: pointer;
+    }
+    .help { margin-top: .75rem; color: #6b7280; }
+    .errorlist { color: #b91c1c; margin: .5rem 0; list-style: none; padding: 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Sign in</h1>
+
+    {% if form.non_field_errors %}
+      <ul class="errorlist">
+        {% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="field">
+        {{ form.username }}  {# placeholders are set in the form class #}
+        {% for e in form.username.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="field">
+        {{ form.password }}
+        {% for e in form.password.errors %}<div class="errorlist">{{ e }}</div>{% endfor %}
+      </div>
+      <button class="btn" type="submit">Sign in</button>
+    </form>
+
+    <div class="help">Don’t have an account? <a href="{% url 'app_web:signup' %}">Create one</a></div>
+  </div>
+</body>
+</html>

@@ -61,6 +61,23 @@
   {% endif %}
 </div>
 
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+  <div><a class="btn" href="{% url 'app_web:upload' %}">Upload</a></div>
+  <div class="muted">
+    {% if request.user.is_authenticated %}
+      Signed in as <strong>{{ request.user.username }}</strong> —
+      <form method="post" action="{% url 'logout' %}" style="display:inline;">
+    {% csrf_token %}
+    <button type="submit" style="background:none;border:none;color:#2563eb;cursor:pointer;padding:0;">
+      Logout
+    </button>
+  </form>
+{% else %}
+  <a href="{% url 'login' %}">Login</a>
+{% endif %}
+  </div>
+</div>
+
   <!-- Embed data as JSON (no inline executable JS) -->
   <script id="chart-data" type="application/json">{{ chart_payload }}</script>
   <!-- Our app JS -->
