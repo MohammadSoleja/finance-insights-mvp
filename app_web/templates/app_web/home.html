@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>Finance Insights — Personal finance dashboard</title>
+    <style>
+      :root { --brand: #3b82f6; --text: #111827; --muted: #6b7280; --border: #e5e7eb; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'; color: var(--text); }
+      a { color: inherit; }
+      .wrap { max-width: 1000px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+      .nav { display: flex; align-items: center; justify-content: space-between; padding: 1rem 0; }
+      .brand { font-weight: 700; letter-spacing: .2px; }
+      .hero { display: grid; gap: 2rem; grid-template-columns: 1fr; align-items: center; padding: 2rem 0 0; }
+      .h1 { font-size: clamp(1.8rem, 3.2vw, 2.6rem); line-height: 1.15; margin: 0 0 .5rem; }
+      .tag { font-size: 1.05rem; color: var(--muted); margin: 0 0 1.25rem; }
+      .cta { display:flex; gap:.75rem; flex-wrap:wrap; }
+      .btn { padding: .75rem 1.1rem; border-radius: .65rem; text-decoration: none; display:inline-block; }
+      .btn-primary { background: var(--brand); color: #fff; }
+      .btn-ghost { border: 1px solid var(--border); }
+      .cards { border:1px solid var(--border); border-radius:.8rem; padding:1rem; }
+      .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+      .card { padding:.75rem; border:1px solid #f3f4f6; border-radius:.6rem; }
+      .muted { color: var(--muted); }
+      @media (min-width: 900px) {
+        .hero { grid-template-columns: 1.1fr 0.9fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="nav">
+        <div class="brand">Finance Insights</div>
+        <nav>
+          {% if request.user.is_authenticated %}
+            <a class="btn btn-ghost" href="/dashboard/">Dashboard</a>
+          {% else %}
+            <a class="btn btn-ghost" href="/login/">Log in</a>
+          {% endif %}
+        </nav>
+      </header>
+
+      <main class="hero">
+        <section>
+          <h1 class="h1">Turn your bank exports into insight.</h1>
+          <p class="tag">
+            Upload your transaction CSV/Excel files, visualize inflows/outflows, and get AI-style insights — all in one simple dashboard.
+          </p>
+
+          <div class="cta">
+            <a class="btn btn-primary" href="/upload/">Get Started</a>
+            {% if request.user.is_authenticated %}
+              <a class="btn btn-ghost" href="/dashboard/">Go to Dashboard</a>
+            {% endif %}
+          </div>
+
+          <ul style="margin: 1.4rem 0 0 1.1rem; line-height: 1.7;">
+            <li>Secure sign-in — your data stays in your account.</li>
+            <li>Fast CSV/Excel upload with sensible defaults.</li>
+            <li>Trends, category breakdowns, and monthly summaries.</li>
+          </ul>
+        </section>
+
+        <aside class="cards" aria-hidden="true">
+          <div class="grid2">
+            <div class="card">
+              <div class="muted">This Month</div>
+              <div style="font-weight:600;">£2,340 out • £2,980 in</div>
+            </div>
+            <div class="card">
+              <div class="muted">Top Category</div>
+              <div style="font-weight:600;">Groceries • £410</div>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+  </body>
+</html>

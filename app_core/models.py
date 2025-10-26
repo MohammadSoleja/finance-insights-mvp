@@ -52,7 +52,6 @@ class Rule(models.Model):
         ordering = ["priority", "id"]
 
     def __str__(self):
-        return f"[{self.user_id}] {self.pattern} → {self.category}/{self.subcategory or '-'}"
-from django.db import models
-
-# Create your models here.
+        # user is a FK; show user id if available
+        uid = getattr(self.user, "id", None)
+        return f"[{uid}] {self.pattern} \u2192 {self.category}/{self.subcategory or '-'}"

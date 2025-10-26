@@ -1,7 +1,7 @@
 # app_web/views.py
 import base64, io
 
-import pandas as pd
+# pandas is not used in this module; removed unused import
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from .forms import UploadFileForm
@@ -15,6 +15,7 @@ from app_core.metrics import queryset_to_df, kpis as kpi_calc, timeseries, by_ca
 
 import math
 import json
+import datetime
 from django.utils.safestring import mark_safe
 
 from app_core.insights import generate_insights
@@ -53,7 +54,8 @@ def upload_view(request):
         df = _read_any(fobj, filename)
         df, _ = _coerce_types(df)
 
-        rows = dataframe_to_transactions(df, user_id=request.user)  # TODO: replace with real user later
+        # dataframe_to_transactions signature is (df, user)
+        rows = dataframe_to_transactions(df, request.user)  # pass the User instance
         with dbtxn.atomic():
             Transaction.objects.bulk_create(rows, batch_size=1000)
 
@@ -113,7 +115,7 @@ def dashboard_view(request):
     days = request.GET.get("days")
     q = Q(user=user)
     if days and str(days).isdigit():
-        since = timezone.now().date() - timezone.timedelta(days=int(days))
+        since = timezone.now().date() - datetime.timedelta(days=int(days))
         q &= Q(date__gte=since)
 
     qs = Transaction.objects.filter(q).order_by("date")
@@ -184,3 +186,7 @@ def signup_view(request):
     else:
         form = UserCreationForm()
     return render(request, "registration/signup.html", {"form": form})
+
+def home_view(request):
+    """Public landing page."""
+    return render(request, "app_web/home.html")
