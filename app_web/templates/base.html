@@ -1,0 +1,42 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Finance Insights{% endblock %}</title>
+  {# Add a small cache-busting query param while actively developing CSS #}
+  <link rel="stylesheet" href="{% static 'app_web/styles.css' %}?v=3">
+
+  <!-- Development override (ensures our app brand rules take precedence) -->
+  <style>
+    :root{ --brand: #111827; --accent: #2563eb; }
+    body { color: var(--brand) !important; }
+    h1, h2, h3 { color: var(--brand) !important; }
+    h1 { font-size: clamp(1.8rem, 3.2vw, 2.6rem) !important; font-weight: 700 !important; }
+    .wrap { max-width: 1400px !important; }
+    .site-header .site-brand a { color: var(--brand) !important; }
+    .nav-link, .nav-logout { color: var(--brand) !important; background: transparent !important; }
+    .btn-primary { background: var(--accent) !important; }
+    a { color: inherit !important; }
+  </style>
+
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap site-nav">
+      {% include "partials/_nav.html" %}
+    </div>
+  </header>
+
+  <main class="wrap" id="content">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block scripts %}{% endblock %}
+
+  {# Always include the nav dropdown script so it works even if a child template overrides scripts #}
+  <script src="{% static 'app_web/nav.js' %}"></script>
+</body>
+</html>

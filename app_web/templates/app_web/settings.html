@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Settings — Finance Insights{% endblock %}
+
+{% block content %}
+  <h1>Settings</h1>
+  <div class="card">
+    <form method="post">
+      {% csrf_token %}
+      <label>First name</label>
+      <input type="text" name="first_name" value="{{ request.user.first_name }}" />
+      <label style="display:block; margin-top:.5rem">Email</label>
+      <input type="email" name="email" value="{{ request.user.email }}" />
+      <div style="margin-top:.75rem">
+        <button class="btn btn-primary" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}
+

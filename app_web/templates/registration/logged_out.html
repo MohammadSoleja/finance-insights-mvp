@@ -1,5 +1,9 @@
-<!doctype html>
-<html><body style="font-family:system-ui;margin:2rem">
-  <h2>You’ve been signed out</h2>
-  <p><a href="{% url 'login' %}">Sign in again</a></p>
-</body></html>
+{% extends "base.html" %}
+{% block title %}Signed out — Finance Insights{% endblock %}
+
+{% block content %}
+  <div class="mt-1">
+    <h2>You’ve been signed out</h2>
+    <p><a href="{% url 'login' %}">Sign in again</a></p>
+  </div>
+{% endblock %}
