@@ -99,7 +99,7 @@ def validate_and_preview(file_obj, filename: str) -> Dict:
         "cols": list(df.columns),
     }
 
-def dataframe_to_transactions(df, user) -> Iterable[Transaction]:
+def dataframe_to_transactions(df, user) -> list[Transaction]:
     """
     Map a validated/cleaned DataFrame into Transaction model instances (unsaved).
     Assumes columns: date, description, amount, direction, category?, subcategory?, account?, source?
