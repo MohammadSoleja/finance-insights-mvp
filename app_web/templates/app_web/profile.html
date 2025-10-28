@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Profile — Finance Insights{% endblock %}
+
+{% block content %}
+  <h1>Profile</h1>
+  <div class="card">
+    <p><strong>Username:</strong> {{ request.user.username }}</p>
+    <p><strong>Email:</strong> {{ request.user.email }}</p>
+    <p><strong>First name:</strong> {{ request.user.first_name }}</p>
+  </div>
+{% endblock %}
+

@@ -3,6 +3,7 @@ import base64, io
 
 # pandas is not used in this module; removed unused import
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.shortcuts import render
 from .forms import UploadFileForm
 from app_core.ingest import validate_and_preview, _read_any, _coerce_types, dataframe_to_transactions
@@ -190,3 +191,22 @@ def signup_view(request):
 def home_view(request):
     """Public landing page."""
     return render(request, "app_web/home.html")
+
+@login_required
+def profile_view(request):
+    return render(request, "app_web/profile.html", {"title": "Profile"})
+
+@login_required
+def settings_view(request):
+    if request.method == "POST":
+        first = request.POST.get("first_name", "").strip()
+        email = request.POST.get("email", "").strip()
+        user = request.user
+        if first:
+            user.first_name = first
+        if email:
+            user.email = email
+        user.save()
+        messages.success(request, "Profile updated")
+        return redirect("app_web:settings")
+    return render(request, "app_web/settings.html", {"title": "Settings"})
