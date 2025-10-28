@@ -17,13 +17,13 @@
 
 {% block content %}
   <h1>Dashboard</h1>
-  <div class="toolbar">
-    <a class="btn" href="?freq=D">Daily</a>
-    <a class="btn" href="?freq=W">Weekly</a>
-    <a class="btn" href="?freq=M">Monthly</a>
+  <div class="toolbar" role="tablist" aria-label="Frequency">
+    <a class="btn" href="?freq=D" {% if freq == 'D' %}aria-current="page"{% endif %}>Daily</a>
+    <a class="btn" href="?freq=W" {% if freq == 'W' %}aria-current="page"{% endif %}>Weekly</a>
+    <a class="btn" href="?freq=M" {% if freq == 'M' %}aria-current="page"{% endif %}>Monthly</a>
   </div>
 
-  <div class="grid">
+  <div class="kpi-grid">
     <div class="card"><div class="muted">Total Inflow</div><div class="kpi">£{{ kpi.inflow }}</div></div>
     <div class="card"><div class="muted">Total Outflow</div><div class="kpi">£{{ kpi.outflow }}</div></div>
     <div class="card"><div class="muted">Net</div><div class="kpi">£{{ kpi.net }}</div></div>
@@ -34,11 +34,11 @@
   <div class="charts">
     <div class="card">
       <h3>Revenue vs Expenses vs Net</h3>
-      <canvas id="tsChart"></canvas>
+      <div class="chart-wrap"><canvas id="tsChart" aria-label="Time series chart" role="img"></canvas></div>
     </div>
     <div class="card">
       <h3>Top Categories</h3>
-      <canvas id="catChart"></canvas>
+      <div class="chart-wrap"><canvas id="catChart" aria-label="Top categories chart" role="img"></canvas></div>
     </div>
   </div>
 
