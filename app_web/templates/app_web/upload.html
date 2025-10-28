@@ -21,6 +21,26 @@
         <ul class="errorlist">
           {% for e in errors %}<li>{{ e }}</li>{% endfor %}
         </ul>
+        {% if result.example_header %}
+          <div style="margin-top:.5rem">
+            <strong>Example header found:</strong>
+            <pre style="white-space:pre-wrap;padding:.5rem;border:1px solid var(--border);border-radius:6px;background:#fafafa">{{ result.example_header }}</pre>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if result.rejected_count and result.rejected_count > 0 %}
+      <div class="warn" style="margin-top:.5rem">
+        <strong>Rejected rows:</strong> {{ result.rejected_count }} rows were rejected during validation.
+        <ul>
+          {% for item in result.rejection_summary %}
+            <li>{{ item.count }} × {{ item.reason }}</li>
+          {% endfor %}
+        </ul>
+        {% if result.rejected_csv_b64 %}
+          <a class="btn btn-ghost" href="data:text/csv;base64,{{ result.rejected_csv_b64 }}" download="rejected_rows.csv">Download rejected rows (CSV)</a>
+        {% endif %}
       </div>
     {% endif %}
 
