@@ -1,5 +1,5 @@
 from django.urls import path, include
-from .views import upload_view, dashboard_view, health_view, signup_view, home_view, profile_view, settings_view
+from .views import upload_view, dashboard_view, health_view, signup_view, home_view, profile_view, settings_view, transactions_view
 from .forms import LoginForm
 from django.contrib.auth import views as auth_views
 
@@ -9,6 +9,7 @@ app_name = "app_web"
 urlpatterns = [
     path("upload/", upload_view, name="upload"),
     path("dashboard/", dashboard_view, name="dashboard"),
+    path("transactions/", transactions_view, name="transactions"),
     path("health/", health_view, name="health"),
     path("", home_view, name="home"),
     # Override the default login so we can use our form with placeholders

@@ -1,12 +1,17 @@
 {% extends "base.html" %}
 {% block title %}{{ title|default:"Upload" }} — Finance Insights{% endblock %}
 
-{% block head_extra %}{% endblock %}
+{% block head_extra %}
+  <!-- flatpickr for consistent date picker -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+{% endblock %}
 
 {% block content %}
-  <h1>{{ title|default:"Upload Transactions" }}</h1>
 
+  <!-- Upload card (title inside box) -->
   <div class="card">
+    <h2 class="card-title">Upload Transactions</h2>
 
     {% if success %}
       <div class="success">
@@ -53,17 +58,22 @@
       </div>
     {% endif %}
 
-    <!-- Upload form -->
-    <form method="post" enctype="multipart/form-data" novalidate>
+    <!-- Modern dropzone upload -->
+    <form method="post" enctype="multipart/form-data" novalidate id="upload-form">
       {% csrf_token %}
-      <div class="row">
-        {{ form.file.label_tag }}<br>
-        {{ form.file }}
-        {% if form.file.help_text %}<div><small>{{ form.file.help_text }}</small></div>{% endif %}
-        {{ form.file.errors }}
-      </div>
-      <div class="row">
-        <button class="btn btn-primary" type="submit">Upload</button>
+      <div class="upload-inner">
+        <label class="dropzone" id="dropzone" for="id_file">
+          <div class="dz-inner">
+            <div class="dz-icon" aria-hidden="true">📁</div>
+            <div class="dz-note">Drop a CSV/XLSX here or click to select a file</div>
+            <div class="dz-filename" id="dz-filename" aria-live="polite"></div>
+          </div>
+          {{ form.file }}
+        </label>
+
+        <div>
+          <button class="btn btn-primary" type="submit">Upload</button>
+        </div>
       </div>
     </form>
 
@@ -90,4 +100,167 @@
     {% endif %}
 
   </div>
+
+  <!-- Separate Add Transaction card -->
+  {% if request.user.is_authenticated %}
+  <div class="card" style="margin-top:1.25rem;">
+    <h2 class="card-title">Add Transaction</h2>
+
+    <div id="add-errors" class="inline-errors" role="alert" aria-live="polite">
+      {% if add_errors %}
+        <ul>
+          {% for e in add_errors %}<li>{{ e }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <form method="post" class="mt-1" id="add-tx-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_tx">
+
+      <div class="form-row">
+        <label class="form-label" for="tx-date">Date</label>
+        <input id="tx-date" class="form-input" type="text" name="date" required />
+      </div>
+
+      <div class="form-row">
+        <label class="form-label" for="tx-desc">Description</label>
+        <input id="tx-desc" class="form-input" type="text" name="description" maxlength="512" required />
+      </div>
+
+      <div class="form-row" style="display:flex; gap:.75rem;">
+        <div style="flex:1">
+          <label class="form-label" for="tx-amount">Amount</label>
+          <input id="tx-amount" class="form-input" type="text" name="amount" placeholder="e.g. 123.45" required />
+        </div>
+
+        <div style="width:160px;">
+          <label class="form-label" for="tx-direction">Direction</label>
+          <select id="tx-direction" class="form-select" name="direction">
+            <option value="inflow">Inflow</option>
+            <option value="outflow">Outflow</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row" style="display:flex; gap:.75rem;">
+        <div style="flex:1">
+          <label class="form-label" for="tx-category">Category</label>
+          <input id="tx-category" class="form-input" type="text" name="category" />
+        </div>
+        <div style="flex:1">
+          <label class="form-label" for="tx-subcategory">Subcategory</label>
+          <input id="tx-subcategory" class="form-input" type="text" name="subcategory" />
+        </div>
+      </div>
+
+      <div class="form-row mt-1">
+        <button class="btn btn-primary" type="submit">Add transaction</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    // helper to get CSRF token from cookie (Django default)
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          // Does this cookie string begin with the name we want?
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    // Dropzone behavior (drag/drop + click to open)
+    (function(){
+      const dz = document.getElementById('dropzone');
+      const fileInput = document.getElementById('id_file');
+      const nameEl = document.getElementById('dz-filename');
+      if(!dz || !fileInput) return;
+
+      function setFilename(f){ if(f) nameEl.textContent = f.name; else nameEl.textContent = ''; }
+
+      dz.addEventListener('click', function(e){ fileInput.click(); });
+      dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('dragover'); });
+      dz.addEventListener('dragleave', function(e){ e.preventDefault(); dz.classList.remove('dragover'); });
+      dz.addEventListener('drop', function(e){
+        e.preventDefault(); dz.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if(files && files.length){
+          // use DataTransfer to set file input files
+          const dt = new DataTransfer();
+          for(let i=0;i<files.length;i++) dt.items.add(files[i]);
+          fileInput.files = dt.files;
+          setFilename(files[0]);
+        }
+      });
+
+      fileInput.addEventListener('change', function(){ const f = fileInput.files && fileInput.files[0]; setFilename(f); });
+    })();
+
+    // Initialize flatpickr on date field
+    (function(){
+      if(window.flatpickr){
+        flatpickr('#tx-date', { dateFormat: 'Y-m-d', defaultDate: new Date() });
+      }
+    })();
+
+    // Toast helper
+    function showToast(msg, type=''){
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'toast show ' + (type || '');
+      setTimeout(()=>{ el.className = 'toast'; }, 4500);
+    }
+
+    // AJAX submit for Add Transaction form
+    (function(){
+      const form = document.getElementById('add-tx-form');
+      const errorsEl = document.getElementById('add-errors');
+      if(!form) return;
+      form.addEventListener('submit', function(e){
+        e.preventDefault();
+        errorsEl.innerHTML = '';
+        const fd = new FormData(form);
+        fd.set('action', 'add_tx');
+        const url = window.location.pathname;
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: fd
+        }).then(async (res)=>{
+          const data = await res.json().catch(()=>null);
+          if(res.ok && data && data.ok){
+            showToast('Transaction added', 'success');
+            // clear form fields
+            form.reset();
+            if(window.flatpickr){ flatpickr('#tx-date').clear(); }
+          } else {
+            const errs = (data && data.errors) || ['Failed to save transaction'];
+            const ul = document.createElement('ul');
+            errs.forEach(err=>{ const li = document.createElement('li'); li.textContent = err; ul.appendChild(li); });
+            errorsEl.appendChild(ul);
+            showToast(errs.join('; '), 'error');
+          }
+        }).catch((err)=>{
+          errorsEl.textContent = 'Network error';
+          showToast('Network error', 'error');
+        });
+      });
+    })();
+  </script>
+
 {% endblock %}
