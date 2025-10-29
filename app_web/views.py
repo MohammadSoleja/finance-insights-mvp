@@ -8,6 +8,7 @@ from django.shortcuts import render
 from .forms import UploadFileForm
 from app_core.ingest import validate_and_preview, _read_any, _coerce_types, dataframe_to_transactions
 from django.db import transaction as dbtxn
+from decimal import Decimal
 
 from django.utils import timezone
 from django.db.models import Q
@@ -21,11 +22,12 @@ from django.utils.safestring import mark_safe
 
 from app_core.insights import generate_insights
 
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 
 from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import redirect
 from django.contrib.auth import login
+from django.core.paginator import Paginator
 
 @login_required
 def upload_view(request):
@@ -66,6 +68,108 @@ def upload_view(request):
             "form": UploadFileForm(),
         })
         return render(request, "app_web/upload.html", context, status=200)
+
+    if request.method == "POST" and request.POST.get("action") == "add_tx":
+        # Manual add single transaction
+        add_errors = []
+        date_str = request.POST.get("date", "").strip()
+        description = request.POST.get("description", "").strip()
+        amount_raw = request.POST.get("amount", "").strip()
+        direction = request.POST.get("direction")
+        category = request.POST.get("category", "").strip()
+        subcategory = request.POST.get("subcategory", "").strip()
+        account = request.POST.get("account", "").strip()
+        source = request.POST.get("source", "manual").strip()
+
+        # if no account provided, default to the logged-in user's username
+        if not account:
+            try:
+                account = request.user.username or ""  # fallback to empty string
+            except Exception:
+                account = ""
+
+        # validate date
+        tx_date = None
+        if not date_str:
+            add_errors.append("Date is required for a transaction.")
+        else:
+            try:
+                # accept ISO format YYYY-MM-DD
+                tx_date = datetime.date.fromisoformat(date_str)
+            except Exception:
+                try:
+                    tx_date = datetime.datetime.strptime(date_str, "%d/%m/%Y").date()
+                except Exception:
+                    add_errors.append("Invalid date format — use YYYY-MM-DD.")
+
+        # validate description
+        if not description:
+            add_errors.append("Description is required.")
+
+        # validate amount
+        tx_amount = None
+        if not amount_raw:
+            add_errors.append("Amount is required.")
+        else:
+            try:
+                amt_s = str(amount_raw).replace(",", "").replace("£", "").strip()
+                tx_amount = Decimal(amt_s)
+            except Exception:
+                add_errors.append("Invalid amount value.")
+
+        # infer/validate direction
+        if not direction:
+            if tx_amount is not None:
+                direction = Transaction.INFLOW if tx_amount >= 0 else Transaction.OUTFLOW
+            else:
+                direction = Transaction.INFLOW
+        else:
+            if direction not in {Transaction.INFLOW, Transaction.OUTFLOW}:
+                add_errors.append("Invalid direction selected.")
+
+        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
+        # If errors, return JSON for AJAX or render template with errors
+        if add_errors:
+            if is_ajax:
+                return JsonResponse({"ok": False, "errors": add_errors}, status=400)
+            context["add_errors"] = add_errors
+            context["form"] = UploadFileForm()
+            return render(request, "app_web/upload.html", context, status=400)
+
+        # create transaction
+        try:
+            tx = Transaction.objects.create(
+                user=request.user,
+                date=tx_date,
+                description=description[:512],
+                amount=abs(tx_amount),
+                direction=direction,
+                category=category,
+                subcategory=subcategory,
+                account=account,
+                source=source or "manual",
+            )
+            tx_data = {
+                "id": tx.id,
+                "date": str(tx.date),
+                "description": tx.description,
+                "amount": str(tx.amount),
+                "direction": tx.direction,
+                "category": tx.category,
+            }
+            if is_ajax:
+                return JsonResponse({"ok": True, "tx": tx_data})
+
+            context["add_success"] = True
+            context["added_tx"] = tx
+            context["form"] = UploadFileForm()
+        except Exception as e:
+            if is_ajax:
+                return JsonResponse({"ok": False, "errors": [f"Failed to save transaction: {e}"]}, status=500)
+            context["add_errors"] = ["Failed to save transaction: %s" % e]
+            context["form"] = UploadFileForm()
+        return render(request, "app_web/upload.html", context)
 
     if request.method == "POST":
         # First step: validate + preview
@@ -210,3 +314,52 @@ def settings_view(request):
         messages.success(request, "Profile updated")
         return redirect("app_web:settings")
     return render(request, "app_web/settings.html", {"title": "Settings"})
+
+@login_required
+def transactions_view(request):
+    """List transactions with search (description/category), sort, and pagination.
+    Query params:
+      q=text search
+      sort= date or amount (prefix - for desc)
+      page=page number
+      direction= inflow|outflow (optional)
+    """
+    qs = Transaction.objects.filter(user=request.user).order_by('-date')
+
+    q = request.GET.get('q', '').strip()
+    if q:
+        qs = qs.filter(Q(description__icontains=q) | Q(category__icontains=q))
+
+    # direction filter
+    direction = request.GET.get('direction', '').strip()
+    if direction in {Transaction.INFLOW, Transaction.OUTFLOW}:
+        qs = qs.filter(direction=direction)
+
+    sort = request.GET.get('sort', '')
+    if sort:
+        # allow 'date' or 'amount' with optional '-' prefix
+        if sort.lstrip('-') in {'date', 'amount'}:
+            qs = qs.order_by(sort)
+
+    # pagination
+    paginator = Paginator(qs, 20)
+    page_num = request.GET.get('page', '1')
+    try:
+        page = paginator.get_page(page_num)
+    except Exception:
+        page = paginator.get_page(1)
+
+    # preserve params for pagination links
+    params = request.GET.copy()
+    if 'page' in params:
+        params.pop('page')
+
+    context = {
+        'title': 'Transactions',
+        'page': page,
+        'q': q,
+        'sort': sort,
+        'direction': direction,
+        'params': params.urlencode(),
+    }
+    return render(request, 'app_web/transactions.html', context)

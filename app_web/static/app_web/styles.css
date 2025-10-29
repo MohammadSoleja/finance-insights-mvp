@@ -63,6 +63,22 @@ header.site-header { border-bottom: 1px solid var(--border); background: var(--b
 input[type="text"], input[type="password"], input[type="email"] { width: 100%; padding: .7rem .8rem; border: 1px solid #d1d5db; border-radius: 10px; font-size: 1rem; }
 .errorlist { color: #b91c1c; margin: .5rem 0; list-style: none; padding: 0; }
 
+/* Modern form controls (used on upload/add transaction) */
+.form-row { margin-bottom: .75rem; }
+.form-label { display:block; font-size: .9rem; color: var(--muted); margin-bottom: .35rem; }
+.form-input, .form-select, input[type="date"] {
+  width: 100%;
+  padding: .6rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: .95rem;
+  color: var(--brand);
+  transition: box-shadow .12s ease, border-color .12s ease;
+}
+.form-select { appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px); background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2.2rem; }
+.form-input:focus, .form-select:focus, input[type="date"]:focus { border-color: rgba(37,99,235,0.5); box-shadow: 0 4px 12px rgba(37,99,235,0.06); outline: none; }
+
 /* Accessibility focus */
 :focus { outline: 2px solid rgba(37,99,235,0.15); outline-offset: 2px; }
 
@@ -110,3 +126,47 @@ input[type="file"] { font-size: .95rem; }
   .chart-wrap { aspect-ratio: 4 / 3; }
   .h1 { font-size: 1.6rem; }
 }
+
+/* Card title to match page headings but inside cards */
+.card-title { font-size: 1.25rem; margin: 0 0 0.75rem; font-weight: 700; }
+
+/* Upload-specific: center content inside upload card and style dropzone */
+.upload-inner { display:flex; flex-direction:column; align-items:center; gap:1rem; }
+.dropzone {
+  width:100%;
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--muted);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.dropzone:hover { border-color: rgba(37,99,235,0.4); box-shadow: 0 6px 18px rgba(37,99,235,0.04); }
+.dropzone .dz-inner { display:flex; flex-direction:column; gap:.25rem; align-items:center; }
+.dropzone .dz-note { font-size:.95rem; color:var(--muted); }
+.dropzone input[type="file"] { position:absolute; left:-9999px; }
+
+/* when a filename is shown */
+.dropzone .dz-filename { font-weight:600; color:var(--brand); }
+
+/* Make select and date controls match the modern input style inside cards */
+.card .form-input, .card .form-select, .card input[type="date"] { background:#fff; }
+
+/* small screens: ensure dropzone fills card width */
+@media (max-width: 560px) {
+  .dropzone { padding: 1rem; }
+}
+
+/* Dropzone dragover state */
+.dropzone.dragover { border-color: var(--accent); background: #f7fbff; box-shadow: 0 8px 20px rgba(37,99,235,0.06); }
+
+/* Toast / inline notifications */
+.toast { position: fixed; right: 1.25rem; bottom: 1.25rem; background: #111827; color: #fff; padding: .75rem 1rem; border-radius: 10px; box-shadow: 0 8px 30px rgba(16,24,40,0.12); display:none; z-index:1000; }
+.toast.show { display:block; transform: translateY(0); opacity: 1; }
+.toast.success { background: var(--accent); }
+.toast.error { background: #b91c1c; }
+
+/* Small helper for inline form error list */
+.inline-errors { color: #b91c1c; margin: .5rem 0; list-style: none; padding: 0; }

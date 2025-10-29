@@ -12,6 +12,12 @@
         <a class="nav-link" href="/dashboard/">Dashboard</a>
       {% endif %}
 
+      {% if path|slice:":14" == '/transactions/' %}
+        <a class="nav-link" href="/transactions/" aria-current="page">Transactions</a>
+      {% else %}
+        <a class="nav-link" href="/transactions/">Transactions</a>
+      {% endif %}
+
       {% if path|slice:":8" == '/upload/' %}
         <a class="nav-link" href="/upload/" aria-current="page">Upload</a>
       {% else %}
