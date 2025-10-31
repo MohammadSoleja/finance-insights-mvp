@@ -1,5 +1,6 @@
 from django.urls import path, include
 from .views import upload_view, dashboard_view, health_view, signup_view, home_view, profile_view, settings_view, transactions_view
+from .views import transaction_edit_view, transaction_delete_view, transaction_bulk_edit_view
 from .forms import LoginForm
 from django.contrib.auth import views as auth_views
 
@@ -10,6 +11,9 @@ urlpatterns = [
     path("upload/", upload_view, name="upload"),
     path("dashboard/", dashboard_view, name="dashboard"),
     path("transactions/", transactions_view, name="transactions"),
+    path("transactions/<int:tx_id>/edit/", transaction_edit_view, name="transaction_edit"),
+    path("transactions/<int:tx_id>/delete/", transaction_delete_view, name="transaction_delete"),
+    path("transactions/bulk_edit/", transaction_bulk_edit_view, name="transaction_bulk_edit"),
     path("health/", health_view, name="health"),
     path("", home_view, name="home"),
     # Override the default login so we can use our form with placeholders

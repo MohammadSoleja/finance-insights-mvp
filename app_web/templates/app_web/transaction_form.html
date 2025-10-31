@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Edit Transaction — Finance Insights{% endblock %}
+
+{% block content %}
+  <h1>Edit Transaction</h1>
+  <div class="card">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      <div class="form-row">
+        {{ form.date.label_tag }}
+        {{ form.date }}
+        {{ form.date.errors }}
+      </div>
+      <div class="form-row">
+        {{ form.description.label_tag }}
+        {{ form.description }}
+        {{ form.description.errors }}
+      </div>
+      <div class="form-row">
+        {{ form.amount.label_tag }}
+        {{ form.amount }}
+        {{ form.amount.errors }}
+      </div>
+      <div class="form-row">
+        {{ form.direction.label_tag }}
+        {{ form.direction }}
+        {{ form.direction.errors }}
+      </div>
+      <div class="form-row">
+        {{ form.category.label_tag }}
+        {{ form.category }}
+        {{ form.category.errors }}
+      </div>
+      <div class="form-row">
+        {{ form.subcategory.label_tag }}
+        {{ form.subcategory }}
+        {{ form.subcategory.errors }}
+      </div>
+
+      <div class="form-actions" style="margin-top:1rem;">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn" href="/transactions/{% if params %}?{{ params }}{% endif %}">Cancel</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

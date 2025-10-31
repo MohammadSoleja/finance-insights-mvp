@@ -4,8 +4,8 @@ import base64, io
 # pandas is not used in this module; removed unused import
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.shortcuts import render
-from .forms import UploadFileForm
+from django.shortcuts import render, get_object_or_404, redirect
+from .forms import UploadFileForm, TransactionForm
 from app_core.ingest import validate_and_preview, _read_any, _coerce_types, dataframe_to_transactions
 from django.db import transaction as dbtxn
 from decimal import Decimal
@@ -25,7 +25,6 @@ from app_core.insights import generate_insights
 from django.http import HttpResponse, JsonResponse
 
 from django.contrib.auth.forms import UserCreationForm
-from django.shortcuts import redirect
 from django.contrib.auth import login
 from django.core.paginator import Paginator
 
@@ -323,6 +322,7 @@ def transactions_view(request):
       sort= date or amount (prefix - for desc)
       page=page number
       direction= inflow|outflow (optional)
+      start_date, end_date = optional YYYY-MM-DD bounds
     """
     qs = Transaction.objects.filter(user=request.user).order_by('-date')
 
@@ -334,6 +334,22 @@ def transactions_view(request):
     direction = request.GET.get('direction', '').strip()
     if direction in {Transaction.INFLOW, Transaction.OUTFLOW}:
         qs = qs.filter(direction=direction)
+
+    # date range filters (optional)
+    start_date = request.GET.get('start_date', '').strip()
+    end_date = request.GET.get('end_date', '').strip()
+    try:
+        if start_date:
+            sd = datetime.date.fromisoformat(start_date)
+            qs = qs.filter(date__gte=sd)
+    except Exception:
+        sd = None
+    try:
+        if end_date:
+            ed = datetime.date.fromisoformat(end_date)
+            qs = qs.filter(date__lte=ed)
+    except Exception:
+        ed = None
 
     sort = request.GET.get('sort', '')
     if sort:
@@ -361,5 +377,135 @@ def transactions_view(request):
         'sort': sort,
         'direction': direction,
         'params': params.urlencode(),
+        'start_date': start_date,
+        'end_date': end_date,
     }
     return render(request, 'app_web/transactions.html', context)
+
+
+@login_required
+def transaction_edit_view(request, tx_id):
+    tx = get_object_or_404(Transaction, id=tx_id, user=request.user)
+    # Determine redirect params: prefer POST.next (modal submit) else GET params
+    if request.method == 'POST':
+        next_params = request.POST.get('next', '')
+        form = TransactionForm(request.POST, instance=tx)
+        if form.is_valid():
+            form.save()
+            # If this is an AJAX request (modal), return JSON so the frontend can update in-place
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                tx.refresh_from_db()
+                return JsonResponse({
+                    'ok': True,
+                    'tx': {
+                        'id': tx.id,
+                        'date': str(tx.date),
+                        'description': tx.description,
+                        'amount': str(tx.amount),
+                        'direction': tx.direction,
+                        'category': tx.category,
+                        'subcategory': tx.subcategory,
+                    }
+                })
+            messages.success(request, 'Transaction updated')
+            url = '/transactions/' + (f'?{next_params}' if next_params else '')
+            return redirect(url)
+        else:
+            # If AJAX, return field errors as JSON so the modal can show them inline
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                # Convert form.errors (ErrorDict) to a simple dict of lists
+                errors = {k: [str(vv) for vv in v] for k, v in form.errors.items()}
+                return JsonResponse({'ok': False, 'errors': errors}, status=400)
+            messages.error(request, 'Please fix the errors below')
+        params = next_params
+    else:
+        params = request.GET.urlencode()
+        form = TransactionForm(instance=tx)
+    return render(request, 'app_web/transaction_form.html', {'form': form, 'tx': tx, 'params': params})
+
+
+@login_required
+def transaction_delete_view(request, tx_id):
+    # deletion should come as POST (csrf-protected). Accepts optional 'next' params to redirect back
+    tx = get_object_or_404(Transaction, id=tx_id, user=request.user)
+    next_params = request.POST.get('next', '') if request.method == 'POST' else request.GET.urlencode()
+    if request.method == 'POST':
+        # confirm deletion
+        try:
+            tx.delete()
+            messages.success(request, 'Transaction deleted')
+        except Exception as e:
+            messages.error(request, f'Failed to delete transaction: {e}')
+        url = '/transactions/' + (f'?{next_params}' if next_params else '')
+        return redirect(url)
+    # For GET, render a small confirm page (not usually used because we'll use modal)
+    return render(request, 'app_web/transaction_confirm_delete.html', {'tx': tx, 'params': next_params})
+
+@login_required
+def transaction_bulk_edit_view(request):
+    """Apply bulk edits to selected transactions. Expects POST with 'ids' (comma-separated) and optional fields to update: date, description, amount, direction, category, subcategory. Only non-empty fields will be applied."""
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request')
+        return redirect('/transactions/')
+
+    ids_raw = request.POST.get('ids', '')
+    next_params = request.POST.get('next', '')
+    if not ids_raw:
+        messages.error(request, 'No transactions selected for bulk edit')
+        return redirect('/transactions/' + (f'?{next_params}' if next_params else ''))
+
+    ids = [int(x) for x in ids_raw.split(',') if x.strip().isdigit()]
+    if not ids:
+        messages.error(request, 'No valid transactions selected')
+        return redirect('/transactions/' + (f'?{next_params}' if next_params else ''))
+
+    # Collect fields
+    updates = {}
+    date = request.POST.get('date','').strip()
+    if date:
+        try:
+            updates['date'] = datetime.date.fromisoformat(date)
+        except Exception:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'ok': False, 'errors': {'date': ['Invalid date format']}}, status=400)
+            messages.error(request, 'Invalid date format for bulk edit')
+            return redirect('/transactions/' + (f'?{next_params}' if next_params else ''))
+    desc = request.POST.get('description','').strip()
+    if desc:
+        updates['description'] = desc[:512]
+    amount = request.POST.get('amount','').strip()
+    if amount:
+        try:
+            amt = Decimal(str(amount).replace(',','').replace('£','').strip())
+            updates['amount'] = abs(amt)
+        except Exception:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'ok': False, 'errors': {'amount': ['Invalid amount format']}}, status=400)
+            messages.error(request, 'Invalid amount for bulk edit')
+            return redirect('/transactions/' + (f'?{next_params}' if next_params else ''))
+    direction = request.POST.get('direction','').strip()
+    if direction in {Transaction.INFLOW, Transaction.OUTFLOW}:
+        updates['direction'] = direction
+    category = request.POST.get('category','').strip()
+    if category:
+        updates['category'] = category
+    subcategory = request.POST.get('subcategory','').strip()
+    if subcategory:
+        updates['subcategory'] = subcategory
+
+    if not updates:
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'ok': False, 'errors': {'__all__': ['No fields provided to update']}}, status=400)
+        messages.error(request, 'No fields provided to update')
+        return redirect('/transactions/' + (f'?{next_params}' if next_params else ''))
+
+    # Apply updates only to transactions owned by the user
+    qs = Transaction.objects.filter(id__in=ids, user=request.user)
+    # Ensure updated_at is updated for bulk operations
+    updates['updated_at'] = timezone.now()
+    count = qs.update(**updates)
+    # For AJAX requests, return JSON with list of affected ids and applied updates so the frontend can update rows
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'ok': True, 'updated_count': count, 'updated_ids': ids, 'applied': updates})
+    messages.success(request, f'Updated {count} transaction(s)')
+    return redirect('/transactions/' + (f'?{next_params}' if next_params else ''))
