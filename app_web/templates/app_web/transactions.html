@@ -11,7 +11,7 @@
   <style>
      :root { --brand: #111827; --muted: #6b7280; }
      /* Responsive grid layout for toolbar (Actions | Search | Start | End | Direction | Sort) */
-    .toolbar { display: grid !important;
+    .toolbar { display: grid !important; grid-auto-rows: auto !important;
                /* search | start | end | direction | sort | actions (actions last)
                   make start/end date columns smaller and slightly tighten spacing */
                grid-template-columns: minmax(160px,250px) 115px 115px 100px 130px auto !important;
@@ -20,11 +20,11 @@
      /* Make all toolbar controls the same height, padding and baseline so they align */
      .toolbar { align-items: center !important; }
      /* uniform sizing for precise alignment */
-     .toolbar > * { min-height: 52px !important; display: inline-flex !important; align-items: center !important; }
-     .toolbar .field-group { height: 52px !important; display: inline-flex !important; align-items: center !important; gap: .5rem !important; }
+     .toolbar > * { min-height: 44px !important; display: inline-flex !important; align-items: center !important; }
+     .toolbar .field-group { height: 44px !important; display: inline-flex !important; align-items: center !important; gap: .4rem !important; }
     /* allow controls to shrink and not force the grid to overflow; increase size for readability */
-    /* Moderate input sizing so toolbar fits comfortably */
-    .toolbar .form-input, .toolbar .form-select, .toolbar .form-date { width: 100% !important; max-width: 100% !important; min-width: 0 !important; box-sizing: border-box !important; color: var(--brand) !important; font-size: 1.00rem !important; background: #fff !important; height: 48px !important; padding: 10px 12px !important; line-height: 1 !important; display: inline-flex !important; align-items: center !important; vertical-align: middle !important; border-radius: 8px !important; }
+    /* Compact input sizing so toolbar fits comfortably */
+    .toolbar .form-input, .toolbar .form-select, .toolbar .form-date { width: 100% !important; max-width: 100% !important; min-width: 0 !important; box-sizing: border-box !important; color: var(--brand) !important; font-size: 0.95rem !important; background: #fff !important; height: 40px !important; padding: 8px 10px !important; line-height: 1 !important; display: inline-flex !important; align-items: center !important; vertical-align: middle !important; border-radius: 6px !important; }
     /* ensure sr-only labels don't take space */
     .toolbar .field-group > label.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; border: 0 !important; }
     /* Ensure inner text vertically centers consistently across browsers */
@@ -34,13 +34,27 @@
     .toolbar .form-input::placeholder, .toolbar .form-date::placeholder { line-height: 1 !important; }
     /* Remove any baseline shift and ensure consistent font metrics */
     .toolbar input, .toolbar select { font-family: inherit !important; font-size: 0.95rem !important; vertical-align: middle !important; box-sizing: border-box !important; }
-     /* Ensure buttons match input height but are compact */
-     .toolbar .btn, .toolbar .btn-primary { height: 48px !important; padding: 8px 14px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; border-radius: 8px !important; font-size:1.00rem !important; }
+     /* Keep default .btn sizing; only override the secondary toolbar buttons so they visually match Reset/Apply */
+     .toolbar-secondary .btn {
+       height: 40px !important;
+       padding: 6px 12px !important;
+       display: inline-flex !important;
+       align-items: center !important;
+       justify-content: center !important;
+       border-radius: 6px !important;
+       font-size: 0.95rem !important;
+       box-sizing: border-box !important;
+       width: auto !important; /* let width be content-based so it matches Reset/Apply */
+     }
      /* Remove default margins from inputs/selects */
      .toolbar input, .toolbar select { margin: 0 !important; }
      .toolbar label { color: var(--muted) !important; }
     /* keep actions aligned to the end and give buttons spacing */
-    .toolbar-actions { justify-self: end !important; display: flex !important; gap: .75rem !important; }
+    .toolbar-actions { justify-self: end !important; display: flex !important; gap: .6rem !important; }
+    /* Secondary toolbar (below filters) for columns/edit/delete; right-aligned under Reset/Apply */
+    .toolbar-secondary { display:flex; gap:.5rem; align-items:center; margin-top:.5rem; justify-content:flex-end; }
+    @media (max-width:900px){ .toolbar-secondary{ flex-wrap:wrap; gap:.5rem; } }
+    @media (max-width:720px){ .toolbar-secondary{ grid-column:1/-1 !important; grid-row:auto !important; justify-self:flex-start !important; } }
      .toolbar * { align-self: center !important; }
      /* Ensure the visible text (values) inside the date inputs have the same color */
      .toolbar input, .toolbar select, .toolbar .flatpickr-input { color: var(--brand) !important; }
@@ -160,28 +174,53 @@
         </select>
       </div>
 
-      <!-- Actions at the end: Edit, Delete, Reset, Apply -->
+      <!-- Actions at the end: Reset & Apply (compact) -->
       <div class="toolbar-actions" style="display:flex; gap:.5rem; align-items:center;">
-        <div style="display:flex; gap:.5rem;">
-          <button id="edit-selected" type="button" class="btn" disabled>Edit</button>
-          <button id="delete-selected" type="button" class="btn" disabled>Delete</button>
-        </div>
         <button id="reset-filters" type="button" class="btn" aria-label="Reset filters">Reset Filters</button>
         <button class="btn btn-primary" type="submit">Apply</button>
       </div>
 
     </form>
 
+    <!-- Secondary toolbar placed after the form so it appears under Reset/Apply and is right-aligned -->
+    <div class="toolbar-secondary" style="display:flex; justify-content:flex-end;">
+      {% if request.user.is_authenticated %}
+        <button id="add-tx-btn" type="button" class="btn btn-primary">Add Transaction</button>
+      {% endif %}
+      <button id="columns-btn" type="button" class="btn" aria-haspopup="dialog">Columns</button>
+      <button id="edit-selected" type="button" class="btn" disabled>Edit</button>
+      <button id="delete-selected" type="button" class="btn" disabled>Delete</button>
+    </div>
+
+
     <div class="tablewrap mt-1">
       <table class="preview-table">
         <thead>
           <tr>
             <th style="width:36px"><input id="select-all" type="checkbox" aria-label="Select all"></th>
-            <th style="width:120px">Date</th>
-            <th>Description</th>
-            <th style="width:180px">Category</th>
-            <th style="text-align:right; width:140px">Amount</th>
-            <th style="width:120px">Direction</th>
+            {% for col in columns %}
+              {% if col == 'date' %}
+                <th data-col="date" style="width:120px">{{ column_labels.date }}</th>
+              {% elif col == 'description' %}
+                <th data-col="description">{{ column_labels.description }}</th>
+              {% elif col == 'category' %}
+                <th data-col="category" style="width:180px">{{ column_labels.category }}</th>
+              {% elif col == 'subcategory' %}
+                <th data-col="subcategory">{{ column_labels.subcategory }}</th>
+              {% elif col == 'amount' %}
+                <th data-col="amount" style="text-align:right; width:140px">{{ column_labels.amount }}</th>
+              {% elif col == 'direction' %}
+                <th data-col="direction" style="width:120px">{{ column_labels.direction }}</th>
+              {% elif col == 'account' %}
+                <th data-col="account">{{ column_labels.account }}</th>
+              {% elif col == 'source' %}
+                <th data-col="source">{{ column_labels.source }}</th>
+              {% elif col == 'created_at' %}
+                <th data-col="created_at">{{ column_labels.created_at }}</th>
+              {% elif col == 'updated_at' %}
+                <th data-col="updated_at">{{ column_labels.updated_at }}</th>
+              {% endif %}
+            {% endfor %}
           </tr>
         </thead>
         <tbody>
@@ -198,14 +237,32 @@
                        data-subcategory="{{ t.subcategory|escape }}"
                        type="checkbox" aria-label="Select transaction {{ t.id }}">
               </td>
-               <td>{{ t.date|date:"M. d, Y" }}</td>
-               <td>{{ t.description }}</td>
-               <td>{{ t.category }}</td>
-               <td style="text-align:right">{{ t.amount }}</td>
-               <td>{{ t.direction }}</td>
+              {% for col in columns %}
+                {% if col == 'date' %}
+                  <td data-col="date">{{ t.date|date:"M. d, Y" }}</td>
+                {% elif col == 'description' %}
+                  <td data-col="description">{{ t.description }}</td>
+                {% elif col == 'category' %}
+                  <td data-col="category">{{ t.category }}</td>
+                {% elif col == 'subcategory' %}
+                  <td data-col="subcategory">{{ t.subcategory }}</td>
+                {% elif col == 'amount' %}
+                  <td data-col="amount" style="text-align:right">{{ t.amount }}</td>
+                {% elif col == 'direction' %}
+                  <td data-col="direction">{{ t.direction }}</td>
+                {% elif col == 'account' %}
+                  <td data-col="account">{{ t.account }}</td>
+                {% elif col == 'source' %}
+                  <td data-col="source">{{ t.source }}</td>
+                {% elif col == 'created_at' %}
+                  <td data-col="created_at">{{ t.created_at }}</td>
+                {% elif col == 'updated_at' %}
+                  <td data-col="updated_at">{{ t.updated_at }}</td>
+                {% endif %}
+              {% endfor %}
              </tr>
            {% empty %}
-             <tr><td colspan="6">No transactions found.</td></tr>
+             <tr><td colspan="{{ columns|length|add:'1' }}">No transactions found.</td></tr>
            {% endfor %}
         </tbody>
       </table>
@@ -299,8 +356,91 @@
      </div>
    </div>
 
+  <!-- Columns modal -->
+  <div id="columns-modal" class="modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); align-items:center; justify-content:center;">
+    <div role="document" class="card" style="max-width:520px; margin:auto;">
+      <div style="padding:1rem">
+        <h2>Choose columns</h2>
+        <form id="columns-form">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin-top:.5rem;">
+            {% for opt in all_columns %}
+              <label style="display:flex; align-items:center; gap:.5rem;">
+                {% if opt in columns %}
+                  <input type="checkbox" name="columns" value="{{ opt }}" checked>
+                {% else %}
+                  <input type="checkbox" name="columns" value="{{ opt }}">
+                {% endif %}
+                {% if opt == 'date' %}Date{% elif opt == 'description' %}Description{% elif opt == 'category' %}Category{% elif opt == 'subcategory' %}Subcategory{% elif opt == 'amount' %}Amount{% elif opt == 'direction' %}Direction{% elif opt == 'account' %}Account{% elif opt == 'source' %}Source{% elif opt == 'created_at' %}Created{% elif opt == 'updated_at' %}Updated{% endif %}
+              </label>
+            {% endfor %}
+          </div>
+          <div style="display:flex; justify-content:flex-end; gap:.5rem; margin-top:1rem;">
+            <button id="columns-save" type="button" class="btn btn-primary">Save</button>
+            <button id="columns-cancel" type="button" class="btn">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- inline modal-level error container -->
   <div id="modal-global-error" class="modal-errors" style="display:none; margin: .5rem 0 0 0"></div>
+
+  {% if request.user.is_authenticated %}
+  <!-- Add Transaction modal (replaces the Add Transaction card from upload page) -->
+  <div id="add-tx-modal" class="modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); align-items:center; justify-content:center;">
+    <div role="document" class="card" style="max-width:520px; margin:auto;">
+      <div style="padding:1rem">
+        <h2>Add Transaction</h2>
+        <div id="add-modal-errors" class="inline-errors" role="alert" aria-live="polite" style="margin-bottom:.5rem; display:none"></div>
+        <form id="add-tx-form-modal" method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_tx">
+          <div class="form-row">
+            <label class="form-label" for="add-tx-date">Date</label>
+            <input id="add-tx-date" class="form-input" type="text" name="date" required />
+          </div>
+
+          <div class="form-row">
+            <label class="form-label" for="add-tx-desc">Description</label>
+            <input id="add-tx-desc" class="form-input" type="text" name="description" maxlength="512" required />
+          </div>
+
+          <div class="form-row" style="display:flex; gap:.75rem;">
+            <div style="flex:1">
+              <label class="form-label" for="add-tx-amount">Amount</label>
+              <input id="add-tx-amount" class="form-input" type="text" name="amount" placeholder="e.g. 123.45" required />
+            </div>
+
+            <div style="width:160px;">
+              <label class="form-label" for="add-tx-direction">Direction</label>
+              <select id="add-tx-direction" class="form-select" name="direction">
+                <option value="inflow">Inflow</option>
+                <option value="outflow">Outflow</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row" style="display:flex; gap:.75rem;">
+            <div style="flex:1">
+              <label class="form-label" for="add-tx-category">Category</label>
+              <input id="add-tx-category" class="form-input" type="text" name="category" />
+            </div>
+            <div style="flex:1">
+              <label class="form-label" for="add-tx-subcategory">Subcategory</label>
+              <input id="add-tx-subcategory" class="form-input" type="text" name="subcategory" />
+            </div>
+          </div>
+
+          <div style="margin-top:1rem; display:flex; gap:.5rem; justify-content:flex-end;">
+            <button id="add-tx-submit" class="btn btn-primary" type="submit">Add transaction</button>
+            <button id="add-tx-cancel" class="btn" type="button">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
 {% endblock %}
 
@@ -314,6 +454,8 @@
       flatpickr('#end_date', opts);
       // modal date for bulk/single edit
       flatpickr('#bulk_date', opts);
+      // modal date for add transaction
+      flatpickr('#add-tx-date', opts);
 
       const form = document.getElementById('filters-form');
       const startInput = document.getElementById('start_date');
@@ -523,198 +665,111 @@ document.addEventListener('DOMContentLoaded', function(){
     });
   }
 
-});
-</script>
-<script>
-  (function(){
-    // AJAX submit handler for modal form (works for single-edit and bulk-edit)
+  // Columns modal behavior
+  const columnsBtn = document.getElementById('columns-btn');
+  const columnsModal = document.getElementById('columns-modal');
+  const columnsForm = document.getElementById('columns-form');
+  const columnsSave = document.getElementById('columns-save');
+  const columnsCancel = document.getElementById('columns-cancel');
+
+  function getCookie(name){ const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'); return v ? v.pop() : ''; }
+
+  if(columnsBtn){
+    columnsBtn.addEventListener('click', function(){
+      if(columnsModal){ columnsModal.style.display='flex'; columnsModal.setAttribute('aria-hidden','false'); }
+    });
+  }
+  if(columnsCancel){ columnsCancel.addEventListener('click', function(){ if(columnsModal){ columnsModal.style.display='none'; columnsModal.setAttribute('aria-hidden','true'); } }); }
+
+  if(columnsSave){
+    columnsSave.addEventListener('click', async function(){
+      // collect selected columns in DOM order
+      const boxes = Array.from(columnsForm.querySelectorAll('input[name="columns"]'));
+      const selected = boxes.filter(b=>b.checked).map(b=>b.value);
+      if(selected.length === 0){ alert('Please select at least one column'); return; }
+      // POST JSON to server
+      try{
+        const csrftoken = getCookie('csrftoken');
+        const resp = await fetch('/transactions/columns/', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {'Content-Type':'application/json', 'X-CSRFToken': csrftoken},
+          body: JSON.stringify({columns: selected})
+        });
+        const data = await resp.json().catch(()=>null);
+        if(!resp.ok){
+          alert((data && data.error) ? data.error : 'Failed to save columns');
+          return;
+        }
+        // success: reload page so server renders the new order/visibility
+        window.location.reload();
+      }catch(err){ console.error(err); alert('Network error while saving columns'); }
+    });
+  }
+
+  // Add Transaction modal behavior
+  const addTxBtn = document.getElementById('add-tx-btn');
+  const addTxModal = document.getElementById('add-tx-modal');
+  const addTxForm = document.getElementById('add-tx-form-modal');
+  const addTxCancel = document.getElementById('add-tx-cancel');
+
+  if(addTxBtn){
+    addTxBtn.addEventListener('click', function(){
+      if(addTxModal){ addTxModal.style.display='flex'; addTxModal.setAttribute('aria-hidden','false'); }
+    });
+  }
+  if(addTxCancel){
+    addTxCancel.addEventListener('click', function(){
+      if(addTxModal){ addTxModal.style.display='none'; addTxModal.setAttribute('aria-hidden','true'); }
+    });
+  }
+
+  // AJAX submit handler for Add Transaction modal
+  // Add Transaction modal submit handler (simplified)
+  if(document.getElementById('add-tx-form-modal')){
     (function(){
-      const modalForm = document.getElementById('bulk-edit-form');
-      const modalEl = document.getElementById('bulk-edit-modal');
-      const spinnerWrap = document.getElementById('bulk-spinner');
-      const modalGlobalErr = document.getElementById('modal-global-error');
-
-      function setLoading(on){
-        if(spinnerWrap) spinnerWrap.style.display = on ? 'inline-block' : 'none';
-        // Only disable buttons while loading so inputs remain included in FormData
-        if(modalForm) Array.from(modalForm.querySelectorAll('button')).forEach(el=>el.disabled = on);
-      }
-
-      function clearFieldErrors(){
-        if(!modalForm) return;
-        modalForm.querySelectorAll('.field-error').forEach(el => el.remove());
-        if(modalGlobalErr) { modalGlobalErr.style.display='none'; modalGlobalErr.textContent=''; }
-      }
-
-      function showFieldErrors(errors){
-        clearFieldErrors();
-        if(!errors) return;
-        Object.keys(errors).forEach(function(k){
-          const msgs = errors[k];
-          if(k === '__all__'){
-            if(modalGlobalErr){ modalGlobalErr.style.display='block'; modalGlobalErr.textContent = msgs.join('; '); }
-            return;
+      const modalForm = document.getElementById('add-tx-form-modal');
+      const modalEl = document.getElementById('add-tx-modal');
+      modalForm.addEventListener('submit', async function(e){
+        e.preventDefault();
+        const fd = new FormData(modalForm);
+        fd.set('action','add_tx');
+        const csrftoken = (modalForm.querySelector('input[name=csrfmiddlewaretoken]') && modalForm.querySelector('input[name=csrfmiddlewaretoken]').value) || (function(){ const m = document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)'); return m ? m.pop() : ''; })();
+        try{
+          const resp = await fetch(window.location.pathname, { method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-CSRFToken': csrftoken, 'X-Requested-With':'XMLHttpRequest'} });
+          const data = await resp.json().catch(()=>null);
+          if(resp.ok && data && data.ok){
+            if(modalEl){ modalEl.style.display='none'; modalEl.setAttribute('aria-hidden','true'); }
+            try{ modalForm.reset(); if(window.flatpickr){ const f = document.querySelector('#add-tx-date'); if(f && f._flatpickr) f._flatpickr.clear(); } }catch(_){ }
+            const banner = document.createElement('div'); banner.className='card'; banner.style.padding='.6rem'; banner.style.margin='.6rem 0'; banner.textContent='Transaction added';
+            const main = document.querySelector('main') || document.body; if(main && main.insertBefore) main.insertBefore(banner, main.firstChild);
+            setTimeout(()=>{ if(banner && banner.remove) banner.remove(); }, 2000);
+          } else {
+            const errs = (data && data.errors) || ['Failed to add transaction'];
+            const errEl = document.getElementById('add-modal-errors'); if(errEl){ errEl.style.display='block'; errEl.innerHTML = '<ul>'+errs.map(x=>'<li>'+x+'</li>').join('')+'</ul>'; }
           }
-          const el = modalForm.querySelector('[name="'+k+'"]');
-          if(el){ const err = document.createElement('div'); err.className='field-error'; err.textContent = msgs.join('; '); el.parentNode.appendChild(err); }
-        });
-      }
-
-      if(modalForm){
-        modalForm.addEventListener('submit', async function(e){
-          e.preventDefault();
-          clearFieldErrors();
-          const action = modalForm.action;
-          // If this is a single-edit action (/transactions/<id>/edit/), ensure required fields are present
-          try{
-            const singleEditMatch = /\/transactions\/\d+\/edit\/?$/.test(action);
-            if(singleEditMatch){
-              const selected = document.querySelector('.row-select:checked');
-              if(selected){
-                const descEl = modalForm.querySelector('[name="description"]');
-                const amtEl = modalForm.querySelector('[name="amount"]');
-                const dateEl = modalForm.querySelector('[name="date"]');
-                if(descEl && (!descEl.value || descEl.value.trim()==='')) descEl.value = selected.dataset.description || '';
-                if(amtEl && (!amtEl.value || amtEl.value.trim()==='')){ const raw = selected.dataset.amount || ''; amtEl.value = (raw+'').replace(/[^0-9.\-]+/g, ''); }
-                if(dateEl && (!dateEl.value || dateEl.value.trim()==='')) dateEl.value = selected.dataset.date || '';
-              }
-            }
-          }catch(ff){ console.error('populate single-edit fields', ff); }
-          // sanitize amount field regardless of source (user-typed or prefilled)
-          try{
-            const amtField = modalForm.querySelector('[name="amount"]');
-            if(amtField && amtField.value){ amtField.value = (amtField.value+"").replace(/[^0-9.\-]+/g, ''); }
-          }catch(san){ console.error('sanitize amount', san); }
-          // helper: format ISO date (YYYY-MM-DD) -> 'Mon. DD, YYYY'
-          function formatDisplayDate(iso){ if(!iso) return ''; try{ const d = new Date(iso); if(isNaN(d)) return iso; const options = { year:'numeric', month:'short', day:'numeric' }; // e.g., 'Jan 10, 2025'
-              const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(d);
-              // Build 'Jan. 10, 2025' -> add period after month short
-              const month = parts.find(p=>p.type==='month')?.value || '';
-              const day = parts.find(p=>p.type==='day')?.value || '';
-              const year = parts.find(p=>p.type==='year')?.value || '';
-              return month + '. ' + day + ', ' + year; }catch(e){ return iso; } }
-          // Build FormData explicitly to ensure required keys are always present
-          function getCookie(name){ const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'); return v ? v.pop() : ''; }
-          // prefer an explicit checked row; if none, try to infer the row from the form action (/transactions/<id>/edit/)
-          const checkedSelected = document.querySelector('.row-select:checked');
-          let actionTxId = null;
-          try{ const m = (modalForm && modalForm.action) ? modalForm.action.match(/\/transactions\/(\d+)\/edit\/?$/) : null; if(m) actionTxId = m[1]; }catch(_){}
-          const actionSelected = actionTxId ? document.querySelector('.row-select[data-id="'+actionTxId+'"]') : null;
-          const selected = checkedSelected || actionSelected || null;
-          function valOrDataset(selector, dsKey){ const el = modalForm.querySelector(selector); const v = el && el.value ? el.value.trim() : ''; if(v) return v; if(selected && selected.dataset && selected.dataset[dsKey]) return selected.dataset[dsKey]; return ''; }
-          const fdSubmit = new FormData();
-          fdSubmit.set('date', valOrDataset('#bulk_date','date'));
-          fdSubmit.set('amount', valOrDataset('#bulk_amount','amount'));
-          fdSubmit.set('description', valOrDataset('#bulk_description','description'));
-          fdSubmit.set('direction', valOrDataset('#bulk_direction','direction'));
-          fdSubmit.set('category', valOrDataset('#bulk_category','category'));
-          fdSubmit.set('subcategory', valOrDataset('#bulk_subcategory','subcategory'));
-          const idsHidden = modalForm.querySelector('#bulk-edit-ids'); if(idsHidden) fdSubmit.set('ids', idsHidden.value || '');
-          const nextHidden = modalForm.querySelector('#bulk-edit-next'); if(nextHidden) fdSubmit.set('next', nextHidden.value || '');
-          const csrfInput = modalForm.querySelector('input[name=csrfmiddlewaretoken]'); if(csrfInput && csrfInput.value) fdSubmit.set('csrfmiddlewaretoken', csrfInput.value);
-          // Debug: log built FormData
-          try{ for(const p of fdSubmit.entries()){ console.log('FormData', p[0], p[1]); } }catch(_){ }
-          const csrftoken = fdSubmit.get('csrfmiddlewaretoken') || getCookie('csrftoken');
-          // Start loading state after we've collected form data
-          setLoading(true);
-          try{
-            const resp = await fetch(action, { method: 'POST', body: fdSubmit, credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrftoken} });
-            let data = null;
-            let text = null;
-            try{ data = await resp.json(); }catch(errJson){
-              try{ text = await resp.text(); }catch(_){ text = null; }
-            }
-            console.log('AJAX response', resp.status, data || text);
-            if(!resp.ok){
-              if(data && data.errors){ showFieldErrors(data.errors); }
-              else if(text){ if(modalGlobalErr){ modalGlobalErr.style.display='block'; modalGlobalErr.textContent = text; } }
-              else { if(modalGlobalErr){ modalGlobalErr.style.display='block'; modalGlobalErr.textContent = 'Failed to save - please try again.'; } }
-              setLoading(false);
-              return;
-            }
-
-            // Success: update rows in-place
-            if(data && data.ok){
-              if(data.tx){
-                const tx = data.tx;
-                const checkbox = document.querySelector('.row-select[data-id="'+tx.id+'"]');
-                if(checkbox){
-                  const tr = checkbox.closest('tr');
-                  if(tr){
-                    const tds = tr.querySelectorAll('td');
-                    if(tds[1]) tds[1].textContent = formatDisplayDate(tx.date);
-                    if(tds[2]) tds[2].textContent = tx.description;
-                    if(tds[3]) tds[3].textContent = tx.category;
-                    if(tds[4]) tds[4].textContent = tx.amount;
-                    if(tds[5]) tds[5].textContent = tx.direction;
-                    // update dataset so subsequent edits use latest values
-                    checkbox.dataset.date = tx.date;
-                    checkbox.dataset.description = tx.description;
-                    checkbox.dataset.amount = tx.amount;
-                    checkbox.dataset.direction = tx.direction;
-                    checkbox.dataset.category = tx.category;
-                    checkbox.dataset.subcategory = tx.subcategory;
-                     tr.classList.remove('row-updated'); void tr.offsetWidth; tr.classList.add('row-updated');
-                  }
-                }
-              } else if(data.updated_ids && Array.isArray(data.updated_ids)){
-                const applied = data.applied || {};
-                data.updated_ids.forEach(function(id){
-                  const checkbox = document.querySelector('.row-select[data-id="'+id+'"]');
-                  if(checkbox){
-                    const tr = checkbox.closest('tr');
-                    if(tr){
-                      const tds = tr.querySelectorAll('td');
-                      if('date' in applied && tds[1]) tds[1].textContent = formatDisplayDate(applied.date);
-                      if('description' in applied && tds[2]) tds[2].textContent = applied.description;
-                      if('category' in applied && tds[3]) tds[3].textContent = applied.category;
-                      if('amount' in applied && tds[4]) tds[4].textContent = applied.amount;
-                      if('direction' in applied && tds[5]) tds[5].textContent = applied.direction;
-                      // update dataset values too
-                      if('date' in applied) checkbox.dataset.date = applied.date;
-                      if('description' in applied) checkbox.dataset.description = applied.description;
-                      if('amount' in applied) checkbox.dataset.amount = applied.amount;
-                      if('direction' in applied) checkbox.dataset.direction = applied.direction;
-                      if('category' in applied) checkbox.dataset.category = applied.category;
-                       tr.classList.remove('row-updated'); void tr.offsetWidth; tr.classList.add('row-updated');
-                    }
-                  }
-                });
-              }
-
-              // close modal and reset
-              if(modalEl){ modalEl.style.display = 'none'; modalEl.setAttribute('aria-hidden','true'); }
-              setLoading(false);
-              // show transient success banner
-              const banner = document.createElement('div');
-              banner.className = 'card'; banner.style.padding='.6rem'; banner.style.margin='.6rem 0'; banner.textContent = 'Saved successfully';
-              const main = document.querySelector('main') || document.getElementById('content') || document.body;
-              if(main && main.insertBefore) main.insertBefore(banner, main.firstChild);
-              setTimeout(()=>{ if(banner && banner.remove) banner.remove(); }, 2400);
-              return;
-            }
-
-            // Fallback
-            setLoading(false);
-            if(modalGlobalErr){ modalGlobalErr.style.display='block'; modalGlobalErr.textContent='Unexpected response'; }
-          }catch(err){
-            console.error(err);
-            setLoading(false);
-            if(modalGlobalErr){ modalGlobalErr.style.display='block'; modalGlobalErr.textContent='Network error - try again.'; }
-          }
-        });
-      }
+        }catch(err){ console.error(err); const errEl = document.getElementById('add-modal-errors'); if(errEl){ errEl.style.display='block'; errEl.textContent='Network error'; } }
+      });
     })();
+  }
 
-    // modal cancel buttons: close modals
+  // modal cancel buttons: close modals
     const bulkCancelBtn = document.getElementById('bulk-edit-cancel');
     if(bulkCancelBtn){ bulkCancelBtn.addEventListener('click', function(){ const m = document.getElementById('bulk-edit-modal'); if(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }); }
     const deleteCancelBtn = document.getElementById('delete-cancel');
     if(deleteCancelBtn){ deleteCancelBtn.addEventListener('click', function(){ const m = document.getElementById('delete-modal'); if(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }); }
+    const addTxCancelBtn = document.getElementById('add-tx-cancel');
+    if(addTxCancelBtn){ addTxCancelBtn.addEventListener('click', function(){ const m = document.getElementById('add-tx-modal'); if(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }); }
 
     // Initial button state (in case rows are pre-selected by the browser or other script)
     try{ if(window.updateButtons) window.updateButtons(); }catch(e){ /* ignore */ }
-   })();
+  });
 </script>
+
+<!-- Equal-size buttons for secondary toolbar (responsive tweak) -->
+<style>
+  .toolbar-secondary .btn { text-align: center !important; }
+  @media (max-width:600px){ .toolbar-secondary .btn{ min-width: 92px !important; } }
+</style>
 
 {% endblock %}
