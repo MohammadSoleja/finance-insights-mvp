@@ -1,66 +1,221 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Transactions — Finance Insights{% endblock %}
+
+{% block head_extra %}
+  <!-- flatpickr for consistent date picker like Upload page -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+  <!-- Inline override styles (high specificity) to ensure toolbar is a single inline row and inputs share styling) -->
+  <style>
+     :root { --brand: #111827; --muted: #6b7280; }
+     /* Responsive grid layout for toolbar (Actions | Search | Start | End | Direction | Sort) */
+    .toolbar { display: grid !important;
+               /* search | start | end | direction | sort | actions (actions last)
+                  make start/end date columns smaller and slightly tighten spacing */
+               grid-template-columns: minmax(160px,250px) 115px 115px 100px 130px auto !important;
+               gap: .6rem !important; align-items: center !important; width:100%; max-width:100%; box-sizing:border-box; }
+     .toolbar > * { margin: 0 !important; display: flex !important; align-items: center !important; }
+     /* Make all toolbar controls the same height, padding and baseline so they align */
+     .toolbar { align-items: center !important; }
+     /* uniform sizing for precise alignment */
+     .toolbar > * { min-height: 52px !important; display: inline-flex !important; align-items: center !important; }
+     .toolbar .field-group { height: 52px !important; display: inline-flex !important; align-items: center !important; gap: .5rem !important; }
+    /* allow controls to shrink and not force the grid to overflow; increase size for readability */
+    /* Moderate input sizing so toolbar fits comfortably */
+    .toolbar .form-input, .toolbar .form-select, .toolbar .form-date { width: 100% !important; max-width: 100% !important; min-width: 0 !important; box-sizing: border-box !important; color: var(--brand) !important; font-size: 1.00rem !important; background: #fff !important; height: 48px !important; padding: 10px 12px !important; line-height: 1 !important; display: inline-flex !important; align-items: center !important; vertical-align: middle !important; border-radius: 8px !important; }
+    /* ensure sr-only labels don't take space */
+    .toolbar .field-group > label.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; border: 0 !important; }
+    /* Ensure inner text vertically centers consistently across browsers */
+    .toolbar .form-input::-webkit-input-placeholder, .toolbar .form-date::-webkit-input-placeholder { line-height: 1 !important; }
+    .toolbar .form-input::-moz-placeholder, .toolbar .form-date::-moz-placeholder { line-height: 1 !important; }
+    .toolbar .form-input:-ms-input-placeholder, .toolbar .form-date:-ms-input-placeholder { line-height: 1 !important; }
+    .toolbar .form-input::placeholder, .toolbar .form-date::placeholder { line-height: 1 !important; }
+    /* Remove any baseline shift and ensure consistent font metrics */
+    .toolbar input, .toolbar select { font-family: inherit !important; font-size: 0.95rem !important; vertical-align: middle !important; box-sizing: border-box !important; }
+     /* Ensure buttons match input height but are compact */
+     .toolbar .btn, .toolbar .btn-primary { height: 48px !important; padding: 8px 14px !important; display: inline-flex !important; align-items: center !important; justify-content: center !important; border-radius: 8px !important; font-size:1.00rem !important; }
+     /* Remove default margins from inputs/selects */
+     .toolbar input, .toolbar select { margin: 0 !important; }
+     .toolbar label { color: var(--muted) !important; }
+    /* keep actions aligned to the end and give buttons spacing */
+    .toolbar-actions { justify-self: end !important; display: flex !important; gap: .75rem !important; }
+     .toolbar * { align-self: center !important; }
+     /* Ensure the visible text (values) inside the date inputs have the same color */
+     .toolbar input, .toolbar select, .toolbar .flatpickr-input { color: var(--brand) !important; }
+     /* Make placeholder/inactive text muted but consistent */
+     .toolbar input::placeholder, .toolbar select::placeholder { color: var(--muted) !important; }
+     /* On very small screens allow wrapping back to vertical flow */
+     @media (max-width: 420px) { .toolbar { display:flex !important; flex-wrap:wrap !important; } }
+     /* On small screens revert to stacked, but keep visual parity */
+     @media (max-width: 900px) {
+        /* switch to wrapped flex layout on narrower screens so items don't overflow */
+        .toolbar { display: flex !important; flex-wrap: wrap !important; gap: .5rem !important; }
+        .toolbar > * { flex: 0 0 auto !important; }
+        .toolbar .field-group { flex: 1 1 48% !important; min-width: 140px !important; }
+        .toolbar .dir-field, .toolbar .sort-field { flex: 0 0 48% !important; min-width: 120px !important; }
+        .toolbar-actions { width: 100% !important; display:flex !important; justify-content:flex-end !important; }
+      }
+     /* Ensure flatpickr doesn't change input color */
+     .flatpickr-input { color: var(--brand) !important; }
+
+    /* Modal animation, spinner and row highlight */
+    .modal { transition: opacity .18s ease; }
+    .modal[aria-hidden="true"] { opacity: 0; pointer-events: none; }
+    .modal[aria-hidden="false"] { opacity: 1; pointer-events: auto; }
+    .modal .card { transform: translateY(-6px); transition: transform .18s ease, box-shadow .18s ease; }
+    .modal[aria-hidden="false"] .card { transform: translateY(0); box-shadow: 0 8px 30px rgba(0,0,0,.18); }
+
+    /* Spinner */
+    .modal-spinner { width: 20px; height: 20px; border-radius: 50%; border: 3px solid rgba(0,0,0,0.08); border-top-color: var(--accent); animation: spin 800ms linear infinite; display:inline-block; vertical-align:middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Highlight updated row */
+    .row-updated { animation: highlight 1800ms ease forwards; }
+    @keyframes highlight { 0% { background: #d1fae5; } 60% { background: #fefce8; } 100% { background: transparent; } }
+
+    .modal .field-error { color: #b91c1c; font-size: .9rem; margin-top: .25rem; }
+    .modal .modal-errors { color: #b91c1c; font-size: .95rem; margin-bottom: .5rem; }
+  </style>
+{% endblock %}
 
 {% block content %}
   <h1>Transactions</h1>
 
   <div class="card">
-    <form method="get" class="toolbar" style="align-items:center; display:flex; gap: .5rem; flex-wrap:wrap;">
-      <input class="form-input" type="text" name="q" placeholder="Search description or category" value="{{ q }}" style="flex:1; min-width:180px; max-width:420px;" />
+    <div id="filter-errors" class="inline-errors" role="alert" aria-live="polite" style="display:none;margin-bottom:.5rem"></div>
 
-      <label class="form-label" style="margin:0; margin-left:.25rem;">Direction</label>
-      <select name="direction" class="form-select" style="width:160px; margin-left:.25rem;">
-        <option value="" {% if not direction %}selected{% endif %}>All</option>
-        <option value="inflow" {% if direction == 'inflow' %}selected{% endif %}>Inflow</option>
-        <option value="outflow" {% if direction == 'outflow' %}selected{% endif %}>Outflow</option>
-      </select>
+    <!-- Search / filters toolbar -->
+    <form method="get" class="toolbar" role="search" aria-label="Filter transactions" id="filters-form">
 
-      <label class="form-label" style="margin:0; margin-left:.5rem;">Sort</label>
-      <select name="sort" class="form-select" style="width:180px; margin-left:.25rem;">
-        <option value="" {% if not sort %}selected{% endif %}>Date (default)</option>
-        <option value="date" {% if sort == 'date' %}selected{% endif %}>Date ↑</option>
-        <option value="-date" {% if sort == '-date' %}selected{% endif %}>Date ↓</option>
-        <option value="amount" {% if sort == 'amount' %}selected{% endif %}>Amount ↑</option>
-        <option value="-amount" {% if sort == '-amount' %}selected{% endif %}>Amount ↓</option>
-      </select>
-
-      <div style="margin-left:auto;">
-        <button class="btn" type="submit">Apply</button>
+      <div class="field-group search-field">
+        <label for="q" class="form-label sr-only">Search</label>
+        <input id="q" class="form-input" type="text" name="q" placeholder="Search description or category" value="{{ q }}" style="color:var(--brand); background:#fff;" />
       </div>
+
+      <div class="field-group start-field">
+        <label for="start_date" class="sr-only">Start date</label>
+        <input id="start_date" name="start_date" type="text" class="form-input form-date" value="{{ start_date }}" placeholder="Start date" style="color:var(--brand); background:#fff;" />
+      </div>
+
+      <div class="field-group end-field">
+        <label for="end_date" class="sr-only">End date</label>
+        <input id="end_date" name="end_date" type="text" class="form-input form-date" value="{{ end_date }}" placeholder="End date" style="color:var(--brand); background:#fff;" />
+      </div>
+
+      <div class="field-group dir-field">
+        <label for="direction" class="form-label sr-only">Direction</label>
+        <select id="direction" name="direction" class="form-select">
+          {% if direction == 'inflow' %}
+            <option value="">All</option>
+            <option value="inflow" selected>Inflow</option>
+            <option value="outflow">Outflow</option>
+          {% elif direction == 'outflow' %}
+            <option value="">All</option>
+            <option value="inflow">Inflow</option>
+            <option value="outflow" selected>Outflow</option>
+          {% else %}
+            <option value="" selected>All</option>
+            <option value="inflow">Inflow</option>
+            <option value="outflow">Outflow</option>
+          {% endif %}
+        </select>
+      </div>
+
+      <div class="field-group sort-field">
+        <label for="sort" class="form-label sr-only">Sort</label>
+        <select id="sort" name="sort" class="form-select">
+          {% if sort == 'date' %}
+            <option value="" >Date (default)</option>
+            <option value="date" selected>Date ↑</option>
+            <option value="-date">Date ↓</option>
+            <option value="amount">Amount ↑</option>
+            <option value="-amount">Amount ↓</option>
+          {% elif sort == '-date' %}
+            <option value="" >Date (default)</option>
+            <option value="date">Date ↑</option>
+            <option value="-date" selected>Date ↓</option>
+            <option value="amount">Amount ↑</option>
+            <option value="-amount">Amount ↓</option>
+          {% elif sort == 'amount' %}
+            <option value="" >Date (default)</option>
+            <option value="date">Date ↑</option>
+            <option value="-date">Date ↓</option>
+            <option value="amount" selected>Amount ↑</option>
+            <option value="-amount">Amount ↓</option>
+          {% elif sort == '-amount' %}
+            <option value="" >Date (default)</option>
+            <option value="date">Date ↑</option>
+            <option value="-date">Date ↓</option>
+            <option value="amount">Amount ↑</option>
+            <option value="-amount" selected>Amount ↓</option>
+          {% else %}
+            <option value="" selected>Date (default)</option>
+            <option value="date">Date ↑</option>
+            <option value="-date">Date ↓</option>
+            <option value="amount">Amount ↑</option>
+            <option value="-amount">Amount ↓</option>
+          {% endif %}
+        </select>
+      </div>
+
+      <!-- Actions at the end: Edit, Delete, Reset, Apply -->
+      <div class="toolbar-actions" style="display:flex; gap:.5rem; align-items:center;">
+        <div style="display:flex; gap:.5rem;">
+          <button id="edit-selected" type="button" class="btn" disabled>Edit</button>
+          <button id="delete-selected" type="button" class="btn" disabled>Delete</button>
+        </div>
+        <button id="reset-filters" type="button" class="btn" aria-label="Reset filters">Reset Filters</button>
+        <button class="btn btn-primary" type="submit">Apply</button>
+      </div>
+
     </form>
 
     <div class="tablewrap mt-1">
       <table class="preview-table">
         <thead>
           <tr>
-            <th>Date</th>
+            <th style="width:36px"><input id="select-all" type="checkbox" aria-label="Select all"></th>
+            <th style="width:120px">Date</th>
             <th>Description</th>
-            <th>Category</th>
-            <th style="text-align:right">Amount</th>
-            <th>Direction</th>
+            <th style="width:180px">Category</th>
+            <th style="text-align:right; width:140px">Amount</th>
+            <th style="width:120px">Direction</th>
           </tr>
         </thead>
         <tbody>
           {% for t in page.object_list %}
             <tr>
-              <td>{{ t.date }}</td>
-              <td>{{ t.description }}</td>
-              <td>{{ t.category }}</td>
-              <td style="text-align:right">{{ t.amount }}</td>
-              <td>{{ t.direction }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="5">No transactions found.</td></tr>
-          {% endfor %}
+              <td>
+                <input class="row-select"
+                       data-id="{{ t.id }}"
+                       data-date="{{ t.date|date:'Y-m-d' }}"
+                       data-description="{{ t.description|escape }}"
+                       data-amount="{{ t.amount }}"
+                       data-direction="{{ t.direction }}"
+                       data-category="{{ t.category|escape }}"
+                       data-subcategory="{{ t.subcategory|escape }}"
+                       type="checkbox" aria-label="Select transaction {{ t.id }}">
+              </td>
+               <td>{{ t.date|date:"M. d, Y" }}</td>
+               <td>{{ t.description }}</td>
+               <td>{{ t.category }}</td>
+               <td style="text-align:right">{{ t.amount }}</td>
+               <td>{{ t.direction }}</td>
+             </tr>
+           {% empty %}
+             <tr><td colspan="6">No transactions found.</td></tr>
+           {% endfor %}
         </tbody>
       </table>
     </div>
 
-    <div style="margin-top:1rem; display:flex; justify-content:space-between; align-items:center;">
-      <div>
+    <div class="mt-1 pagination-row">
+      <div class="muted">
         Page {{ page.number }} of {{ page.paginator.num_pages }} — {{ page.paginator.count }} total
       </div>
-      <div>
+      <div class="pagination">
         {% if page.has_previous %}
           <a class="btn" href="?page=1&{{ params }}">First</a>
           <a class="btn" href="?page={{ page.previous_page_number }}&{{ params }}">Previous</a>
@@ -73,4 +228,493 @@
     </div>
 
   </div>
+
+  <!-- Delete confirmation modal (simple in-app modal) -->
+  <div id="delete-modal" class="modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
+    <div role="document" class="card" style="max-width:520px; margin:auto;">
+      <div style="padding:1rem">
+        <h2>Confirm deletion</h2>
+        <p id="delete-modal-count"></p>
+        <div style="display:flex; gap:.5rem;">
+          <form id="delete-form" method="post" action="">
+            {% csrf_token %}
+            <input type="hidden" name="next" id="delete-next" value="{{ params }}">
+            <input type="hidden" name="ids" id="delete-ids" value="">
+            <button class="btn btn-primary" type="submit">Delete</button>
+            <button id="delete-cancel" class="btn" type="button">Cancel</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Edit modal -->
+   <div id="bulk-edit-modal" class="modal" role="dialog" aria-hidden="true" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
+     <div role="document" class="card" style="max-width:680px; margin:auto;">
+       <div style="padding:1rem">
+        <h2 id="bulk-edit-title">Bulk edit transactions</h2>
+         <p id="bulk-edit-count"></p>
+         <form id="bulk-edit-form" method="post" action="/transactions/bulk_edit/">
+          {% csrf_token %}
+          <input type="hidden" name="ids" id="bulk-edit-ids" value="">
+          <input type="hidden" name="next" id="bulk-edit-next" value="{{ params }}">
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:.75rem;">
+            <div>
+              <label for="bulk_date">Date (YYYY-MM-DD)</label>
+              <input id="bulk_date" name="date" class="form-input form-date" placeholder="YYYY-MM-DD">
+            </div>
+            <div>
+              <label for="bulk_amount">Amount</label>
+              <input id="bulk_amount" name="amount" class="form-input" placeholder="Amount">
+            </div>
+            <div style="grid-column:1/-1">
+              <label for="bulk_description">Description</label>
+              <input id="bulk_description" name="description" class="form-input" placeholder="Description (applied to all if set)">
+            </div>
+            <div>
+              <label for="bulk_direction">Direction</label>
+              <select id="bulk_direction" name="direction" class="form-select">
+                <option value="">(no change)</option>
+                <option value="inflow">Inflow</option>
+                <option value="outflow">Outflow</option>
+              </select>
+            </div>
+            <div>
+              <label for="bulk_category">Category</label>
+              <input id="bulk_category" name="category" class="form-input" placeholder="Category">
+            </div>
+            <div>
+              <label for="bulk_subcategory">Subcategory</label>
+              <input id="bulk_subcategory" name="subcategory" class="form-input" placeholder="Subcategory">
+            </div>
+          </div>
+
+          <div style="margin-top:1rem; display:flex; gap:.5rem; justify-content:flex-end;">
+            <button id="bulk-edit-submit" class="btn btn-primary" type="submit">Apply changes <span id="bulk-spinner" style="display:none;margin-left:.5rem" aria-hidden="true"><span class="modal-spinner"></span></span></button>
+            <button id="bulk-edit-cancel" class="btn" type="button">Cancel</button>
+          </div>
+         </form>
+       </div>
+     </div>
+   </div>
+
+  <!-- inline modal-level error container -->
+  <div id="modal-global-error" class="modal-errors" style="display:none; margin: .5rem 0 0 0"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function(){
+    if(window.flatpickr){
+      // initialize flatpickr like upload page; use ISO format
+      const opts = { dateFormat: 'Y-m-d', allowInput: true };
+      flatpickr('#start_date', opts);
+      flatpickr('#end_date', opts);
+      // modal date for bulk/single edit
+      flatpickr('#bulk_date', opts);
+
+      const form = document.getElementById('filters-form');
+      const startInput = document.getElementById('start_date');
+      const endInput = document.getElementById('end_date');
+      const errorsEl = document.getElementById('filter-errors');
+      const resetBtn = document.getElementById('reset-filters');
+
+      function validateDates(){
+        if(!errorsEl) return true;
+        errorsEl.style.display = 'none';
+        errorsEl.textContent = '';
+        const s = startInput && startInput.value && startInput.value.trim();
+        const e = endInput && endInput.value && endInput.value.trim();
+        if(!s && !e) return true;
+        function toDate(val){ if(!val) return null; const t = Date.parse(val); return isNaN(t) ? null : new Date(t); }
+        const sd = toDate(s);
+        const ed = toDate(e);
+        if(s && !sd){ errorsEl.style.display='block'; errorsEl.textContent='Start date is invalid (use YYYY-MM-DD)'; return false; }
+        if(e && !ed){ errorsEl.style.display='block'; errorsEl.textContent='End date is invalid (use YYYY-MM-DD)'; return false; }
+        if(sd && ed && sd > ed){ errorsEl.style.display='block'; errorsEl.textContent='Start date must be before or equal to end date'; return false; }
+        return true;
+      }
+
+      if(startInput){ startInput.addEventListener('change', validateDates); startInput.addEventListener('blur', validateDates); }
+      if(endInput){ endInput.addEventListener('change', validateDates); endInput.addEventListener('blur', validateDates); }
+
+      // Reset button clears query params (navigate to base path)
+      if(resetBtn){ resetBtn.addEventListener('click', function(){
+         // if you want to preserve anchor/hash you can keep it; for now navigate to base path
+         window.location = window.location.pathname;
+      }); }
+
+      // prevent submit if invalid
+      if(form){ form.addEventListener('submit', function(e){ if(!validateDates()){ e.preventDefault(); if(startInput) startInput.focus(); } }); }
+
+      // runtime toolbar layout toggle (grid on desktop, flex on small screens)
+      function debounce(fn, wait){ let t; return function(){ clearTimeout(t); t = setTimeout(()=>fn.apply(this, arguments), wait); }; }
+      function updateToolbarLayout(){
+        const tb = document.getElementById('filters-form');
+        if(!tb) return;
+        const w = window.innerWidth || document.documentElement.clientWidth;
+        if(w >= 720){
+          tb.style.display = 'grid';
+          tb.style.gridTemplateColumns = 'minmax(160px,360px) 110px 110px 120px 120px auto';
+          tb.style.gap = '.6rem';
+          tb.style.alignItems = 'center';
+        } else {
+          tb.style.display = 'flex';
+          tb.style.flexWrap = 'wrap';
+          tb.style.gap = '0.5rem';
+        }
+        // ensure inputs/selects have consistent text color and background
+        const els = tb.querySelectorAll('input, select');
+        els.forEach(el=>{
+          el.style.color = getComputedStyle(document.documentElement).getPropertyValue('--brand') || '#111827';
+          el.style.background = '#fff';
+          el.style.boxSizing = 'border-box';
+        });
+      }
+      const onResize = debounce(updateToolbarLayout, 120);
+      window.addEventListener('resize', onResize);
+      // initial layout set
+      updateToolbarLayout();
+    }
+  })();
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  // selection helpers for transactions table
+  const selectAll = document.getElementById('select-all');
+  // querySelectorAll at runtime so it reflects current DOM
+  function rowSelects(){ return Array.from(document.querySelectorAll('.row-select')); }
+  const editBtn = document.getElementById('edit-selected');
+  const deleteBtn = document.getElementById('delete-selected');
+  const deleteModal = document.getElementById('delete-modal');
+  const deleteForm = document.getElementById('delete-form');
+  const deleteIdsInput = document.getElementById('delete-ids');
+  const deleteModalCount = document.getElementById('delete-modal-count');
+  const deleteNext = document.getElementById('delete-next');
+
+  // Ensure buttons are clickable (defensive CSS via style)
+  if(editBtn){ editBtn.style.pointerEvents = 'auto'; editBtn.removeAttribute('disabled'); }
+  if(deleteBtn){ deleteBtn.style.pointerEvents = 'auto'; deleteBtn.removeAttribute('disabled'); }
+
+  function selectedIds(){ return Array.from(document.querySelectorAll('.row-select:checked')).map(el=>el.dataset.id); }
+  function updateButtons(){
+    try{
+      const ids = selectedIds();
+      const ok = ids && ids.length > 0;
+      if(editBtn){ editBtn.setAttribute('aria-disabled', !ok ? 'true' : 'false'); editBtn.classList.toggle('disabled', !ok); }
+      if(deleteBtn){ deleteBtn.setAttribute('aria-disabled', !ok ? 'true' : 'false'); deleteBtn.classList.toggle('disabled', !ok); }
+    }catch(err){ console.error('updateButtons error', err); }
+  }
+  // expose for other scripts
+  window.updateButtons = updateButtons;
+
+  // Attach change handlers to dynamically reflect row selects
+  function attachRowListeners(){
+    rowSelects().forEach(cb => {
+      cb.removeEventListener('change', updateButtons);
+      cb.addEventListener('change', updateButtons);
+    });
+  }
+
+  if(selectAll){
+    selectAll.addEventListener('change', function(){
+      const checked = selectAll.checked;
+      document.querySelectorAll('.row-select').forEach(cb=>cb.checked=checked);
+      updateButtons();
+    });
+  }
+
+  // Initial attach & state
+  attachRowListeners();
+  updateButtons();
+
+  // Re-attach if DOM changes (simple mutation observer to catch re-rendered table rows)
+  try{
+    const tableWrap = document.querySelector('.tablewrap');
+    if(tableWrap){
+      const mo = new MutationObserver(function(){ attachRowListeners(); updateButtons(); });
+      mo.observe(tableWrap, { childList: true, subtree: true });
+    }
+  }catch(e){ /* non-fatal */ }
+
+  // Edit button behavior
+  if(editBtn){
+    editBtn.addEventListener('click', function(e){
+      console.log('Edit clicked');
+      const ids = selectedIds();
+      if(!ids || ids.length === 0) { console.warn('Edit clicked with no selection'); return; }
+       const modal = document.getElementById('bulk-edit-modal');
+      const form = document.getElementById('bulk-edit-form');
+      const idsInput = document.getElementById('bulk-edit-ids');
+      const countEl = document.getElementById('bulk-edit-count');
+      const titleEl = document.getElementById('bulk-edit-title');
+
+      if(ids.length === 1){
+        const cb = document.querySelector('.row-select[data-id="'+ids[0]+'"]');
+        if(!cb) return;
+        // ensure date is ISO (YYYY-MM-DD) and amount is numeric without currency symbols
+        document.getElementById('bulk_date').value = cb.dataset.date || '';
+        (function(){
+          const rawAmount = cb.dataset.amount || '';
+          const sanitized = (rawAmount+"").replace(/[^0-9.\-]+/g, '');
+          document.getElementById('bulk_amount').value = sanitized;
+        })();
+        document.getElementById('bulk_description').value = cb.dataset.description || '';
+        document.getElementById('bulk_direction').value = cb.dataset.direction || '';
+        document.getElementById('bulk_category').value = cb.dataset.category || '';
+        document.getElementById('bulk_subcategory').value = cb.dataset.subcategory || '';
+        idsInput.value = ids.join(',');
+        form.action = '/transactions/'+ids[0]+'/edit/';
+        titleEl.textContent = 'Edit transaction';
+        countEl.textContent = '';
+        if(modal){ modal.style.display='flex'; modal.setAttribute('aria-hidden','false'); }
+        return;
+      }
+
+      // multiple
+      document.getElementById('bulk_date').value = '';
+      document.getElementById('bulk_amount').value = '';
+      document.getElementById('bulk_description').value = '';
+      document.getElementById('bulk_direction').value = '';
+      document.getElementById('bulk_category').value = '';
+      document.getElementById('bulk_subcategory').value = '';
+      idsInput.value = ids.join(',');
+      form.action = '/transactions/bulk_edit/';
+      titleEl.textContent = 'Bulk edit transactions';
+      countEl.textContent = 'You are about to edit '+ids.length+' transactions. Only fields you fill will be applied to all selected.';
+      if(modal){ modal.style.display='flex'; modal.setAttribute('aria-hidden','false'); }
+    });
+  }
+
+  // Delete button behavior
+  if(deleteBtn){
+    deleteBtn.addEventListener('click', function(){
+      console.log('Delete clicked');
+      const ids = selectedIds();
+      if(!ids || ids.length === 0){ console.warn('Delete clicked with no selection'); return; }
+       if(deleteModal){ deleteModal.style.display='flex'; deleteModal.setAttribute('aria-hidden','false'); }
+      if(deleteIdsInput) deleteIdsInput.value = ids.join(',');
+      if(deleteModalCount) deleteModalCount.textContent = 'You are about to delete '+ids.length+' transaction(s). This cannot be undone.';
+      if(deleteForm) deleteForm.action = '/transactions/'+ids[0]+'/delete/';
+    });
+  }
+
+  // Delete form submit handling preserved (keeps previous logic)
+  if(deleteForm){
+    deleteForm.addEventListener('submit', function(e){
+      const ids = deleteIdsInput.value ? deleteIdsInput.value.split(',') : [];
+      if(ids.length <= 1) return; // normal POST for single
+      e.preventDefault();
+      const next = deleteNext.value || '';
+      (async function(){
+        // read CSRF token from page form or cookie
+        function getCookie(name){ const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'); return v ? v.pop() : ''; }
+        const pageCsrf = (document.querySelector('input[name=csrfmiddlewaretoken]') && document.querySelector('input[name=csrfmiddlewaretoken]').value) ? document.querySelector('input[name=csrfmiddlewaretoken]').value : getCookie('csrftoken');
+        for(const id of ids){
+          const formData = new FormData();
+          formData.append('csrfmiddlewaretoken', pageCsrf);
+          formData.append('next', next);
+          try{ await fetch('/transactions/'+id+'/delete/', { method:'POST', body: formData, credentials:'same-origin', headers: {'X-CSRFToken': pageCsrf} }); }catch(err){ console.error(err); }
+        }
+        window.location = '/transactions/'+(next ? '?'+next : '');
+      })();
+    });
+  }
+
+});
+</script>
+<script>
+  (function(){
+    // AJAX submit handler for modal form (works for single-edit and bulk-edit)
+    (function(){
+      const modalForm = document.getElementById('bulk-edit-form');
+      const modalEl = document.getElementById('bulk-edit-modal');
+      const spinnerWrap = document.getElementById('bulk-spinner');
+      const modalGlobalErr = document.getElementById('modal-global-error');
+
+      function setLoading(on){
+        if(spinnerWrap) spinnerWrap.style.display = on ? 'inline-block' : 'none';
+        // Only disable buttons while loading so inputs remain included in FormData
+        if(modalForm) Array.from(modalForm.querySelectorAll('button')).forEach(el=>el.disabled = on);
+      }
+
+      function clearFieldErrors(){
+        if(!modalForm) return;
+        modalForm.querySelectorAll('.field-error').forEach(el => el.remove());
+        if(modalGlobalErr) { modalGlobalErr.style.display='none'; modalGlobalErr.textContent=''; }
+      }
+
+      function showFieldErrors(errors){
+        clearFieldErrors();
+        if(!errors) return;
+        Object.keys(errors).forEach(function(k){
+          const msgs = errors[k];
+          if(k === '__all__'){
+            if(modalGlobalErr){ modalGlobalErr.style.display='block'; modalGlobalErr.textContent = msgs.join('; '); }
+            return;
+          }
+          const el = modalForm.querySelector('[name="'+k+'"]');
+          if(el){ const err = document.createElement('div'); err.className='field-error'; err.textContent = msgs.join('; '); el.parentNode.appendChild(err); }
+        });
+      }
+
+      if(modalForm){
+        modalForm.addEventListener('submit', async function(e){
+          e.preventDefault();
+          clearFieldErrors();
+          const action = modalForm.action;
+          // If this is a single-edit action (/transactions/<id>/edit/), ensure required fields are present
+          try{
+            const singleEditMatch = /\/transactions\/\d+\/edit\/?$/.test(action);
+            if(singleEditMatch){
+              const selected = document.querySelector('.row-select:checked');
+              if(selected){
+                const descEl = modalForm.querySelector('[name="description"]');
+                const amtEl = modalForm.querySelector('[name="amount"]');
+                const dateEl = modalForm.querySelector('[name="date"]');
+                if(descEl && (!descEl.value || descEl.value.trim()==='')) descEl.value = selected.dataset.description || '';
+                if(amtEl && (!amtEl.value || amtEl.value.trim()==='')){ const raw = selected.dataset.amount || ''; amtEl.value = (raw+'').replace(/[^0-9.\-]+/g, ''); }
+                if(dateEl && (!dateEl.value || dateEl.value.trim()==='')) dateEl.value = selected.dataset.date || '';
+              }
+            }
+          }catch(ff){ console.error('populate single-edit fields', ff); }
+          // sanitize amount field regardless of source (user-typed or prefilled)
+          try{
+            const amtField = modalForm.querySelector('[name="amount"]');
+            if(amtField && amtField.value){ amtField.value = (amtField.value+"").replace(/[^0-9.\-]+/g, ''); }
+          }catch(san){ console.error('sanitize amount', san); }
+          // helper: format ISO date (YYYY-MM-DD) -> 'Mon. DD, YYYY'
+          function formatDisplayDate(iso){ if(!iso) return ''; try{ const d = new Date(iso); if(isNaN(d)) return iso; const options = { year:'numeric', month:'short', day:'numeric' }; // e.g., 'Jan 10, 2025'
+              const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(d);
+              // Build 'Jan. 10, 2025' -> add period after month short
+              const month = parts.find(p=>p.type==='month')?.value || '';
+              const day = parts.find(p=>p.type==='day')?.value || '';
+              const year = parts.find(p=>p.type==='year')?.value || '';
+              return month + '. ' + day + ', ' + year; }catch(e){ return iso; } }
+          // Build FormData explicitly to ensure required keys are always present
+          function getCookie(name){ const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'); return v ? v.pop() : ''; }
+          // prefer an explicit checked row; if none, try to infer the row from the form action (/transactions/<id>/edit/)
+          const checkedSelected = document.querySelector('.row-select:checked');
+          let actionTxId = null;
+          try{ const m = (modalForm && modalForm.action) ? modalForm.action.match(/\/transactions\/(\d+)\/edit\/?$/) : null; if(m) actionTxId = m[1]; }catch(_){}
+          const actionSelected = actionTxId ? document.querySelector('.row-select[data-id="'+actionTxId+'"]') : null;
+          const selected = checkedSelected || actionSelected || null;
+          function valOrDataset(selector, dsKey){ const el = modalForm.querySelector(selector); const v = el && el.value ? el.value.trim() : ''; if(v) return v; if(selected && selected.dataset && selected.dataset[dsKey]) return selected.dataset[dsKey]; return ''; }
+          const fdSubmit = new FormData();
+          fdSubmit.set('date', valOrDataset('#bulk_date','date'));
+          fdSubmit.set('amount', valOrDataset('#bulk_amount','amount'));
+          fdSubmit.set('description', valOrDataset('#bulk_description','description'));
+          fdSubmit.set('direction', valOrDataset('#bulk_direction','direction'));
+          fdSubmit.set('category', valOrDataset('#bulk_category','category'));
+          fdSubmit.set('subcategory', valOrDataset('#bulk_subcategory','subcategory'));
+          const idsHidden = modalForm.querySelector('#bulk-edit-ids'); if(idsHidden) fdSubmit.set('ids', idsHidden.value || '');
+          const nextHidden = modalForm.querySelector('#bulk-edit-next'); if(nextHidden) fdSubmit.set('next', nextHidden.value || '');
+          const csrfInput = modalForm.querySelector('input[name=csrfmiddlewaretoken]'); if(csrfInput && csrfInput.value) fdSubmit.set('csrfmiddlewaretoken', csrfInput.value);
+          // Debug: log built FormData
+          try{ for(const p of fdSubmit.entries()){ console.log('FormData', p[0], p[1]); } }catch(_){ }
+          const csrftoken = fdSubmit.get('csrfmiddlewaretoken') || getCookie('csrftoken');
+          // Start loading state after we've collected form data
+          setLoading(true);
+          try{
+            const resp = await fetch(action, { method: 'POST', body: fdSubmit, credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrftoken} });
+            let data = null;
+            let text = null;
+            try{ data = await resp.json(); }catch(errJson){
+              try{ text = await resp.text(); }catch(_){ text = null; }
+            }
+            console.log('AJAX response', resp.status, data || text);
+            if(!resp.ok){
+              if(data && data.errors){ showFieldErrors(data.errors); }
+              else if(text){ if(modalGlobalErr){ modalGlobalErr.style.display='block'; modalGlobalErr.textContent = text; } }
+              else { if(modalGlobalErr){ modalGlobalErr.style.display='block'; modalGlobalErr.textContent = 'Failed to save - please try again.'; } }
+              setLoading(false);
+              return;
+            }
+
+            // Success: update rows in-place
+            if(data && data.ok){
+              if(data.tx){
+                const tx = data.tx;
+                const checkbox = document.querySelector('.row-select[data-id="'+tx.id+'"]');
+                if(checkbox){
+                  const tr = checkbox.closest('tr');
+                  if(tr){
+                    const tds = tr.querySelectorAll('td');
+                    if(tds[1]) tds[1].textContent = formatDisplayDate(tx.date);
+                    if(tds[2]) tds[2].textContent = tx.description;
+                    if(tds[3]) tds[3].textContent = tx.category;
+                    if(tds[4]) tds[4].textContent = tx.amount;
+                    if(tds[5]) tds[5].textContent = tx.direction;
+                    // update dataset so subsequent edits use latest values
+                    checkbox.dataset.date = tx.date;
+                    checkbox.dataset.description = tx.description;
+                    checkbox.dataset.amount = tx.amount;
+                    checkbox.dataset.direction = tx.direction;
+                    checkbox.dataset.category = tx.category;
+                    checkbox.dataset.subcategory = tx.subcategory;
+                     tr.classList.remove('row-updated'); void tr.offsetWidth; tr.classList.add('row-updated');
+                  }
+                }
+              } else if(data.updated_ids && Array.isArray(data.updated_ids)){
+                const applied = data.applied || {};
+                data.updated_ids.forEach(function(id){
+                  const checkbox = document.querySelector('.row-select[data-id="'+id+'"]');
+                  if(checkbox){
+                    const tr = checkbox.closest('tr');
+                    if(tr){
+                      const tds = tr.querySelectorAll('td');
+                      if('date' in applied && tds[1]) tds[1].textContent = formatDisplayDate(applied.date);
+                      if('description' in applied && tds[2]) tds[2].textContent = applied.description;
+                      if('category' in applied && tds[3]) tds[3].textContent = applied.category;
+                      if('amount' in applied && tds[4]) tds[4].textContent = applied.amount;
+                      if('direction' in applied && tds[5]) tds[5].textContent = applied.direction;
+                      // update dataset values too
+                      if('date' in applied) checkbox.dataset.date = applied.date;
+                      if('description' in applied) checkbox.dataset.description = applied.description;
+                      if('amount' in applied) checkbox.dataset.amount = applied.amount;
+                      if('direction' in applied) checkbox.dataset.direction = applied.direction;
+                      if('category' in applied) checkbox.dataset.category = applied.category;
+                       tr.classList.remove('row-updated'); void tr.offsetWidth; tr.classList.add('row-updated');
+                    }
+                  }
+                });
+              }
+
+              // close modal and reset
+              if(modalEl){ modalEl.style.display = 'none'; modalEl.setAttribute('aria-hidden','true'); }
+              setLoading(false);
+              // show transient success banner
+              const banner = document.createElement('div');
+              banner.className = 'card'; banner.style.padding='.6rem'; banner.style.margin='.6rem 0'; banner.textContent = 'Saved successfully';
+              const main = document.querySelector('main') || document.getElementById('content') || document.body;
+              if(main && main.insertBefore) main.insertBefore(banner, main.firstChild);
+              setTimeout(()=>{ if(banner && banner.remove) banner.remove(); }, 2400);
+              return;
+            }
+
+            // Fallback
+            setLoading(false);
+            if(modalGlobalErr){ modalGlobalErr.style.display='block'; modalGlobalErr.textContent='Unexpected response'; }
+          }catch(err){
+            console.error(err);
+            setLoading(false);
+            if(modalGlobalErr){ modalGlobalErr.style.display='block'; modalGlobalErr.textContent='Network error - try again.'; }
+          }
+        });
+      }
+    })();
+
+    // modal cancel buttons: close modals
+    const bulkCancelBtn = document.getElementById('bulk-edit-cancel');
+    if(bulkCancelBtn){ bulkCancelBtn.addEventListener('click', function(){ const m = document.getElementById('bulk-edit-modal'); if(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }); }
+    const deleteCancelBtn = document.getElementById('delete-cancel');
+    if(deleteCancelBtn){ deleteCancelBtn.addEventListener('click', function(){ const m = document.getElementById('delete-modal'); if(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }); }
+
+    // Initial button state (in case rows are pre-selected by the browser or other script)
+    try{ if(window.updateButtons) window.updateButtons(); }catch(e){ /* ignore */ }
+   })();
+</script>
+
 {% endblock %}

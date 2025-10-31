@@ -19,6 +19,8 @@ class Transaction(models.Model):
     account = models.CharField(max_length=128, blank=True, default="")
     source = models.CharField(max_length=64, blank=True, default="csv")  # csv, xlsx, sheets, etc.
     created_at = models.DateTimeField(auto_now_add=True)
+    # audit field for edits
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         indexes = [
