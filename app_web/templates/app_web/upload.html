@@ -101,65 +101,7 @@
 
   </div>
 
-  <!-- Separate Add Transaction card -->
-  {% if request.user.is_authenticated %}
-  <div class="card" style="margin-top:1.25rem;">
-    <h2 class="card-title">Add Transaction</h2>
-
-    <div id="add-errors" class="inline-errors" role="alert" aria-live="polite">
-      {% if add_errors %}
-        <ul>
-          {% for e in add_errors %}<li>{{ e }}</li>{% endfor %}
-        </ul>
-      {% endif %}
-    </div>
-
-    <form method="post" class="mt-1" id="add-tx-form">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="add_tx">
-
-      <div class="form-row">
-        <label class="form-label" for="tx-date">Date</label>
-        <input id="tx-date" class="form-input" type="text" name="date" required />
-      </div>
-
-      <div class="form-row">
-        <label class="form-label" for="tx-desc">Description</label>
-        <input id="tx-desc" class="form-input" type="text" name="description" maxlength="512" required />
-      </div>
-
-      <div class="form-row" style="display:flex; gap:.75rem;">
-        <div style="flex:1">
-          <label class="form-label" for="tx-amount">Amount</label>
-          <input id="tx-amount" class="form-input" type="text" name="amount" placeholder="e.g. 123.45" required />
-        </div>
-
-        <div style="width:160px;">
-          <label class="form-label" for="tx-direction">Direction</label>
-          <select id="tx-direction" class="form-select" name="direction">
-            <option value="inflow">Inflow</option>
-            <option value="outflow">Outflow</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-row" style="display:flex; gap:.75rem;">
-        <div style="flex:1">
-          <label class="form-label" for="tx-category">Category</label>
-          <input id="tx-category" class="form-input" type="text" name="category" />
-        </div>
-        <div style="flex:1">
-          <label class="form-label" for="tx-subcategory">Subcategory</label>
-          <input id="tx-subcategory" class="form-input" type="text" name="subcategory" />
-        </div>
-      </div>
-
-      <div class="form-row mt-1">
-        <button class="btn btn-primary" type="submit">Add transaction</button>
-      </div>
-    </form>
-  </div>
-  {% endif %}
+  <!-- Add Transaction moved to Transactions page modal -->
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 

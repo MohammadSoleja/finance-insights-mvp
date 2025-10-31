@@ -14,6 +14,9 @@ from django.utils import timezone
 from django.db.models import Q
 from app_core.models import Transaction
 from app_core.metrics import queryset_to_df, kpis as kpi_calc, timeseries, by_category
+from django.views.decorators.http import require_http_methods
+from django.core.exceptions import PermissionDenied
+from .models import UserTableSetting
 
 import math
 import json
@@ -27,6 +30,12 @@ from django.http import HttpResponse, JsonResponse
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
 from django.core.paginator import Paginator
+
+# Allowed columns and default order
+ALLOWED_COLUMNS = [
+    'date', 'description', 'category', 'subcategory', 'amount', 'direction', 'account', 'source', 'created_at', 'updated_at'
+]
+DEFAULT_COLUMNS = ['date', 'description', 'category', 'amount', 'direction']
 
 @login_required
 def upload_view(request):
@@ -370,6 +379,23 @@ def transactions_view(request):
     if 'page' in params:
         params.pop('page')
 
+    # Load user's column settings (server-side persisted)
+    try:
+        setting, _ = UserTableSetting.objects.get_or_create(user=request.user)
+        columns = setting.columns or DEFAULT_COLUMNS
+        columns = [c for c in columns if c in ALLOWED_COLUMNS]
+        if not columns:
+            columns = DEFAULT_COLUMNS
+    except Exception:
+        columns = DEFAULT_COLUMNS
+
+    # Human readable labels for columns
+    column_labels = {
+        'date': 'Date', 'description': 'Description', 'category': 'Category', 'subcategory': 'Subcategory',
+        'amount': 'Amount', 'direction': 'Direction', 'account': 'Account', 'source': 'Source',
+        'created_at': 'Created', 'updated_at': 'Updated'
+    }
+
     context = {
         'title': 'Transactions',
         'page': page,
@@ -379,6 +405,9 @@ def transactions_view(request):
         'params': params.urlencode(),
         'start_date': start_date,
         'end_date': end_date,
+        'columns': columns,
+        'column_labels': column_labels,
+        'all_columns': ALLOWED_COLUMNS,
     }
     return render(request, 'app_web/transactions.html', context)
 
@@ -506,6 +535,63 @@ def transaction_bulk_edit_view(request):
     count = qs.update(**updates)
     # For AJAX requests, return JSON with list of affected ids and applied updates so the frontend can update rows
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-        return JsonResponse({'ok': True, 'updated_count': count, 'updated_ids': ids, 'applied': updates})
+        # Make applied values JSON-serializable (dates/decimals -> strings)
+        applied_safe = {}
+        for k, v in updates.items():
+            try:
+                # handle date/time
+                if isinstance(v, (datetime.date, datetime.datetime)):
+                    applied_safe[k] = str(v)
+                # handle Decimal
+                elif isinstance(v, Decimal):
+                    applied_safe[k] = str(v)
+                else:
+                    applied_safe[k] = v
+            except Exception:
+                applied_safe[k] = str(v)
+        return JsonResponse({'ok': True, 'updated_count': count, 'updated_ids': ids, 'applied': applied_safe})
     messages.success(request, f'Updated {count} transaction(s)')
     return redirect('/transactions/' + (f'?{next_params}' if next_params else ''))
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def transaction_columns_view(request):
+    """GET returns current columns (JSON). POST accepts JSON {columns: [...]}, validates and saves for the user."""
+    if request.method == 'GET':
+        setting, _ = UserTableSetting.objects.get_or_create(user=request.user)
+        cols = setting.columns or DEFAULT_COLUMNS
+        # sanitize unknown columns
+        cols = [c for c in cols if c in ALLOWED_COLUMNS]
+        if not cols:
+            cols = DEFAULT_COLUMNS
+        return JsonResponse({'columns': cols})
+
+    # POST: accept JSON or form-encoded
+    payload = {}
+    try:
+        if request.content_type and 'application/json' in request.content_type:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        else:
+            # form-encoded: repeated fields or comma-separated
+            if 'columns' in request.POST:
+                # allow comma-separated string
+                payload['columns'] = [x.strip() for x in request.POST.get('columns','').split(',') if x.strip()]
+            else:
+                # collect columns[] style
+                payload['columns'] = request.POST.getlist('columns')
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Invalid payload'}, status=400)
+
+    cols = payload.get('columns', []) or []
+    if not isinstance(cols, list):
+        return JsonResponse({'ok': False, 'error': 'columns must be a list'}, status=400)
+
+    # sanitize and keep order
+    final = [c for c in cols if c in ALLOWED_COLUMNS]
+    if not final:
+        return JsonResponse({'ok': False, 'error': 'No valid columns provided'}, status=400)
+
+    setting, _ = UserTableSetting.objects.get_or_create(user=request.user)
+    setting.columns = final
+    setting.save()
+    return JsonResponse({'ok': True, 'columns': final})
