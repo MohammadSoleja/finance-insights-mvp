@@ -304,6 +304,21 @@ def home_view(request):
     """Public landing page."""
     return render(request, "app_web/home.html")
 
+def pricing_view(request):
+    """Public pricing placeholder page."""
+    context = {"title": "Pricing"}
+    return render(request, "app_web/pricing.html", context)
+
+def demo_view(request):
+    """Public demo request placeholder page."""
+    context = {"title": "Demo"}
+    return render(request, "app_web/demo.html", context)
+
+def about_view(request):
+    """Public about page placeholder."""
+    context = {"title": "About"}
+    return render(request, "app_web/about.html", context)
+
 @login_required
 def profile_view(request):
     return render(request, "app_web/profile.html", {"title": "Profile"})

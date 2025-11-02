@@ -1,5 +1,5 @@
 from django.urls import path, include
-from .views import upload_view, dashboard_view, health_view, signup_view, home_view, profile_view, settings_view, transactions_view
+from .views import upload_view, dashboard_view, health_view, signup_view, home_view, profile_view, settings_view, transactions_view, pricing_view, demo_view, about_view
 from .views import transaction_edit_view, transaction_delete_view, transaction_bulk_edit_view
 from .views import transaction_columns_view
 from .forms import LoginForm
@@ -11,6 +11,9 @@ app_name = "app_web"
 urlpatterns = [
     path("upload/", upload_view, name="upload"),
     path("dashboard/", dashboard_view, name="dashboard"),
+    path("pricing/", pricing_view, name="pricing"),
+    path("demo/", demo_view, name="demo"),
+    path("about/", about_view, name="about"),
     path("transactions/", transactions_view, name="transactions"),
     path("transactions/<int:tx_id>/edit/", transaction_edit_view, name="transaction_edit"),
     path("transactions/<int:tx_id>/delete/", transaction_delete_view, name="transaction_delete"),
