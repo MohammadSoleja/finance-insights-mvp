@@ -53,9 +53,18 @@
 
     const catCtx = document.getElementById("catChart");
     if (catCtx && Array.isArray(data.cat_labels)) {
+      // determine colors per bar based on provided sign array (1 = inflow, -1 = outflow, 0 = neutral)
+      var signs = Array.isArray(data.cat_signs) ? data.cat_signs : [];
+      var colors = (data.cat_labels || []).map(function(_, i){
+        var s = signs[i] || 0;
+        if (s > 0) return 'rgba(16,185,129,0.85)'; // green (inflow)
+        if (s < 0) return 'rgba(239,68,68,0.85)';  // red (outflow)
+        return 'rgba(107,114,128,0.6)'; // gray neutral
+      });
+
       new Chart(catCtx, {
         type: "bar",
-        data: { labels: data.cat_labels, datasets: [{ label: "Amount", data: data.cat_vals || [], backgroundColor: '#bfdbfe' }] },
+        data: { labels: data.cat_labels, datasets: [{ label: "Amount", data: data.cat_vals || [], backgroundColor: colors, borderColor: colors, borderWidth: 1 }] },
         options: {
           indexAxis: "y",
           responsive: true,

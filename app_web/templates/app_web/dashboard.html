@@ -4,43 +4,127 @@
 
 {% block head_extra %}
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- flatpickr for consistent date picker like Transactions/Upload page -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
   <style>
-    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-    .kpi { font-size: 1.8rem; font-weight: 700; }
-    .muted { color: #6b7280; }
-    .row { margin: 1rem 0; }
-    .charts { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; }
-    @media (max-width: 900px){ .grid{grid-template-columns:1fr;} .charts{grid-template-columns:1fr;} }
-    .toolbar { display:flex; gap:.5rem; align-items:center; margin-bottom: 1rem; flex-wrap:wrap; }
+    /* Dashboard toolbar: two columns => frequency buttons + filters (keeps them inline) */
+    .dashboard-toolbar { display: grid; grid-template-columns: auto 1fr; gap:1rem; align-items:center; width:100%; margin-bottom: 0.5rem; }
+    .freq-group { display:flex; gap:.5rem; align-items:center; }
+    /* add subtle borders to frequency buttons and consistent sizing */
+    .freq-group .btn { height:38px; padding:6px 12px; border-radius:8px; border: 1px solid rgba(16,24,40,0.08); background: transparent; }
+    .freq-group .btn:hover { background: rgba(37,99,235,0.04); }
+    /* active state */
+    .freq-group .btn[aria-current="page"] { background: var(--accent); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(37,99,235,0.08); }
+
+    /* dashboard-filters: use a grid that mirrors the transactions toolbar layout on desktop */
+    .dashboard-filters { display: grid; grid-template-columns: minmax(220px, 1fr) 140px 140px 140px auto; gap:.5rem; align-items:center; width:100%; }
+    .dashboard-filters .search { min-width:180px; }
+    .dashboard-filters .date-field .form-input, .dashboard-filters .date-field .form-date { width:100%; }
+
+    /* fallback: on narrow screens stack filters and allow wrapping */
+    @media (max-width: 800px) {
+      .dashboard-toolbar { grid-template-columns: 1fr; }
+      .dashboard-filters { grid-template-columns: 1fr 1fr; grid-auto-rows: auto; }
+      .dashboard-filters .date-field, .dashboard-filters .category-field { width:100%; }
+    }
+
+    /* KPI layout: keep 3 columns but allow flexible sizing so cards stretch across width */
+    .kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 1rem; align-items: start; width:100%; margin-top: 1rem; margin-bottom: 1.25rem; }
+    .kpi-grid .card { display:flex; flex-direction:row; gap:1rem; align-items:center; justify-content:space-between; padding: .85rem 1rem; min-height: 68px; }
+    @media (max-width: 1000px) { .kpi-grid { grid-template-columns: 1fr; } .kpi-grid .card { flex-direction:column; align-items:flex-start; } }
+
+    /* Charts: ensure side-by-side on desktop */
+    .charts { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-top: 0.75rem; }
+    @media (max-width: 900px) { .charts { grid-template-columns: 1fr; } }
+
+    /* small spacer */
+    .dashboard-toolbar + .spacer { height: .5rem; }
   </style>
 {% endblock %}
 
 {% block content %}
   <h1>Dashboard</h1>
-  <div class="toolbar" role="tablist" aria-label="Frequency">
-    <a class="btn" href="?freq=D" {% if freq == 'D' %}aria-current="page"{% endif %}>Daily</a>
-    <a class="btn" href="?freq=W" {% if freq == 'W' %}aria-current="page"{% endif %}>Weekly</a>
-    <a class="btn" href="?freq=M" {% if freq == 'M' %}aria-current="page"{% endif %}>Monthly</a>
+
+  <!-- Combined toolbar: frequency buttons to the left, filters to the right (dashboard-scoped form) -->
+  <div class="dashboard-toolbar">
+    <div class="freq-group" role="tablist" aria-label="Frequency">
+      {% with base=base_qs %}
+        <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=D" {% if freq == 'D' %}aria-current="page"{% endif %}>Daily</a>
+        <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=W" {% if freq == 'W' %}aria-current="page"{% endif %}>Weekly</a>
+        <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=M" {% if freq == 'M' %}aria-current="page"{% endif %}>Monthly</a>
+        <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=Y" {% if freq == 'Y' %}aria-current="page"{% endif %}>YTD</a>
+      {% endwith %}
+    </div>
+
+    <form method="get" class="dashboard-filters" role="search" aria-label="Dashboard filters">
+      <input type="hidden" name="freq" value="{{ freq }}" />
+
+      <div class="field-group search-field">
+        <input id="q" aria-label="Search" class="form-input search" type="text" name="q" placeholder="Search description or category" value="{{ request.GET.q|default:'' }}" />
+      </div>
+
+      <div class="field-group date-field">
+        <input id="start_date" aria-label="Start date" name="start" type="text" class="form-input form-date" value="{{ start }}" placeholder="Start date" />
+      </div>
+
+      <div class="field-group date-field">
+        <input id="end_date" aria-label="End date" name="end" type="text" class="form-input form-date" value="{{ end }}" placeholder="End date" />
+      </div>
+
+      <div class="field-group category-field">
+        <select id="category" aria-label="Category" name="category" class="form-select">
+          <option value="">All</option>
+          {% for c in categories %}
+            <option value="{{ c }}" {% if c == category %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="toolbar-actions" style="display:flex; align-items:center; gap:.5rem">
+        <a href="/dashboard/" class="btn">Reset</a>
+        <button class="btn btn-primary" type="submit">Apply</button>
+      </div>
+    </form>
   </div>
+
+  <div class="spacer"></div>
 
   <div class="kpi-grid">
-    <div class="card"><div class="muted">Total Inflow</div><div class="kpi">£{{ kpi.inflow }}</div></div>
-    <div class="card"><div class="muted">Total Outflow</div><div class="kpi">£{{ kpi.outflow }}</div></div>
-    <div class="card"><div class="muted">Net</div><div class="kpi">£{{ kpi.net }}</div></div>
+    <div class="card"><div>
+        <div class="muted">Total Inflow</div>
+        <div class="kpi">£{{ kpi.inflow }}</div>
+        <div class="muted" style="font-size:.85rem; margin-top:.25rem">{{ kpi_window_label }}</div>
+      </div></div>
+    <div class="card"><div>
+        <div class="muted">Total Outflow</div>
+        <div class="kpi">£{{ kpi.outflow }}</div>
+        <div class="muted" style="font-size:.85rem; margin-top:.25rem">{{ kpi_window_label }}</div>
+      </div></div>
+    <div class="card"><div>
+        <div class="muted">Net</div>
+        <div class="kpi">£{{ kpi.net }}</div>
+        <div class="muted" style="font-size:.85rem; margin-top:.25rem">{{ kpi_window_label }}</div>
+      </div></div>
   </div>
 
-  <div class="row muted">Transactions: {{ tx_count }} • Frequency: {{ freq }}</div>
+  <!-- Removed redundant transaction/frequency text — filters show this info -->
 
-  <div class="charts">
-    <div class="card">
-      <h3>Revenue vs Expenses vs Net</h3>
-      <div class="chart-wrap"><canvas id="tsChart" aria-label="Time series chart" role="img"></canvas></div>
+  {% if no_results %}
+    <div class="card muted">No transactions found for the selected filters.</div>
+  {% else %}
+    <div class="charts">
+      <div class="card">
+        <h3>Revenue vs Expenses vs Net</h3>
+        <div class="chart-wrap"><canvas id="tsChart" aria-label="Time series chart" role="img"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Top Categories</h3>
+        <div class="chart-wrap"><canvas id="catChart" aria-label="Top categories chart" role="img"></canvas></div>
+      </div>
     </div>
-    <div class="card">
-      <h3>Top Categories</h3>
-      <div class="chart-wrap"><canvas id="catChart" aria-label="Top categories chart" role="img"></canvas></div>
-    </div>
-  </div>
+  {% endif %}
 
   <div class="card mt-1">
   <h3 class="mt-0">AI-style Insights</h3>
@@ -58,9 +142,21 @@
 </div>
 
   <!-- Embed data as JSON (no inline executable JS) -->
-  <script id="chart-data" type="application/json">{{ chart_payload }}</script>
+  <script id="chart-data" type="application/json">{{ chart_payload|safe }}</script>
 {% endblock %}
 
 {% block scripts %}
   <script src="{% static 'app_web/dashboard.js' %}"></script>
+  <script>
+    // Initialize flatpickr on dashboard date inputs to match transactions styling & behavior
+    (function(){
+      document.addEventListener('DOMContentLoaded', function(){
+        if(window.flatpickr){
+          var opts = { dateFormat: 'Y-m-d', allowInput: true };
+          flatpickr('#start_date', opts);
+          flatpickr('#end_date', opts);
+        }
+      });
+    })();
+  </script>
 {% endblock %}

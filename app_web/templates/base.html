@@ -38,6 +38,10 @@
     /* ensure page content doesn't sit under the sticky header */
     main#content{ padding-top: calc(var(--header-height) + 1rem); }
 
+    /* Critical card styles (inline) to avoid flash of unstyled cards while external CSS loads */
+    .card { padding: 1rem; border: 1px solid rgba(16,24,40,0.06); border-radius: 12px; background: #fff; box-shadow: 0 6px 22px rgba(16,24,40,0.06); }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(16,24,40,0.08); }
+
   </style>
 
   {% block head_extra %}{% endblock %}
