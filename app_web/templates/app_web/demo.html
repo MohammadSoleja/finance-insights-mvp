@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Request a Demo — Nasheet{% endblock %}
+{% block content %}
+  <h1>Request a Demo</h1>
+  <p class="muted">Fill out the form below to request a demo. (Calendly and integrations will be added later.)</p>
+  <form method="post" action="/demo/" class="card mt-1">
+    {% csrf_token %}
+    <div class="field"><label class="form-label">Name</label><input name="name" class="form-input" type="text" /></div>
+    <div class="field"><label class="form-label">Email</label><input name="email" class="form-input" type="email" /></div>
+    <div class="field"><label class="form-label">Message</label><textarea name="message" class="form-input" rows="4"></textarea></div>
+    <div class="mt-1"><button class="btn btn-primary" type="submit">Request Demo</button></div>
+  </form>
+{% endblock %}
+

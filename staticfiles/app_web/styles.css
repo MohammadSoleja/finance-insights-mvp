@@ -3,7 +3,7 @@
   --brand: #111827; /* default text color */
   --accent: #2563eb; /* primary blue */
   --muted: #6b7280;
-  --border: #e5e7eb;
+  --border: #000000;
   --bg: #ffffff;
 }
 * { box-sizing: border-box; }
