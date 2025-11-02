@@ -26,12 +26,21 @@ header.site-header { border-bottom: 1px solid var(--border); background: var(--b
 .nav-logout[aria-current="page"] { background: var(--accent); color: #fff; }
 
 /* Buttons used throughout the app */
-.btn { padding: .6rem 1rem; border-radius: .65rem; text-decoration: none; display: inline-block; border: 1px solid var(--border); color: var(--brand); background: transparent; }
-.btn-primary { background: var(--accent); color: #fff; border-color: transparent; }
+.btn { padding: .55rem .9rem; border-radius: 10px; text-decoration: none; display: inline-block; border: 1px solid transparent; color: var(--brand); background: transparent; transition: box-shadow .14s ease, transform .06s ease; }
+.btn-primary { background: var(--accent); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(37,99,235,0.08); }
+.btn-primary:hover { box-shadow: 0 10px 30px rgba(37,99,235,0.12); }
 .btn-ghost { background: transparent; border: 1px solid var(--border); }
 
 /* Cards and grid */
-.card { padding: 1rem; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
+.card {
+  padding: 1.1rem;
+  border: 1px solid rgba(16,24,40,0.06);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+  box-shadow: 0 6px 22px rgba(16,24,40,0.06);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.card:hover { transform: translateY(-4px); box-shadow: 0 14px 40px rgba(16,24,40,0.08); }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
 

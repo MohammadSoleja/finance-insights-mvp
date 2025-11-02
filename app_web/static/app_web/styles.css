@@ -3,7 +3,8 @@
   --brand: #111827; /* default text color */
   --accent: #2563eb; /* primary blue */
   --muted: #6b7280;
-  --border: #000000;
+  /* softer border for modern look */
+  --border: rgba(16,24,40,0.06);
   --bg: #ffffff;
 }
 * { box-sizing: border-box; }
@@ -37,15 +38,33 @@ header.site-header { border-bottom: 1px solid var(--border); background: var(--b
 .dropdown-divider { height:1px; background:var(--border); margin:.375rem 0; }
 
 /* Buttons used throughout the app */
-.btn { padding: .6rem 1rem; border-radius: .65rem; text-decoration: none; display: inline-block; border: 1px solid var(--border); color: var(--brand); background: transparent; }
-.btn-primary { background: var(--accent); color: #fff; border-color: transparent; }
+.btn { padding: .55rem .9rem; border-radius: 10px; text-decoration: none; display: inline-block; border: 1px solid transparent; color: var(--brand); background: transparent; transition: box-shadow .14s ease, transform .06s ease; }
+.btn-primary { background: var(--accent); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(37,99,235,0.08); }
+.btn-primary:hover { box-shadow: 0 10px 30px rgba(37,99,235,0.12); }
 .btn-ghost { background: transparent; border: 1px solid var(--border); }
 
-/* Cards and grid */
-.card { padding: 1rem; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-@media (max-width: 1400px) { .grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+/* Modernized card: lighter border, soft shadow, smoother radius */
+.card {
+  padding: 1.1rem;
+  border: 1px solid rgba(16,24,40,0.06);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+  box-shadow: 0 6px 22px rgba(16,24,40,0.06);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.card:hover { transform: translateY(-4px); box-shadow: 0 14px 40px rgba(16,24,40,0.08); }
+
+/* KPI card specific polishing */
+.kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 1rem; align-items: start; width:100%; justify-content: stretch; margin-top: 1rem; margin-bottom: 1.25rem; }
+.kpi-grid .card { display:flex; flex-direction:row; gap:1rem; align-items:center; justify-content:space-between; padding: 1.05rem 1.25rem; min-height: 84px; }
+.kpi-grid .card .muted { color: var(--muted); font-size: .95rem; }
+.kpi-grid .kpi { font-size: 2rem; font-weight: 800; color: var(--brand); letter-spacing: -0.01em; }
+.kpi-grid .kpi::before { content: ''; display:inline-block; width:10px; height:10px; margin-right:.6rem; border-radius:50%; background: linear-gradient(135deg, rgba(37,99,235,.15), rgba(245,158,11,.15)); vertical-align:middle; }
+
+/* Chart cards: ensure they look prominent and have room for canvases */
+.charts .card { padding: 1rem; min-height: 260px; display:flex; flex-direction:column; }
+.chart-wrap { width:100%; aspect-ratio: 16 / 9; background: linear-gradient(180deg, rgba(243,246,255,0.6), rgba(255,255,255,0.4)); border-radius: 8px; overflow: hidden; box-shadow: inset 0 -12px 30px rgba(16,24,40,0.03); }
+.chart-wrap canvas { width:100% !important; height:100% !important; display:block; }
 
 /* Upload preview table */
 .tablewrap { overflow: auto; border:1px solid var(--border); border-radius:8px; }
@@ -68,16 +87,16 @@ input[type="text"], input[type="password"], input[type="email"] { width: 100%; p
 .form-label { display:block; font-size: .9rem; color: var(--muted); margin-bottom: .35rem; }
 .form-input, .form-select, input[type="date"] {
   width: 100%;
-  padding: .6rem .75rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  padding: .7rem .85rem;
+  border: 1px solid rgba(16,24,40,0.06);
+  border-radius: 12px;
   background: #fff;
-  font-size: .95rem;
+  font-size: .96rem;
   color: var(--brand);
-  transition: box-shadow .12s ease, border-color .12s ease;
+  transition: box-shadow .14s ease, border-color .14s ease, transform .06s ease;
 }
 .form-select { appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) calc(1em + 2px), calc(100% - 13px) calc(1em + 2px); background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 2.2rem; }
-.form-input:focus, .form-select:focus, input[type="date"]:focus { border-color: rgba(37,99,235,0.5); box-shadow: 0 4px 12px rgba(37,99,235,0.06); outline: none; }
+.form-input:focus, .form-select:focus, input[type="date"]:focus { border-color: rgba(37,99,235,0.5); box-shadow: 0 8px 28px rgba(37,99,235,0.06); outline: none; transform: translateY(-1px); }
 
 /* Accessibility focus */
 :focus { outline: 2px solid rgba(37,99,235,0.15); outline-offset: 2px; }
@@ -98,8 +117,11 @@ input[type="text"], input[type="password"], input[type="email"] { width: 100%; p
 }
 
 /* Dashboard-specific helpers */
-.kpi-grid { display: grid; grid-template-columns: repeat(3, 320px); gap: 1rem; align-items: start; width:100%; justify-content: center; }
-.kpi-grid .card { display:flex; flex-direction:row; gap:1rem; align-items:center; justify-content:space-between; padding: .65rem .85rem; min-height: 68px; }
+.kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 1rem; align-items: start; width:100%; justify-content: stretch; margin-top: 1rem; margin-bottom: 1.25rem; }
+.kpi-grid .card { display:flex; flex-direction:row; gap:1rem; align-items:center; justify-content:space-between; padding: 1.05rem 1.25rem; min-height: 84px; }
+.kpi-grid .card .muted { color: var(--muted); font-size: .95rem; }
+.kpi-grid .kpi { font-size: 2rem; font-weight: 800; color: var(--brand); letter-spacing: -0.01em; }
+.kpi-grid .kpi::before { content: ''; display:inline-block; width:10px; height:10px; margin-right:.6rem; border-radius:50%; background: linear-gradient(135deg, rgba(37,99,235,.15), rgba(245,158,11,.15)); vertical-align:middle; }
 /* Stack KPI cards on small screens */
 @media (max-width: 1000px) {
   .kpi-grid { grid-template-columns: 1fr; justify-content: stretch; }
@@ -107,7 +129,7 @@ input[type="text"], input[type="password"], input[type="email"] { width: 100%; p
 }
 
 /* Chart wrapper keeps aspect ratio and avoids layout shift */
-.chart-wrap { width:100%; aspect-ratio: 16 / 9; }
+.chart-wrap { width:100%; aspect-ratio: 16 / 9; background: linear-gradient(180deg, rgba(243,246,255,0.6), rgba(255,255,255,0.4)); border-radius: 8px; overflow: hidden; box-shadow: inset 0 -12px 30px rgba(16,24,40,0.03); }
 .chart-wrap canvas { width:100% !important; height:100% !important; display:block; }
 
 /* Toolbar buttons — consistent sizing and visual active state */

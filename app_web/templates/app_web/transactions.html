@@ -713,6 +713,19 @@ document.addEventListener('DOMContentLoaded', function(){
   const addTxForm = document.getElementById('add-tx-form-modal');
   const addTxCancel = document.getElementById('add-tx-cancel');
 
+  // Build a JS array of visible columns so the client can insert a new row matching server columns
+  const TRANSACTION_COLUMNS = [{% for c in columns %}'{{ c }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+
+  // small helper to format ISO date to 'Mon. d, YYYY' like server template
+  function formatDateReadable(iso){
+    try{
+      const d = new Date(iso);
+      if(isNaN(d)) return iso;
+      const months = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'];
+      return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+    }catch(e){ return iso; }
+  }
+
   if(addTxBtn){
     addTxBtn.addEventListener('click', function(){
       if(addTxModal){ addTxModal.style.display='flex'; addTxModal.setAttribute('aria-hidden','false'); }
@@ -737,16 +750,107 @@ document.addEventListener('DOMContentLoaded', function(){
         const csrftoken = (modalForm.querySelector('input[name=csrfmiddlewaretoken]') && modalForm.querySelector('input[name=csrfmiddlewaretoken]').value) || (function(){ const m = document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)'); return m ? m.pop() : ''; })();
         try{
           const resp = await fetch(window.location.pathname, { method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-CSRFToken': csrftoken, 'X-Requested-With':'XMLHttpRequest'} });
-          const data = await resp.json().catch(()=>null);
+          let data = null;
+          try{ data = await resp.json(); }catch(e){ data = null; }
           if(resp.ok && data && data.ok){
             if(modalEl){ modalEl.style.display='none'; modalEl.setAttribute('aria-hidden','true'); }
             try{ modalForm.reset(); if(window.flatpickr){ const f = document.querySelector('#add-tx-date'); if(f && f._flatpickr) f._flatpickr.clear(); } }catch(_){ }
+
+            // Insert the newly created transaction into the table (top of tbody)
+            try{
+              const tx = data.tx;
+              const tbody = document.querySelector('.tablewrap tbody');
+              if(tbody){
+                // remove "No transactions found" row if present
+                const firstRow = tbody.querySelector('tr');
+                if(firstRow && firstRow.children.length === 1 && firstRow.textContent && firstRow.textContent.trim().startsWith('No transactions')){
+                  firstRow.remove();
+                }
+
+                const tr = document.createElement('tr');
+                // checkbox cell
+                const td0 = document.createElement('td');
+                const cb = document.createElement('input');
+                cb.type = 'checkbox'; cb.className = 'row-select';
+                cb.setAttribute('data-id', tx.id);
+                cb.setAttribute('data-date', tx.date || '');
+                cb.setAttribute('data-description', tx.description || '');
+                cb.setAttribute('data-amount', tx.amount || '');
+                cb.setAttribute('data-direction', tx.direction || '');
+                cb.setAttribute('data-category', tx.category || '');
+                cb.setAttribute('data-subcategory', tx.subcategory || '');
+                td0.appendChild(cb);
+                tr.appendChild(td0);
+
+                // append cells for each visible column in order
+                TRANSACTION_COLUMNS.forEach(function(col){
+                  const td = document.createElement('td');
+                  td.setAttribute('data-col', col);
+                  if(col === 'date'){
+                    td.textContent = formatDateReadable(tx.date || '');
+                  } else if(col === 'amount'){
+                    td.style.textAlign = 'right';
+                    td.textContent = tx.amount || '';
+                  } else if(col === 'direction'){
+                    td.textContent = tx.direction || '';
+                  } else if(col === 'description'){
+                    td.textContent = tx.description || '';
+                  } else if(col === 'category'){
+                    td.textContent = tx.category || '';
+                  } else if(col === 'subcategory'){
+                    td.textContent = tx.subcategory || '';
+                  } else if(col === 'account'){
+                    td.textContent = tx.account || '';
+                  } else if(col === 'source'){
+                    td.textContent = tx.source || '';
+                  } else if(col === 'created_at'){
+                    td.textContent = tx.created_at || '';
+                  } else if(col === 'updated_at'){
+                    td.textContent = tx.updated_at || '';
+                  } else {
+                    td.textContent = tx[col] || '';
+                  }
+                  tr.appendChild(td);
+                });
+
+                // prepend the row
+                tbody.insertBefore(tr, tbody.firstChild);
+                // attach listeners and update buttons
+                try{ if(window.updateButtons) window.updateButtons(); }catch(e){}
+                try{ if(typeof attachRowListeners === 'function') attachRowListeners(); }catch(e){}
+
+                // update total count shown in pagination row (simple increment)
+                try{
+                  const totalEl = document.querySelector('.pagination-row .muted');
+                  if(totalEl){
+                    const txt = totalEl.textContent || '';
+                    const m = txt.match(/—\s*([0-9,]+)\s*total/);
+                    if(m){
+                      const cur = parseInt(m[1].replace(/,/g,''), 10) || 0;
+                      const next = (cur + 1).toLocaleString();
+                      totalEl.textContent = txt.replace(m[1], next);
+                    }
+                  }
+                }catch(e){}
+              }
+            }catch(e){ console.error('Failed to insert new transaction row', e); }
+
             const banner = document.createElement('div'); banner.className='card'; banner.style.padding='.6rem'; banner.style.margin='.6rem 0'; banner.textContent='Transaction added';
             const main = document.querySelector('main') || document.body; if(main && main.insertBefore) main.insertBefore(banner, main.firstChild);
             setTimeout(()=>{ if(banner && banner.remove) banner.remove(); }, 2000);
           } else {
-            const errs = (data && data.errors) || ['Failed to add transaction'];
-            const errEl = document.getElementById('add-modal-errors'); if(errEl){ errEl.style.display='block'; errEl.innerHTML = '<ul>'+errs.map(x=>'<li>'+x+'</li>').join('')+'</ul>'; }
+            const errEl = document.getElementById('add-modal-errors');
+            let errs = (data && data.errors) || null;
+            // if server returned non-JSON (e.g. CSRF HTML or template), show text for debugging
+            if(!errs){
+              try{
+                const txt = await resp.text();
+                // If it's HTML (CSRF page), show a brief hint + raw text in a <pre>
+                if(resp.status === 403){ errs = ['Permission denied (CSRF token missing or invalid). Please refresh the page and try again.']; }
+                else { errs = [ (txt && txt.length>0) ? txt.substring(0,800) : 'Failed to add transaction' ]; }
+              }catch(e){ errs = ['Failed to add transaction']; }
+            }
+            if(errEl){ errEl.style.display='block'; errEl.innerHTML = '<ul>'+errs.map(x=>'<li>'+x+'</li>').join('')+'</ul>'; }
           }
         }catch(err){ console.error(err); const errEl = document.getElementById('add-modal-errors'); if(errEl){ errEl.style.display='block'; errEl.textContent='Network error'; } }
       });
