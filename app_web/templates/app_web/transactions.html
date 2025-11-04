@@ -91,6 +91,36 @@
 
     .modal .field-error { color: #b91c1c; font-size: .9rem; margin-top: .25rem; }
     .modal .modal-errors { color: #b91c1c; font-size: .95rem; margin-bottom: .5rem; }
+
+    .tablewrap mt-1{
+      /* existing wrapper styles */
+    }
+    /* Column resizer handle (appears on right edge of th) */
+    .preview-table th { position: relative; }
+    .col-resizer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 10px; /* slightly larger hit area */
+      cursor: col-resize;
+      user-select: none;
+      touch-action: none;
+      height: 100%;
+      z-index: 3;
+      display: inline-block;
+      background: transparent; /* keep transparent unless hovered */
+      transition: background .12s ease;
+      pointer-events: auto;
+    }
+    .preview-table th:hover > .col-resizer { background: linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.06)); }
+    /* Make table cells wrap when narrow */
+    .preview-table td { word-break: break-word; white-space: normal; }
+    /* Transactions page: remove card shadow for page panels and use a solid divider under the toolbar */
+    .card { box-shadow: none !important; border: 1px solid rgba(16,24,40,0.06) !important; }
+    /* toolbar may not be a direct child (there may be an errors div) so match any descendant */
+    .card .toolbar { border-bottom: 1px solid rgba(16,24,40,0.06); padding-bottom: .6rem; }
+    /* restore modal shadows (more specific selector) so modal dialogs keep a shadow */
+    .modal .card { box-shadow: 0 8px 30px rgba(0,0,0,.18) !important; }
   </style>
 {% endblock %}
 
@@ -442,438 +472,44 @@
   </div>
   {% endif %}
 
+  <!-- Embed data as JSON (no inline executable JS) -->
+  {{ columns|length|json_script:"table-data" }}
+
 {% endblock %}
 
 {% block scripts %}
-<script>
-  (function(){
-    if(window.flatpickr){
-      // initialize flatpickr like upload page; use ISO format
-      const opts = { dateFormat: 'Y-m-d', allowInput: true };
-      flatpickr('#start_date', opts);
-      flatpickr('#end_date', opts);
-      // modal date for bulk/single edit
-      flatpickr('#bulk_date', opts);
-      // modal date for add transaction
-      flatpickr('#add-tx-date', opts);
-
-      const form = document.getElementById('filters-form');
-      const startInput = document.getElementById('start_date');
-      const endInput = document.getElementById('end_date');
-      const errorsEl = document.getElementById('filter-errors');
-      const resetBtn = document.getElementById('reset-filters');
-
-      function validateDates(){
-        if(!errorsEl) return true;
-        errorsEl.style.display = 'none';
-        errorsEl.textContent = '';
-        const s = startInput && startInput.value && startInput.value.trim();
-        const e = endInput && endInput.value && endInput.value.trim();
-        if(!s && !e) return true;
-        function toDate(val){ if(!val) return null; const t = Date.parse(val); return isNaN(t) ? null : new Date(t); }
-        const sd = toDate(s);
-        const ed = toDate(e);
-        if(s && !sd){ errorsEl.style.display='block'; errorsEl.textContent='Start date is invalid (use YYYY-MM-DD)'; return false; }
-        if(e && !ed){ errorsEl.style.display='block'; errorsEl.textContent='End date is invalid (use YYYY-MM-DD)'; return false; }
-        if(sd && ed && sd > ed){ errorsEl.style.display='block'; errorsEl.textContent='Start date must be before or equal to end date'; return false; }
-        return true;
-      }
-
-      if(startInput){ startInput.addEventListener('change', validateDates); startInput.addEventListener('blur', validateDates); }
-      if(endInput){ endInput.addEventListener('change', validateDates); endInput.addEventListener('blur', validateDates); }
-
-      // Reset button clears query params (navigate to base path)
-      if(resetBtn){ resetBtn.addEventListener('click', function(){
-         // if you want to preserve anchor/hash you can keep it; for now navigate to base path
-         window.location = window.location.pathname;
-      }); }
-
-      // prevent submit if invalid
-      if(form){ form.addEventListener('submit', function(e){ if(!validateDates()){ e.preventDefault(); if(startInput) startInput.focus(); } }); }
-
-      // runtime toolbar layout toggle (grid on desktop, flex on small screens)
-      function debounce(fn, wait){ let t; return function(){ clearTimeout(t); t = setTimeout(()=>fn.apply(this, arguments), wait); }; }
-      function updateToolbarLayout(){
-        const tb = document.getElementById('filters-form');
-        if(!tb) return;
-        const w = window.innerWidth || document.documentElement.clientWidth;
-        if(w >= 720){
-          tb.style.display = 'grid';
-          tb.style.gridTemplateColumns = 'minmax(160px,360px) 110px 110px 120px 120px auto';
-          tb.style.gap = '.6rem';
-          tb.style.alignItems = 'center';
-        } else {
-          tb.style.display = 'flex';
-          tb.style.flexWrap = 'wrap';
-          tb.style.gap = '0.5rem';
-        }
-        // ensure inputs/selects have consistent text color and background
-        const els = tb.querySelectorAll('input, select');
-        els.forEach(el=>{
-          el.style.color = getComputedStyle(document.documentElement).getPropertyValue('--brand') || '#111827';
-          el.style.background = '#fff';
-          el.style.boxSizing = 'border-box';
-        });
-      }
-      const onResize = debounce(updateToolbarLayout, 120);
-      window.addEventListener('resize', onResize);
-      // initial layout set
-      updateToolbarLayout();
-    }
-  })();
-</script>
-<script>
-document.addEventListener('DOMContentLoaded', function(){
-  // selection helpers for transactions table
-  const selectAll = document.getElementById('select-all');
-  // querySelectorAll at runtime so it reflects current DOM
-  function rowSelects(){ return Array.from(document.querySelectorAll('.row-select')); }
-  const editBtn = document.getElementById('edit-selected');
-  const deleteBtn = document.getElementById('delete-selected');
-  const deleteModal = document.getElementById('delete-modal');
-  const deleteForm = document.getElementById('delete-form');
-  const deleteIdsInput = document.getElementById('delete-ids');
-  const deleteModalCount = document.getElementById('delete-modal-count');
-  const deleteNext = document.getElementById('delete-next');
-
-  // Ensure buttons are clickable (defensive CSS via style)
-  if(editBtn){ editBtn.style.pointerEvents = 'auto'; editBtn.removeAttribute('disabled'); }
-  if(deleteBtn){ deleteBtn.style.pointerEvents = 'auto'; deleteBtn.removeAttribute('disabled'); }
-
-  function selectedIds(){ return Array.from(document.querySelectorAll('.row-select:checked')).map(el=>el.dataset.id); }
-  function updateButtons(){
-    try{
-      const ids = selectedIds();
-      const ok = ids && ids.length > 0;
-      if(editBtn){ editBtn.setAttribute('aria-disabled', !ok ? 'true' : 'false'); editBtn.classList.toggle('disabled', !ok); }
-      if(deleteBtn){ deleteBtn.setAttribute('aria-disabled', !ok ? 'true' : 'false'); deleteBtn.classList.toggle('disabled', !ok); }
-    }catch(err){ console.error('updateButtons error', err); }
-  }
-  // expose for other scripts
-  window.updateButtons = updateButtons;
-
-  // Attach change handlers to dynamically reflect row selects
-  function attachRowListeners(){
-    rowSelects().forEach(cb => {
-      cb.removeEventListener('change', updateButtons);
-      cb.addEventListener('change', updateButtons);
-    });
-  }
-
-  if(selectAll){
-    selectAll.addEventListener('change', function(){
-      const checked = selectAll.checked;
-      document.querySelectorAll('.row-select').forEach(cb=>cb.checked=checked);
-      updateButtons();
-    });
-  }
-
-  // Initial attach & state
-  attachRowListeners();
-  updateButtons();
-
-  // Re-attach if DOM changes (simple mutation observer to catch re-rendered table rows)
-  try{
-    const tableWrap = document.querySelector('.tablewrap');
-    if(tableWrap){
-      const mo = new MutationObserver(function(){ attachRowListeners(); updateButtons(); });
-      mo.observe(tableWrap, { childList: true, subtree: true });
-    }
-  }catch(e){ /* non-fatal */ }
-
-  // Edit button behavior
-  if(editBtn){
-    editBtn.addEventListener('click', function(e){
-      console.log('Edit clicked');
-      const ids = selectedIds();
-      if(!ids || ids.length === 0) { console.warn('Edit clicked with no selection'); return; }
-       const modal = document.getElementById('bulk-edit-modal');
-      const form = document.getElementById('bulk-edit-form');
-      const idsInput = document.getElementById('bulk-edit-ids');
-      const countEl = document.getElementById('bulk-edit-count');
-      const titleEl = document.getElementById('bulk-edit-title');
-
-      if(ids.length === 1){
-        const cb = document.querySelector('.row-select[data-id="'+ids[0]+'"]');
-        if(!cb) return;
-        // ensure date is ISO (YYYY-MM-DD) and amount is numeric without currency symbols
-        document.getElementById('bulk_date').value = cb.dataset.date || '';
-        (function(){
-          const rawAmount = cb.dataset.amount || '';
-          const sanitized = (rawAmount+"").replace(/[^0-9.\-]+/g, '');
-          document.getElementById('bulk_amount').value = sanitized;
-        })();
-        document.getElementById('bulk_description').value = cb.dataset.description || '';
-        document.getElementById('bulk_direction').value = cb.dataset.direction || '';
-        document.getElementById('bulk_category').value = cb.dataset.category || '';
-        document.getElementById('bulk_subcategory').value = cb.dataset.subcategory || '';
-        idsInput.value = ids.join(',');
-        form.action = '/transactions/'+ids[0]+'/edit/';
-        titleEl.textContent = 'Edit transaction';
-        countEl.textContent = '';
-        if(modal){ modal.style.display='flex'; modal.setAttribute('aria-hidden','false'); }
-        return;
-      }
-
-      // multiple
-      document.getElementById('bulk_date').value = '';
-      document.getElementById('bulk_amount').value = '';
-      document.getElementById('bulk_description').value = '';
-      document.getElementById('bulk_direction').value = '';
-      document.getElementById('bulk_category').value = '';
-      document.getElementById('bulk_subcategory').value = '';
-      idsInput.value = ids.join(',');
-      form.action = '/transactions/bulk_edit/';
-      titleEl.textContent = 'Bulk edit transactions';
-      countEl.textContent = 'You are about to edit '+ids.length+' transactions. Only fields you fill will be applied to all selected.';
-      if(modal){ modal.style.display='flex'; modal.setAttribute('aria-hidden','false'); }
-    });
-  }
-
-  // Delete button behavior
-  if(deleteBtn){
-    deleteBtn.addEventListener('click', function(){
-      console.log('Delete clicked');
-      const ids = selectedIds();
-      if(!ids || ids.length === 0){ console.warn('Delete clicked with no selection'); return; }
-       if(deleteModal){ deleteModal.style.display='flex'; deleteModal.setAttribute('aria-hidden','false'); }
-      if(deleteIdsInput) deleteIdsInput.value = ids.join(',');
-      if(deleteModalCount) deleteModalCount.textContent = 'You are about to delete '+ids.length+' transaction(s). This cannot be undone.';
-      if(deleteForm) deleteForm.action = '/transactions/'+ids[0]+'/delete/';
-    });
-  }
-
-  // Delete form submit handling preserved (keeps previous logic)
-  if(deleteForm){
-    deleteForm.addEventListener('submit', function(e){
-      const ids = deleteIdsInput.value ? deleteIdsInput.value.split(',') : [];
-      if(ids.length <= 1) return; // normal POST for single
-      e.preventDefault();
-      const next = deleteNext.value || '';
-      (async function(){
-        // read CSRF token from page form or cookie
-        function getCookie(name){ const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'); return v ? v.pop() : ''; }
-        const pageCsrf = (document.querySelector('input[name=csrfmiddlewaretoken]') && document.querySelector('input[name=csrfmiddlewaretoken]').value) ? document.querySelector('input[name=csrfmiddlewaretoken]').value : getCookie('csrftoken');
-        for(const id of ids){
-          const formData = new FormData();
-          formData.append('csrfmiddlewaretoken', pageCsrf);
-          formData.append('next', next);
-          try{ await fetch('/transactions/'+id+'/delete/', { method:'POST', body: formData, credentials:'same-origin', headers: {'X-CSRFToken': pageCsrf} }); }catch(err){ console.error(err); }
-        }
-        window.location = '/transactions/'+(next ? '?'+next : '');
-      })();
-    });
-  }
-
-  // Columns modal behavior
-  const columnsBtn = document.getElementById('columns-btn');
-  const columnsModal = document.getElementById('columns-modal');
-  const columnsForm = document.getElementById('columns-form');
-  const columnsSave = document.getElementById('columns-save');
-  const columnsCancel = document.getElementById('columns-cancel');
-
-  function getCookie(name){ const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'); return v ? v.pop() : ''; }
-
-  if(columnsBtn){
-    columnsBtn.addEventListener('click', function(){
-      if(columnsModal){ columnsModal.style.display='flex'; columnsModal.setAttribute('aria-hidden','false'); }
-    });
-  }
-  if(columnsCancel){ columnsCancel.addEventListener('click', function(){ if(columnsModal){ columnsModal.style.display='none'; columnsModal.setAttribute('aria-hidden','true'); } }); }
-
-  if(columnsSave){
-    columnsSave.addEventListener('click', async function(){
-      // collect selected columns in DOM order
-      const boxes = Array.from(columnsForm.querySelectorAll('input[name="columns"]'));
-      const selected = boxes.filter(b=>b.checked).map(b=>b.value);
-      if(selected.length === 0){ alert('Please select at least one column'); return; }
-      // POST JSON to server
-      try{
-        const csrftoken = getCookie('csrftoken');
-        const resp = await fetch('/transactions/columns/', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {'Content-Type':'application/json', 'X-CSRFToken': csrftoken},
-          body: JSON.stringify({columns: selected})
-        });
-        const data = await resp.json().catch(()=>null);
-        if(!resp.ok){
-          alert((data && data.error) ? data.error : 'Failed to save columns');
-          return;
-        }
-        // success: reload page so server renders the new order/visibility
-        window.location.reload();
-      }catch(err){ console.error(err); alert('Network error while saving columns'); }
-    });
-  }
-
-  // Add Transaction modal behavior
-  const addTxBtn = document.getElementById('add-tx-btn');
-  const addTxModal = document.getElementById('add-tx-modal');
-  const addTxForm = document.getElementById('add-tx-form-modal');
-  const addTxCancel = document.getElementById('add-tx-cancel');
-
-  // Build a JS array of visible columns so the client can insert a new row matching server columns
-  const TRANSACTION_COLUMNS = [{% for c in columns %}'{{ c }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
-
-  // small helper to format ISO date to 'Mon. d, YYYY' like server template
-  function formatDateReadable(iso){
-    try{
-      const d = new Date(iso);
-      if(isNaN(d)) return iso;
-      const months = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'May', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Oct.', 'Nov.', 'Dec.'];
-      return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
-    }catch(e){ return iso; }
-  }
-
-  if(addTxBtn){
-    addTxBtn.addEventListener('click', function(){
-      if(addTxModal){ addTxModal.style.display='flex'; addTxModal.setAttribute('aria-hidden','false'); }
-    });
-  }
-  if(addTxCancel){
-    addTxCancel.addEventListener('click', function(){
-      if(addTxModal){ addTxModal.style.display='none'; addTxModal.setAttribute('aria-hidden','true'); }
-    });
-  }
-
-  // AJAX submit handler for Add Transaction modal
-  // Add Transaction modal submit handler (simplified)
-  if(document.getElementById('add-tx-form-modal')){
+<!--<script src="{% static 'app_web/dashboard.js' %}"></script>-->
+<script src="{% static 'app_web/transactions.js' %}"></script>
+   <script>
+     // Initialize flatpickr on dashboard date inputs to match transactions styling & behavior
+     (function(){
+       document.addEventListener('DOMContentLoaded', function(){
+         if(window.flatpickr){
+           var opts = { dateFormat: 'Y-m-d', allowInput: true };
+           flatpickr('#start_date', opts);
+           flatpickr('#end_date', opts);
+         }
+       });
+     })();
+   </script>
+  <!-- Fallback: attach essential button handlers if the main transactions.js didn't run -->
+  <script>
     (function(){
-      const modalForm = document.getElementById('add-tx-form-modal');
-      const modalEl = document.getElementById('add-tx-modal');
-      modalForm.addEventListener('submit', async function(e){
-        e.preventDefault();
-        const fd = new FormData(modalForm);
-        fd.set('action','add_tx');
-        const csrftoken = (modalForm.querySelector('input[name=csrfmiddlewaretoken]') && modalForm.querySelector('input[name=csrfmiddlewaretoken]').value) || (function(){ const m = document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)'); return m ? m.pop() : ''; })();
-        try{
-          const resp = await fetch(window.location.pathname, { method: 'POST', body: fd, credentials: 'same-origin', headers: {'X-CSRFToken': csrftoken, 'X-Requested-With':'XMLHttpRequest'} });
-          let data = null;
-          try{ data = await resp.json(); }catch(e){ data = null; }
-          if(resp.ok && data && data.ok){
-            if(modalEl){ modalEl.style.display='none'; modalEl.setAttribute('aria-hidden','true'); }
-            try{ modalForm.reset(); if(window.flatpickr){ const f = document.querySelector('#add-tx-date'); if(f && f._flatpickr) f._flatpickr.clear(); } }catch(_){ }
-
-            // Insert the newly created transaction into the table (top of tbody)
-            try{
-              const tx = data.tx;
-              const tbody = document.querySelector('.tablewrap tbody');
-              if(tbody){
-                // remove "No transactions found" row if present
-                const firstRow = tbody.querySelector('tr');
-                if(firstRow && firstRow.children.length === 1 && firstRow.textContent && firstRow.textContent.trim().startsWith('No transactions')){
-                  firstRow.remove();
-                }
-
-                const tr = document.createElement('tr');
-                // checkbox cell
-                const td0 = document.createElement('td');
-                const cb = document.createElement('input');
-                cb.type = 'checkbox'; cb.className = 'row-select';
-                cb.setAttribute('data-id', tx.id);
-                cb.setAttribute('data-date', tx.date || '');
-                cb.setAttribute('data-description', tx.description || '');
-                cb.setAttribute('data-amount', tx.amount || '');
-                cb.setAttribute('data-direction', tx.direction || '');
-                cb.setAttribute('data-category', tx.category || '');
-                cb.setAttribute('data-subcategory', tx.subcategory || '');
-                td0.appendChild(cb);
-                tr.appendChild(td0);
-
-                // append cells for each visible column in order
-                TRANSACTION_COLUMNS.forEach(function(col){
-                  const td = document.createElement('td');
-                  td.setAttribute('data-col', col);
-                  if(col === 'date'){
-                    td.textContent = formatDateReadable(tx.date || '');
-                  } else if(col === 'amount'){
-                    td.style.textAlign = 'right';
-                    td.textContent = tx.amount || '';
-                  } else if(col === 'direction'){
-                    td.textContent = tx.direction || '';
-                  } else if(col === 'description'){
-                    td.textContent = tx.description || '';
-                  } else if(col === 'category'){
-                    td.textContent = tx.category || '';
-                  } else if(col === 'subcategory'){
-                    td.textContent = tx.subcategory || '';
-                  } else if(col === 'account'){
-                    td.textContent = tx.account || '';
-                  } else if(col === 'source'){
-                    td.textContent = tx.source || '';
-                  } else if(col === 'created_at'){
-                    td.textContent = tx.created_at || '';
-                  } else if(col === 'updated_at'){
-                    td.textContent = tx.updated_at || '';
-                  } else {
-                    td.textContent = tx[col] || '';
-                  }
-                  tr.appendChild(td);
-                });
-
-                // prepend the row
-                tbody.insertBefore(tr, tbody.firstChild);
-                // attach listeners and update buttons
-                try{ if(window.updateButtons) window.updateButtons(); }catch(e){}
-                try{ if(typeof attachRowListeners === 'function') attachRowListeners(); }catch(e){}
-
-                // update total count shown in pagination row (simple increment)
-                try{
-                  const totalEl = document.querySelector('.pagination-row .muted');
-                  if(totalEl){
-                    const txt = totalEl.textContent || '';
-                    const m = txt.match(/—\s*([0-9,]+)\s*total/);
-                    if(m){
-                      const cur = parseInt(m[1].replace(/,/g,''), 10) || 0;
-                      const next = (cur + 1).toLocaleString();
-                      totalEl.textContent = txt.replace(m[1], next);
-                    }
-                  }
-                }catch(e){}
-              }
-            }catch(e){ console.error('Failed to insert new transaction row', e); }
-
-            const banner = document.createElement('div'); banner.className='card'; banner.style.padding='.6rem'; banner.style.margin='.6rem 0'; banner.textContent='Transaction added';
-            const main = document.querySelector('main') || document.body; if(main && main.insertBefore) main.insertBefore(banner, main.firstChild);
-            setTimeout(()=>{ if(banner && banner.remove) banner.remove(); }, 2000);
-          } else {
-            const errEl = document.getElementById('add-modal-errors');
-            let errs = (data && data.errors) || null;
-            // if server returned non-JSON (e.g. CSRF HTML or template), show text for debugging
-            if(!errs){
-              try{
-                const txt = await resp.text();
-                // If it's HTML (CSRF page), show a brief hint + raw text in a <pre>
-                if(resp.status === 403){ errs = ['Permission denied (CSRF token missing or invalid). Please refresh the page and try again.']; }
-                else { errs = [ (txt && txt.length>0) ? txt.substring(0,800) : 'Failed to add transaction' ]; }
-              }catch(e){ errs = ['Failed to add transaction']; }
-            }
-            if(errEl){ errEl.style.display='block'; errEl.innerHTML = '<ul>'+errs.map(x=>'<li>'+x+'</li>').join('')+'</ul>'; }
-          }
-        }catch(err){ console.error(err); const errEl = document.getElementById('add-modal-errors'); if(errEl){ errEl.style.display='block'; errEl.textContent='Network error'; } }
-      });
+      try{
+        if(window._txFallbackInit) return; window._txFallbackInit = true;
+        const $ = s => document.querySelector(s);
+        const $$ = s => Array.from(document.querySelectorAll(s));
+        const show = id => { const el = document.getElementById(id); if(el){ el.style.display='flex'; el.setAttribute('aria-hidden','false'); } };
+        const hide = id => { const el = document.getElementById(id); if(el){ el.style.display='none'; el.setAttribute('aria-hidden','true'); } };
+        const addBtn = $('#add-tx-btn'); if(addBtn) addBtn.addEventListener('click', ()=> show('add-tx-modal'));
+        const addCancel = $('#add-tx-cancel'); if(addCancel) addCancel.addEventListener('click', ()=> hide('add-tx-modal'));
+        const colsBtn = $('#columns-btn'); if(colsBtn) colsBtn.addEventListener('click', ()=> show('columns-modal'));
+        const colsCancel = $('#columns-cancel'); if(colsCancel) colsCancel.addEventListener('click', ()=> hide('columns-modal'));
+        const delBtn = $('#delete-selected'); if(delBtn) delBtn.addEventListener('click', ()=>{ const sel = $$('.row-select').filter(cb=>cb.checked).map(cb=>cb.dataset.id); if(!sel.length) return; const ids = $('#delete-ids'); const count = $('#delete-modal-count'); if(ids) ids.value = sel.join(','); if(count) count.textContent = sel.length + ' transactions will be deleted'; show('delete-modal'); });
+        const delCancel = $('#delete-cancel'); if(delCancel) delCancel.addEventListener('click', ()=> hide('delete-modal'));
+        const editBtn = $('#edit-selected'); if(editBtn) editBtn.addEventListener('click', ()=>{ const sel = $$('.row-select').filter(cb=>cb.checked).map(cb=>cb.dataset.id); if(!sel.length) return; const ids = $('#bulk-edit-ids'); const title = $('#bulk-edit-title'); if(ids) ids.value = sel.join(','); if(title) title.textContent = sel.length === 1 ? 'Edit transaction' : 'Bulk edit transactions'; show('bulk-edit-modal'); });
+        const resetBtn = $('#reset-filters'); if(resetBtn) resetBtn.addEventListener('click', ()=>{ const f = $('#filters-form'); if(!f) return; Array.from(f.querySelectorAll('input[name], select[name]')).forEach(i=>{ if(i.name) i.value=''; }); f.submit(); });
+      }catch(e){ console.error('transactions fallback init error', e); }
     })();
-  }
-
-  // modal cancel buttons: close modals
-    const bulkCancelBtn = document.getElementById('bulk-edit-cancel');
-    if(bulkCancelBtn){ bulkCancelBtn.addEventListener('click', function(){ const m = document.getElementById('bulk-edit-modal'); if(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }); }
-    const deleteCancelBtn = document.getElementById('delete-cancel');
-    if(deleteCancelBtn){ deleteCancelBtn.addEventListener('click', function(){ const m = document.getElementById('delete-modal'); if(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }); }
-    const addTxCancelBtn = document.getElementById('add-tx-cancel');
-    if(addTxCancelBtn){ addTxCancelBtn.addEventListener('click', function(){ const m = document.getElementById('add-tx-modal'); if(m){ m.style.display='none'; m.setAttribute('aria-hidden','true'); } }); }
-
-    // Initial button state (in case rows are pre-selected by the browser or other script)
-    try{ if(window.updateButtons) window.updateButtons(); }catch(e){ /* ignore */ }
-  });
-</script>
-
-<!-- Equal-size buttons for secondary toolbar (responsive tweak) -->
-<style>
-  .toolbar-secondary .btn { text-align: center !important; }
-  @media (max-width:600px){ .toolbar-secondary .btn{ min-width: 92px !important; } }
-</style>
-
+  </script>
 {% endblock %}

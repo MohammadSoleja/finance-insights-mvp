@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static humanize %}
 {% block title %}{{ title|default:"Dashboard" }} — Finance Insights{% endblock %}
 
 {% block head_extra %}
@@ -30,10 +30,18 @@
       .dashboard-filters .date-field, .dashboard-filters .category-field { width:100%; }
     }
 
-    /* KPI layout: keep 3 columns but allow flexible sizing so cards stretch across width */
-    .kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 1rem; align-items: start; width:100%; margin-top: 1rem; margin-bottom: 1.25rem; }
-    .kpi-grid .card { display:flex; flex-direction:row; gap:1rem; align-items:center; justify-content:space-between; padding: .85rem 1rem; min-height: 68px; }
-    @media (max-width: 1000px) { .kpi-grid { grid-template-columns: 1fr; } .kpi-grid .card { flex-direction:column; align-items:flex-start; } }
+    /* KPI layout: five equal columns on wide screens so all KPI cards appear in one row.
+       Keep cards compact so values fit on one line. */
+    /* narrow the three numeric KPI columns and widen the two category cards for full names.
+       Use minmax to cap widths so cards don't grow excessively on large monitors. */
+    /* Make numeric KPI cards a bit wider so large currency (2rem) fits, keep categories reasonably wide */
+    .kpi-grid { display: grid; grid-template-columns: minmax(180px,220px) minmax(180px,220px) minmax(180px,220px) minmax(200px,1.6fr) minmax(200px,1.6fr); gap: 0.5rem; align-items: start; width:100%; margin-top: 0.5rem; margin-bottom: 0.75rem; grid-auto-rows: auto; }
+    .kpi-grid .card { display:flex; flex-direction:row; gap:.5rem; align-items:center; justify-content:space-between; padding: .45rem .6rem; min-height: 64px; box-sizing: border-box; }
+    /* responsive breakpoints: 4 cols under 1600px, 3 under 1200px, 2 under 900px, 1 under 600px */
+    @media (max-width: 1600px) { .kpi-grid { grid-template-columns: repeat(4, minmax(130px, 1fr)); } }
+    @media (max-width: 1200px) { .kpi-grid { grid-template-columns: repeat(3, minmax(120px, 1fr)); } }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, minmax(140px,1fr)); } }
+    @media (max-width: 600px) { .kpi-grid { grid-template-columns: 1fr; } }
 
     /* Charts: ensure side-by-side on desktop */
     .charts { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-top: 0.75rem; }
@@ -41,11 +49,81 @@
 
     /* small spacer */
     .dashboard-toolbar + .spacer { height: .5rem; }
+
+    /* KPI delta styling */
+    .kpi-delta { font-size: .9rem; color: #374151; display:inline-flex; gap:.4rem; align-items:center; }
+    .kpi-delta .arrow { font-weight:700; font-size: .95rem; }
+    .kpi-delta.positive { color: #16a34a; }
+    .kpi-delta.negative { color: #ef4444; }
+
+    /* top category small line */
+    .top-category { font-size: .9rem; color: #374151; margin-top:.25rem; }
+
+    /* Ensure card visuals are explicit and load immediately */
+    .kpi-grid .card {
+      background: var(--card-bg, #fff) !important;
+      border: 1px solid rgba(16,24,40,0.06) !important;
+      border-radius: 8px !important;
+      box-shadow: 0 6px 12px rgba(16,24,40,0.06) !important; /* ensure immediate appearance */
+      transition: transform .08s ease;
+      will-change: transform;
+      height: 105px !important; /* slightly smaller height to reduce vertical space */
+      padding: .28rem .45rem; /* tighten padding a bit more */
+      display: flex;
+      align-items: stretch; /* allow children to stretch to equal height */
+      justify-content: space-between;
+      min-width: 0; /* allow children to shrink instead of forcing overflow */
+    }
+    .title {margin-top: -3rem}
+    /* ensure the immediate inner wrapper inside .card stretches full width and stacks content from the top */
+    .kpi-grid .card > div { width: 100%; box-sizing: border-box; min-width:0; height:100%; display:flex; flex-direction:column; justify-content:flex-start; gap:.28rem; }
+
+    /* Ensure all KPI cards have identical visual height by making inner content stretch */
+    .kpi-grid .card .muted, .kpi-grid .card .kpi, .kpi-grid .card .kpi-delta { display:block; }
+
+    /* Remove decorative dot (added in global stylesheet) before KPI values */
+    .kpi::before { display: none !important; content: none !important; }
+
+    /* Numeric KPI cards: use 2rem currency as requested and ensure it displays */
+    .kpi-grid > .card.numeric > div .kpi {
+      font-size: 2rem !important;
+      line-height: 1 !important;
+      font-weight:700 !important;
+      overflow: visible; white-space: nowrap; text-overflow: clip;
+    }
+
+    /* Category row inside Top lists */
+    .cat-list { display:flex; flex-direction:column; gap:.35rem; }
+    /* Use CSS grid per row: name | percent | change - keeps columns aligned */
+    /* Category row: allow wrapping/breaking so long names show fully */
+    /* Give the name more share of horizontal space so it doesn't compress to initials */
+    /* compact category rows so KPI cards fit in a single row; names will be single-line with ellipsis */
+    /* category rows: allow wrapping for full names while keeping percent/change columns fixed */
+    /* tighten spacing between name and percent so category cards are narrower */
+    .cat-item { display:grid; grid-template-columns: 1.4fr 80px 80px; gap:.3rem; align-items:center; width:100%; box-sizing:border-box; }
+    .cat-left { grid-column: 1; display:flex; gap:.35rem; align-items:center; min-width:0; }
+    .cat-name { font-weight:700; color: #111827; white-space:normal; overflow:visible; text-overflow:clip; word-break:break-word; font-size:0.96rem; line-height:1.18; min-width:0; }
+    .cat-pct { grid-column: 2; text-align:right; font-weight:700; color: #111827; white-space:nowrap; font-size:0.95rem; }
+    .cat-change { grid-column: 3; text-align:right; font-size:.9rem; display:inline-flex; gap:.35rem; align-items:center; justify-self:end; min-width:72px; white-space:nowrap; }
+    /* Ensure colored change (arrow + number) inherits color and override other rules if necessary */
+    .cat-change.positive, .cat-change.positive * { color: #16a34a !important; }
+    .cat-change.negative, .cat-change.negative * { color: #ef4444 !important; }
+    @media (max-width: 900px) { .cat-item { grid-template-columns: 1fr 90px 90px; } }
+
+    /* Keep existing hover/focus (lift effect) */
+    .kpi-grid .card:focus, .kpi-grid .card:hover { box-shadow: 0 10px 24px rgba(16,24,40,0.08); transform: translateY(-2px); }
+
+    /* Reduce prominent "£" numbers size inside KPI cards and clamp so they stay readable across screens */
+    .kpi { font-size: clamp(11px, 1.1vw, 14px); font-weight:700; color: #111827; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+    /* Stronger rule so it's not overridden elsewhere: target the currency element inside KPI cards */
+    .kpi-grid .card .kpi { font-size: clamp(11px, 1.0vw, 14px) !important; line-height:1; }
+
+    .muted { color: #6b7280; }
   </style>
 {% endblock %}
 
 {% block content %}
-  <h1>Dashboard</h1>
+  <h1 class="title">Dashboard</h1>
 
   <!-- Combined toolbar: frequency buttons to the left, filters to the right (dashboard-scoped form) -->
   <div class="dashboard-toolbar">
@@ -92,21 +170,115 @@
   <div class="spacer"></div>
 
   <div class="kpi-grid">
-    <div class="card"><div>
-        <div class="muted">Total Inflow</div>
-        <div class="kpi">£{{ kpi.inflow }}</div>
-        <div class="muted" style="font-size:.85rem; margin-top:.25rem">{{ kpi_window_label }}</div>
-      </div></div>
-    <div class="card"><div>
+    <!-- Total Outflow (first as requested) -->
+    <div class="card numeric"><div>
         <div class="muted">Total Outflow</div>
-        <div class="kpi">£{{ kpi.outflow }}</div>
-        <div class="muted" style="font-size:.85rem; margin-top:.25rem">{{ kpi_window_label }}</div>
+        {% if kpi.tx_count|default:0 > 0 %}
+          <div class="kpi" tabindex="0" aria-label="Total outflow £{{ kpi.outflow|floatformat:2|intcomma }}">£{{ kpi.outflow|floatformat:2|intcomma }}</div>
+          {% with d=kpi_delta.outflow %}
+            {% if d %}
+              <div class="kpi-delta {% if d.abs >= 0 %}positive{% else %}negative{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} pounds, {{ d.pct|default:'no' }} percent compared to previous period">
+                <span class="arrow">{% if d.abs >= 0 %}▲{% else %}▼{% endif %}</span>
+                <span>£{{ d.abs|floatformat:2|intcomma }}</span>
+                {% if d.pct is not None %}<span>({{ d.pct }}%)</span>{% endif %}
+              </div>
+            {% endif %}
+          {% endwith %}
+        {% else %}
+          <div class="kpi">—</div>
+          <div class="muted" title="No data in selected period">No data in selected period</div>
+        {% endif %}
       </div></div>
-    <div class="card"><div>
+
+    <!-- Total Inflow -->
+    <div class="card numeric"><div>
+        <div class="muted">Total Inflow</div>
+        {% if kpi.tx_count|default:0 > 0 %}
+          <div class="kpi" tabindex="0" aria-label="Total inflow £{{ kpi.inflow|floatformat:2|intcomma }}">£{{ kpi.inflow|floatformat:2|intcomma }}</div>
+          {% with d=kpi_delta.inflow %}
+            {% if d %}
+              <div class="kpi-delta {% if d.abs >= 0 %}positive{% else %}negative{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} pounds, {{ d.pct|default:'no' }} percent compared to previous period">
+                <span class="arrow">{% if d.abs >= 0 %}▲{% else %}▼{% endif %}</span>
+                <span>£{{ d.abs|floatformat:2|intcomma }}</span>
+                {% if d.pct is not None %}<span>({{ d.pct }}%)</span>{% endif %}
+              </div>
+            {% endif %}
+          {% endwith %}
+        {% else %}
+          <div class="kpi">—</div>
+          <div class="muted" title="No data in selected period">No data in selected period</div>
+        {% endif %}
+      </div></div>
+
+    <!-- Net -->
+    <div class="card numeric"><div>
         <div class="muted">Net</div>
-        <div class="kpi">£{{ kpi.net }}</div>
-        <div class="muted" style="font-size:.85rem; margin-top:.25rem">{{ kpi_window_label }}</div>
+        {% if kpi.tx_count|default:0 > 0 %}
+          <div class="kpi" tabindex="0" aria-label="Net £{{ kpi.net|floatformat:2|intcomma }}">£{{ kpi.net|floatformat:2|intcomma }}</div>
+          {% with d=kpi_delta.net %}
+            {% if d %}
+              <div class="kpi-delta {% if d.abs >= 0 %}positive{% else %}negative{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} pounds, {{ d.pct|default:'no' }} percent compared to previous period">
+                <span class="arrow">{% if d.abs >= 0 %}▲{% else %}▼{% endif %}</span>
+                <span>£{{ d.abs|floatformat:2|intcomma }}</span>
+                {% if d.pct is not None %}<span>({{ d.pct }}%)</span>{% endif %}
+              </div>
+            {% endif %}
+          {% endwith %}
+        {% else %}
+          <div class="kpi">—</div>
+          <div class="muted" title="No data in selected period">No data in selected period</div>
+        {% endif %}
       </div></div>
+
+    <!-- Top Outflows (compact list) -->
+    <div class="card"><div>
+        <div class="muted">Top 3 Outflow Categories</div>
+        {% if top_outflows %}
+          <div class="cat-list">
+            {% for t in top_outflows %}
+              <div class="cat-item" role="group" aria-label="Top outflow {{ forloop.counter }}">
+                <div class="cat-name" title="{{ t.name }}">{{ t.name }}</div>
+                <div class="cat-pct">{{ t.percent|default:'—' }}%</div>
+                {% if t.change is not None %}
+                  <div class="cat-change {% if t.change >= 0 %}positive{% else %}negative{% endif %}" aria-hidden="false">
+                    <span class="arrow">{% if t.change >= 0 %}▲{% else %}▼{% endif %}</span>
+                    <span>{{ t.change_abs }}pp</span>
+                  </div>
+                {% else %}
+                  <div class="cat-change" aria-hidden="true">&nbsp;</div>
+                {% endif %}
+              </div>
+             {% endfor %}
+           </div>
+         {% else %}
+           <div class="muted">—</div>
+         {% endif %}
+       </div></div>
+
+     <!-- Top Inflows (compact list) -->
+     <div class="card"><div>
+         <div class="muted">Top 3 Inflow Categories</div>
+         {% if top_inflows %}
+           <div class="cat-list">
+             {% for t in top_inflows %}
+               <div class="cat-item" role="group" aria-label="Top inflow {{ forloop.counter }}">
+                 <div class="cat-name" title="{{ t.name }}">{{ t.name }}</div>
+                 <div class="cat-pct">{{ t.percent|default:'—' }}%</div>
+                 {% if t.change is not None %}
+                   <div class="cat-change {% if t.change >= 0 %}positive{% else %}negative{% endif %}" aria-hidden="false">
+                     <span class="arrow">{% if t.change >= 0 %}▲{% else %}▼{% endif %}</span>
+                     <span>{{ t.change_abs }}pp</span>
+                   </div>
+                 {% else %}
+                   <div class="cat-change" aria-hidden="true">&nbsp;</div>
+                 {% endif %}
+               </div>
+             {% endfor %}
+           </div>
+         {% else %}
+           <div class="muted">—</div>
+         {% endif %}
+       </div></div>
   </div>
 
   <!-- Removed redundant transaction/frequency text — filters show this info -->

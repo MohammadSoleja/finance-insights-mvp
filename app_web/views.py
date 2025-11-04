@@ -15,12 +15,13 @@ from django.db.models import Q
 from app_core.models import Transaction
 from app_core.metrics import queryset_to_df, kpis as kpi_calc, timeseries, by_category
 from django.views.decorators.http import require_http_methods
-from django.core.exceptions import PermissionDenied
 from .models import UserTableSetting
+from django.db.models import Sum
 
 import math
 import json
 import datetime
+import calendar
 import logging
 from django.utils.safestring import mark_safe
 
@@ -251,6 +252,8 @@ def dashboard_view(request):
     today = timezone.now().date()
     # ensure KPI window label always defined
     kpi_window_label = ''
+    ksd = None
+    ked = None
     def monday_of(d):
         return d - datetime.timedelta(days=d.weekday())
     def sunday_of(d):
@@ -334,6 +337,11 @@ def dashboard_view(request):
             kpi_q &= Q(date__gte=sd)
         if ed:
             kpi_q &= Q(date__lte=ed)
+        # set KPI bounds so previous-period comparison can be computed for explicit ranges
+        # only set when both start and end are present (we need a full window)
+        if sd and ed:
+            ksd = sd
+            ked = ed
         # label for explicit range
         try:
             if sd and ed:
@@ -387,6 +395,148 @@ def dashboard_view(request):
     qs_kpi = Transaction.objects.filter(kpi_q).order_by('date')
     df_kpi = queryset_to_df(qs_kpi)
     kpi = kpi_calc(df_kpi)
+
+    # ---- Prior period KPIs (for delta/compare) ----
+    # Compute previous period range with same length as kpi range
+    kpi_prev = None
+    kpi_delta = {}
+    prev_start = None
+    prev_end = None
+    try:
+        if ksd and ked:
+            period_len = (ked - ksd).days + 1
+            # If the selected window is exactly a calendar month, compare with previous calendar month
+            is_full_month = False
+            try:
+                if ksd.day == 1 and ksd.month == ked.month and ksd.year == ked.year:
+                    last_day = calendar.monthrange(ksd.year, ksd.month)[1]
+                    if ked.day == last_day:
+                        is_full_month = True
+            except Exception:
+                is_full_month = False
+
+            if is_full_month:
+                # previous calendar month
+                prev_month = ksd.month - 1
+                prev_year = ksd.year
+                if prev_month == 0:
+                    prev_month = 12
+                    prev_year -= 1
+                prev_start = datetime.date(prev_year, prev_month, 1)
+                prev_end = datetime.date(prev_year, prev_month, calendar.monthrange(prev_year, prev_month)[1])
+            else:
+                # previous continuous window of same length immediately before ksd
+                prev_end = ksd - datetime.timedelta(days=1)
+                prev_start = prev_end - datetime.timedelta(days=period_len - 1)
+
+        prev_q = Q(user=user)
+        # Apply same category filter to prior period so KPIs compare apples-to-apples
+        if category:
+            prev_q &= Q(category=category)
+        prev_q &= Q(date__gte=prev_start)
+        prev_q &= Q(date__lte=prev_end)
+        qs_prev = Transaction.objects.filter(prev_q).order_by('date')
+        df_prev = queryset_to_df(qs_prev)
+        prev_kpi = kpi_calc(df_prev)
+        kpi_prev = prev_kpi
+        # compute deltas for inflow/outflow/net
+        def _delta(cur, prev):
+            abs_delta = round(cur - prev, 2)
+            pct = None
+            try:
+                if prev != 0:
+                    pct = round((abs_delta / abs(prev)) * 100.0, 1)
+            except Exception:
+                pct = None
+            return {"abs": abs_delta, "pct": pct}
+        kpi_delta = {
+            'inflow': _delta(kpi.get('inflow', 0.0), prev_kpi.get('inflow', 0.0)),
+            'outflow': _delta(kpi.get('outflow', 0.0), prev_kpi.get('outflow', 0.0)),
+            'net': _delta(kpi.get('net', 0.0), prev_kpi.get('net', 0.0)),
+        }
+    except Exception:
+        kpi_prev = None
+        kpi_delta = {}
+
+    # ---- Top Category Share ----
+    # Compute top 3 outflow categories and top 3 inflow categories for the KPI window
+    top_outflows = []
+    top_inflows = []
+    try:
+        cat_q = Q(user=user)
+        if ksd:
+            cat_q &= Q(date__gte=ksd)
+        if ked:
+            cat_q &= Q(date__lte=ked)
+        if category:
+            cat_q &= Q(category=category)
+
+        # Outflows
+        out_totals_qs = Transaction.objects.filter(cat_q & Q(direction=Transaction.OUTFLOW))
+        total_out = float(out_totals_qs.aggregate(total=Sum('amount')).get('total') or 0.0)
+        out_totals = out_totals_qs.values('category').annotate(total=Sum('amount')).order_by('-total')[:3]
+
+        # Prepare previous-period totals for change calculation
+        prev_out_map = {}
+        prev_total_out = 0.0
+        if ksd is not None and ked is not None:
+            period_len = (ked - ksd).days + 1
+            prev_end = ksd - datetime.timedelta(days=1)
+            prev_start = prev_end - datetime.timedelta(days=period_len - 1)
+            prev_q = Q(user=user, date__gte=prev_start, date__lte=prev_end)
+            if category:
+                prev_q &= Q(category=category)
+            prev_out_qs = Transaction.objects.filter(prev_q & Q(direction=Transaction.OUTFLOW))
+            prev_total_out = float(prev_out_qs.aggregate(total=Sum('amount')).get('total') or 0.0)
+            for r in prev_out_qs.values('category').annotate(total=Sum('amount')):
+                prev_out_map[r.get('category') or 'Uncategorised'] = float(r.get('total') or 0.0)
+
+        for t in out_totals:
+            name = t.get('category') or 'Uncategorised'
+            value = float(t.get('total') or 0.0)
+            pct = round((value / total_out) * 100.0, 1) if total_out > 0 else None
+            # compute change in share compared to prev period (percentage points)
+            change = None
+            if name in prev_out_map and prev_total_out > 0 and pct is not None:
+                prev_pct = round((prev_out_map.get(name, 0.0) / prev_total_out) * 100.0, 1)
+                change = round(pct - prev_pct, 1)
+            elif prev_total_out == 0 and (prev_out_map.get(name, 0.0) == 0) and pct is not None:
+                # previous period had zero total -> change defined as None (no baseline)
+                change = None
+            top_outflows.append({'name': name, 'value': round(value,2), 'percent': pct, 'change': change, 'change_abs': (round(abs(change),1) if change is not None else None)})
+
+        # Inflows
+        in_totals_qs = Transaction.objects.filter(cat_q & Q(direction=Transaction.INFLOW))
+        total_in = float(in_totals_qs.aggregate(total=Sum('amount')).get('total') or 0.0)
+        in_totals = in_totals_qs.values('category').annotate(total=Sum('amount')).order_by('-total')[:3]
+
+        # previous-period inflow map
+        prev_in_map = {}
+        prev_total_in = 0.0
+        if ksd is not None and ked is not None:
+            period_len = (ked - ksd).days + 1
+            prev_end = ksd - datetime.timedelta(days=1)
+            prev_start = prev_end - datetime.timedelta(days=period_len - 1)
+            prev_q = Q(user=user, date__gte=prev_start, date__lte=prev_end)
+            if category:
+                prev_q &= Q(category=category)
+            prev_in_qs = Transaction.objects.filter(prev_q & Q(direction=Transaction.INFLOW))
+            prev_total_in = float(prev_in_qs.aggregate(total=Sum('amount')).get('total') or 0.0)
+            for r in prev_in_qs.values('category').annotate(total=Sum('amount')):
+                prev_in_map[r.get('category') or 'Uncategorised'] = float(r.get('total') or 0.0)
+
+        for t in in_totals:
+            name = t.get('category') or 'Uncategorised'
+            value = float(t.get('total') or 0.0)
+            pct = round((value / total_in) * 100.0, 1) if total_in > 0 else None
+            change = None
+            if name in prev_in_map and prev_total_in > 0 and pct is not None:
+                prev_pct = round((prev_in_map.get(name, 0.0) / prev_total_in) * 100.0, 1)
+                change = round(pct - prev_pct, 1)
+            top_inflows.append({'name': name, 'value': round(value,2), 'percent': pct, 'change': change, 'change_abs': (round(abs(change),1) if change is not None else None)})
+    except Exception:
+        top_outflows = []
+        top_inflows = []
 
     # ---- Time series (NaN-safe) ----
     # pass parsed start/end (sd, ed) so timeseries covers the full requested range
@@ -475,6 +625,11 @@ def dashboard_view(request):
     context = {
         "title": "Dashboard",
         "kpi": kpi,
+        "kpi_prev": kpi_prev,
+        "kpi_delta": kpi_delta,
+        # "top_category": top_category,
+        "top_outflows": top_outflows,
+        "top_inflows": top_inflows,
         "freq": freq,
         "tx_count": kpi.get("tx_count", 0),
         "chart_payload": mark_safe(chart_payload),
