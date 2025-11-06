@@ -119,6 +119,15 @@
     .kpi-grid .card .kpi { font-size: clamp(11px, 1.0vw, 14px) !important; line-height:1; }
 
     .muted { color: #6b7280; }
+
+    /* Pie chart distribution header - minimal styling */
+    .pie-header { display: flex; align-items: center; justify-content: space-between; margin-top: 0.75rem; margin-bottom: 0.25rem; }
+    .pie-header h3 { margin: 0; }
+    .pie-header select { width: auto; min-width: 110px; max-width: 130px; padding: 0.4rem 0.5rem; font-size: 0.875rem; text-align: center; text-align-last: center; }
+
+    /* Pie chart container - wider to accommodate chart + legend side by side, keeps vertical height minimal */
+    .pie-chart-container { max-width: 100%; max-height: 200px; margin: 0 auto; position: relative; display: flex; align-items: center; justify-content: center; }
+    .pie-chart-container canvas { max-width: 280px !important; max-height: 200px !important; }
   </style>
 {% endblock %}
 
@@ -294,6 +303,17 @@
       <div class="card">
         <h3>Top Categories</h3>
         <div class="chart-wrap"><canvas id="catChart" aria-label="Top categories chart" role="img"></canvas></div>
+
+        <div class="pie-header">
+          <h3>Distribution</h3>
+          <select id="pieMode" class="form-select">
+            <option value="categories">Categories</option>
+            <option value="direction">Direction</option>
+          </select>
+        </div>
+        <div class="pie-chart-container">
+          <canvas id="pieChart" aria-label="Distribution pie chart" role="img"></canvas>
+        </div>
       </div>
     </div>
   {% endif %}
