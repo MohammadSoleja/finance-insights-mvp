@@ -65,8 +65,10 @@
       border: 1px solid rgba(16,24,40,0.06) !important;
       border-radius: 8px !important;
       box-shadow: 0 6px 12px rgba(16,24,40,0.06) !important; /* ensure immediate appearance */
-      transition: transform .08s ease;
-      will-change: transform;
+      will-change: transform, box-shadow;
+      transform: translateZ(0); /* Force GPU acceleration for immediate shadow rendering */
+      backface-visibility: hidden; /* Prevent flickering */
+      contain: layout style paint; /* Optimize rendering and avoid repaints */
       height: 105px !important; /* slightly smaller height to reduce vertical space */
       padding: .28rem .45rem; /* tighten padding a bit more */
       display: flex;
@@ -110,8 +112,12 @@
     .cat-change.negative, .cat-change.negative * { color: #ef4444 !important; }
     @media (max-width: 900px) { .cat-item { grid-template-columns: 1fr 90px 90px; } }
 
-    /* Keep existing hover/focus (lift effect) */
-    .kpi-grid .card:focus, .kpi-grid .card:hover { box-shadow: 0 10px 24px rgba(16,24,40,0.08); transform: translateY(-2px); }
+    /* Keep existing hover/focus (lift effect) - only transition on interaction */
+    .kpi-grid .card:focus, .kpi-grid .card:hover {
+      box-shadow: 0 10px 24px rgba(16,24,40,0.08);
+      transform: translateY(-2px) translateZ(0);
+      transition: transform 0.08s ease, box-shadow 0.08s ease;
+    }
 
     /* Reduce prominent "£" numbers size inside KPI cards and clamp so they stay readable across screens */
     .kpi { font-size: clamp(11px, 1.1vw, 14px); font-weight:700; color: #111827; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
@@ -186,7 +192,7 @@
           <div class="kpi" tabindex="0" aria-label="Total outflow £{{ kpi.outflow|floatformat:2|intcomma }}">£{{ kpi.outflow|floatformat:2|intcomma }}</div>
           {% with d=kpi_delta.outflow %}
             {% if d %}
-              <div class="kpi-delta {% if d.abs >= 0 %}positive{% else %}negative{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} pounds, {{ d.pct|default:'no' }} percent compared to previous period">
+              <div class="kpi-delta {% if d.abs >= 0 %}negative{% else %}positive{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} pounds, {{ d.pct|default:'no' }} percent compared to previous period">
                 <span class="arrow">{% if d.abs >= 0 %}▲{% else %}▼{% endif %}</span>
                 <span>£{{ d.abs|floatformat:2|intcomma }}</span>
                 {% if d.pct is not None %}<span>({{ d.pct }}%)</span>{% endif %}
@@ -249,7 +255,7 @@
                 <div class="cat-name" title="{{ t.name }}">{{ t.name }}</div>
                 <div class="cat-pct">{{ t.percent|default:'—' }}%</div>
                 {% if t.change is not None %}
-                  <div class="cat-change {% if t.change >= 0 %}positive{% else %}negative{% endif %}" aria-hidden="false">
+                  <div class="cat-change {% if t.change >= 0 %}negative{% else %}positive{% endif %}" aria-hidden="false">
                     <span class="arrow">{% if t.change >= 0 %}▲{% else %}▼{% endif %}</span>
                     <span>{{ t.change_abs }}pp</span>
                   </div>
@@ -316,6 +322,47 @@
         </div>
       </div>
     </div>
+  {% endif %}
+
+  <!-- Budget Summary Widget -->
+  {% if budget_summary %}
+  <div class="card mt-1">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+      <h3 class="mt-0" style="margin: 0;">Budget Overview</h3>
+      <a href="{% url 'app_web:budgets' %}" class="btn btn-sm">Manage Budgets</a>
+    </div>
+
+    {% if budget_summary %}
+      <div style="display: grid; gap: 0.75rem;">
+        {% for budget in budget_summary %}
+          <div style="border: 1px solid rgba(16,24,40,0.06); border-radius: 6px; padding: 0.75rem; {% if budget.is_over %}border-left: 4px solid #ef4444;{% elif budget.percent_used >= 80 %}border-left: 4px solid #f59e0b;{% else %}border-left: 4px solid #16a34a;{% endif %}">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+              <div>
+                <div style="font-weight: 700; color: #111827;">{{ budget.category }}</div>
+                <div style="font-size: 0.875rem; color: #6b7280;">{{ budget.period }}</div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-weight: 700; font-size: 0.875rem; color: {% if budget.is_over %}#ef4444{% elif budget.percent_used >= 80 %}#f59e0b{% else %}#16a34a{% endif %};">
+                  {{ budget.percent_used }}%
+                </div>
+              </div>
+            </div>
+
+            <div style="width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin-bottom: 0.5rem;">
+              <div style="height: 100%; {% if budget.is_over %}background: #ef4444;{% elif budget.percent_used >= 80 %}background: #f59e0b;{% else %}background: #16a34a;{% endif %} width: {% if budget.percent_used > 100 %}100{% else %}{{ budget.percent_used }}{% endif %}%; transition: width 0.3s;"></div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 0.875rem;">
+              <span style="color: #6b7280;">£{{ budget.spent|floatformat:2|intcomma }} / £{{ budget.budget_amount|floatformat:2|intcomma }}</span>
+              <span style="{% if budget.remaining >= 0 %}color: #16a34a;{% else %}color: #ef4444;{% endif %} font-weight: 600;">£{{ budget.remaining|floatformat:2|intcomma }} left</span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="muted">No active budgets. <a href="{% url 'app_web:budgets' %}">Create one</a> to track spending.</div>
+    {% endif %}
+  </div>
   {% endif %}
 
   <div class="card mt-1">
