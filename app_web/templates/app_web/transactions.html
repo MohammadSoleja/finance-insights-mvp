@@ -115,12 +115,23 @@
     .preview-table th:hover > .col-resizer { background: linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.06)); }
     /* Make table cells wrap when narrow */
     .preview-table td { word-break: break-word; white-space: normal; }
-    /* Transactions page: remove card shadow for page panels and use a solid divider under the toolbar */
-    .card { box-shadow: none !important; border: 1px solid rgba(16,24,40,0.06) !important; }
+    /* Transactions page: optimize card rendering for immediate shadow display */
+    .card {
+      box-shadow: none !important;
+      border: 1px solid rgba(16,24,40,0.06) !important;
+      will-change: transform, box-shadow;
+      transform: translateZ(0); /* Force GPU acceleration */
+      backface-visibility: hidden;
+      contain: layout style paint;
+    }
     /* toolbar may not be a direct child (there may be an errors div) so match any descendant */
     .card .toolbar { border-bottom: 1px solid rgba(16,24,40,0.06); padding-bottom: .6rem; }
     /* restore modal shadows (more specific selector) so modal dialogs keep a shadow */
-    .modal .card { box-shadow: 0 8px 30px rgba(0,0,0,.18) !important; }
+    .modal .card {
+      box-shadow: 0 8px 30px rgba(0,0,0,.18) !important;
+      transform: translateZ(0);
+      will-change: transform, box-shadow;
+    }
   </style>
 {% endblock %}
 
@@ -462,6 +473,7 @@
             </div>
           </div>
 
+
           <div style="margin-top:1rem; display:flex; gap:.5rem; justify-content:flex-end;">
             <button id="add-tx-submit" class="btn btn-primary" type="submit">Add transaction</button>
             <button id="add-tx-cancel" class="btn" type="button">Cancel</button>
@@ -488,6 +500,7 @@
            var opts = { dateFormat: 'Y-m-d', allowInput: true };
            flatpickr('#start_date', opts);
            flatpickr('#end_date', opts);
+           flatpickr('#add-tx-date', opts);
          }
        });
      })();

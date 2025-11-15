@@ -5,7 +5,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}Finance Insights{% endblock %}</title>
-  {# Add a small cache-busting query param while actively developing CSS #}
+  {# Preload critical CSS for faster rendering and immediate shadow display #}
+  <link rel="preload" href="{% static 'app_web/styles.css' %}?v=3" as="style">
   <link rel="stylesheet" href="{% static 'app_web/styles.css' %}?v=3">
 
   <!-- Development override (ensures our app brand rules take precedence) -->
@@ -39,8 +40,22 @@
     main#content{ padding-top: calc(var(--header-height) + 1rem); }
 
     /* Critical card styles (inline) to avoid flash of unstyled cards while external CSS loads */
-    .card { padding: 1rem; border: 1px solid rgba(16,24,40,0.06); border-radius: 12px; background: #fff; box-shadow: 0 6px 22px rgba(16,24,40,0.06); }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(16,24,40,0.08); }
+    /* Use will-change and contain to force immediate rendering and avoid paint delays */
+    .card {
+      padding: 1rem;
+      border: 1px solid rgba(16,24,40,0.06);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 6px 22px rgba(16,24,40,0.06);
+      will-change: transform, box-shadow;
+      contain: layout style paint;
+      transform: translateZ(0); /* Force GPU acceleration for immediate rendering */
+    }
+    .card:hover {
+      transform: translateY(-2px) translateZ(0);
+      box-shadow: 0 12px 32px rgba(16,24,40,0.08);
+      transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }
 
   </style>
 

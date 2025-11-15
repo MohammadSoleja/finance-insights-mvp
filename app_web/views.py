@@ -645,6 +645,15 @@ def dashboard_view(request):
         'base_qs': base_qs,
         'kpi_window_label': kpi_window_label,  # <-- add to context
     }
+
+    # Get budget summary for widget (top 3 at-risk budgets)
+    from app_core.budgets import get_budget_summary
+    try:
+        budget_summary = get_budget_summary(user, Transaction)[:3]  # Top 3 for widget
+        context['budget_summary'] = budget_summary
+    except Exception:
+        context['budget_summary'] = []
+
     return render(request, "app_web/dashboard.html", context)
 
 
@@ -887,7 +896,7 @@ def transaction_edit_view(request, tx_id):
     # Determine redirect params: prefer POST.next (modal submit) else GET params
     if request.method == 'POST':
         next_params = request.POST.get('next', '')
-        form = TransactionForm(request.POST, instance=tx)
+        form = TransactionForm(request.POST, instance=tx, user=request.user)
         if form.is_valid():
             form.save()
             # If this is an AJAX request (modal), return JSON so the frontend can update in-place
@@ -901,7 +910,8 @@ def transaction_edit_view(request, tx_id):
                         'description': tx.description,
                         'amount': str(tx.amount),
                         'direction': tx.direction,
-                        'category': tx.category,
+                        'label': tx.label.name if tx.label else '',
+                        'category': tx.category,  # backward compatibility
                         'subcategory': tx.subcategory,
                     }
                 })
@@ -918,7 +928,7 @@ def transaction_edit_view(request, tx_id):
         params = next_params
     else:
         params = request.GET.urlencode()
-        form = TransactionForm(instance=tx)
+        form = TransactionForm(instance=tx, user=request.user)
     return render(request, 'app_web/transaction_form.html', {'form': form, 'tx': tx, 'params': params})
 
 
@@ -1064,3 +1074,252 @@ def transaction_columns_view(request):
     setting.columns = final
     setting.save()
     return JsonResponse({'ok': True, 'columns': final})
+
+
+# ========================================
+# Budget Views
+# ========================================
+
+@login_required
+def budgets_view(request):
+    """Budget management page - list, create, edit, delete budgets."""
+    from app_core.models import Budget
+    from app_core.budgets import get_budget_summary
+    from .forms import BudgetForm
+
+    # Get budget summary with usage
+    budget_summary = get_budget_summary(request.user, Transaction)
+
+    # Handle form submission for creating/editing budget
+    form = BudgetForm(user=request.user)
+    edit_budget = None
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'create':
+            form = BudgetForm(request.POST, user=request.user)
+            if form.is_valid():
+                budget = form.save(commit=False)
+                budget.user = request.user
+                try:
+                    # Convert all non-custom period budgets to custom with specific dates for consistent display
+                    if budget.period != Budget.PERIOD_CUSTOM:
+                        from app_core.recurring_budgets import get_period_end
+                        from datetime import date
+                        from dateutil.relativedelta import relativedelta
+                        import uuid
+
+                        # Generate recurring group ID for linking related budgets
+                        if budget.is_recurring and budget.recurrence_count:
+                            recurring_group_id = str(uuid.uuid4())
+                            budget.recurring_group_id = recurring_group_id
+
+                        # Calculate start/end dates for the current period
+                        today = timezone.now().date()
+                        if budget.period == Budget.PERIOD_MONTHLY:
+                            # First and last day of current month
+                            period_start = today.replace(day=1)
+                            period_end = get_period_end(period_start, budget.period)
+                        elif budget.period == Budget.PERIOD_WEEKLY:
+                            # Current week (Monday to Sunday)
+                            period_start = today - timezone.timedelta(days=today.weekday())
+                            period_end = get_period_end(period_start, budget.period)
+                        elif budget.period == Budget.PERIOD_YEARLY:
+                            # Current year
+                            period_start = date(today.year, 1, 1)
+                            period_end = get_period_end(period_start, budget.period)
+                        else:
+                            period_start = budget.start_date
+                            period_end = budget.end_date
+
+                        # Store original period type before converting to custom (needed for recurring generation)
+                        original_period = budget.period
+
+                        # Convert to custom period with specific dates
+                        budget.period = Budget.PERIOD_CUSTOM
+                        budget.start_date = period_start
+                        budget.end_date = period_end
+
+                        budget.save()
+                        form.save_m2m()  # Save many-to-many labels
+
+                        # If recurring, generate future periods
+                        if budget.is_recurring and budget.recurrence_count:
+                            # Temporarily set period back for generation logic
+                            budget.period = original_period
+                            budget.save(update_fields=['period'])
+
+                            from app_core.recurring_budgets import generate_recurring_budgets
+                            generated_count = generate_recurring_budgets(user=request.user)
+
+                            # Convert back to custom after generation
+                            budget.period = Budget.PERIOD_CUSTOM
+                            budget.save(update_fields=['period'])
+
+                            messages.success(request, f'Recurring budget "{budget.name}" created ({generated_count} future periods generated)')
+                        else:
+                            messages.success(request, f'Budget "{budget.name}" created')
+                    else:
+                        # Custom period - save as-is
+                        budget.save()
+                        form.save_m2m()  # Save many-to-many labels
+                        messages.success(request, f'Budget "{budget.name}" created')
+
+                    return redirect('app_web:budgets')
+                except Exception as e:
+                    messages.error(request, f'Error creating budget: {str(e)}')
+            else:
+                messages.error(request, 'Please correct the errors below')
+
+        elif action == 'edit':
+            budget_id = request.POST.get('budget_id')
+            edit_scope = request.POST.get('edit_scope', 'this')  # this, future, or all
+            recurring_group_id = request.POST.get('recurring_group_id', '')
+
+            try:
+                edit_budget = Budget.objects.get(id=budget_id, user=request.user)
+                form = BudgetForm(request.POST, instance=edit_budget, user=request.user)
+                if form.is_valid():
+                    budget = form.save()
+
+                    # If this budget is part of a recurring group and scope is not 'this'
+                    if recurring_group_id and edit_scope in ['future', 'all']:
+                        budgets_to_update = Budget.objects.filter(
+                            user=request.user,
+                            recurring_group_id=recurring_group_id
+                        ).exclude(id=budget_id)
+
+                        # For 'future', only update budgets with start_date >= current budget's start_date
+                        if edit_scope == 'future' and budget.start_date:
+                            budgets_to_update = budgets_to_update.filter(start_date__gte=budget.start_date)
+                        # For 'all', update all budgets in the group (no additional filter needed)
+
+                        # Update fields for all budgets in scope
+                        update_fields = {
+                            'name': budget.name,
+                            'amount': budget.amount,
+                            'active': budget.active,
+                            'updated_at': timezone.now()
+                        }
+
+                        count = budgets_to_update.update(**update_fields)
+
+                        # Update labels for each budget (M2M relationship)
+                        for b in budgets_to_update:
+                            b.labels.clear()
+                            for label in budget.labels.all():
+                                b.labels.add(label)
+
+                        if edit_scope == 'future':
+                            messages.success(request, f'Budget "{budget.name}" updated (+ {count} future budgets)')
+                        else:
+                            messages.success(request, f'Budget "{budget.name}" updated (+ {count} related budgets)')
+                    else:
+                        messages.success(request, f'Budget "{budget.name}" updated')
+
+                    return redirect('app_web:budgets')
+                else:
+                    messages.error(request, 'Please correct the errors below')
+            except Budget.DoesNotExist:
+                messages.error(request, 'Budget not found')
+
+        elif action == 'delete':
+            budget_id = request.POST.get('budget_id')
+            try:
+                budget = Budget.objects.get(id=budget_id, user=request.user)
+                budget.delete()
+                # Silent delete - no success message
+                return redirect('app_web:budgets')
+            except Budget.DoesNotExist:
+                messages.error(request, 'Budget not found')
+
+        elif action == 'bulk_delete':
+            budget_ids_str = request.POST.get('budget_ids', '')
+            if budget_ids_str:
+                budget_ids = [int(id.strip()) for id in budget_ids_str.split(',') if id.strip().isdigit()]
+                deleted_count = Budget.objects.filter(id__in=budget_ids, user=request.user).delete()[0]
+                if deleted_count > 0:
+                    messages.success(request, f'{deleted_count} budget(s) deleted')
+                return redirect('app_web:budgets')
+            else:
+                messages.error(request, 'No budgets selected for deletion')
+
+    # Handle GET request for editing (populate form)
+    if request.method == 'GET' and 'edit' in request.GET:
+        budget_id = request.GET.get('edit')
+        try:
+            edit_budget = Budget.objects.get(id=budget_id, user=request.user)
+            form = BudgetForm(instance=edit_budget, user=request.user)
+        except Budget.DoesNotExist:
+            messages.error(request, 'Budget not found')
+
+    # Convert budget_summary to JSON for JavaScript
+    # Need to convert date objects to strings for JSON serialization
+    import json
+    from datetime import date, datetime
+    import math
+
+    def date_handler(obj):
+        """JSON serializer for objects not serializable by default json code"""
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+    # Sanitize budget_summary to remove NaN/Infinity values
+    def sanitize_for_json(data):
+        """Remove NaN and Infinity values from data structure"""
+        if isinstance(data, dict):
+            return {k: sanitize_for_json(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [sanitize_for_json(item) for item in data]
+        elif isinstance(data, float):
+            if math.isnan(data) or math.isinf(data):
+                return 0
+            return data
+        return data
+
+    budget_summary_sanitized = sanitize_for_json(budget_summary)
+    budget_summary_json = json.dumps(budget_summary_sanitized, default=date_handler, allow_nan=False)
+
+    context = {
+        'title': 'Budget Management',
+        'budget_summary': budget_summary,
+        'budget_summary_json': budget_summary_json,
+        'form': form,
+        'edit_budget': edit_budget,
+    }
+
+    return render(request, 'app_web/budgets.html', context)
+
+
+@login_required
+def budget_widget_data(request):
+    """AJAX endpoint to get budget widget data for dashboard."""
+    from app_core.budgets import get_budget_summary
+
+    summary = get_budget_summary(request.user, Transaction)
+
+    # Return top 3 budgets (by percent used) for widget
+    widget_data = summary[:3]
+
+    return JsonResponse({
+        'ok': True,
+        'budgets': widget_data,
+        'total_count': len(summary)
+    })
+
+
+@login_required
+def budget_list_data(request):
+    """AJAX endpoint to get all budget data for the budget management page."""
+    from app_core.budgets import get_budget_summary
+
+    summary = get_budget_summary(request.user, Transaction)
+
+    return JsonResponse({
+        'ok': True,
+        'budgets': summary,
+        'count': len(summary)
+    })
+
