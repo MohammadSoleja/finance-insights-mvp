@@ -3,261 +3,15 @@
 {% block title %}Nasheet{% endblock %}
 
 {% block head_extra %}
-  <style>
-    /* Page-specific home styles (kept minimal) */
-    /* Modern hero layout with improved spacing */
-    .hero { 
-      display: grid; 
-      grid-template-columns: 1fr minmax(520px, 800px); 
-      gap: 2.5rem; 
-      align-items: center; 
-      padding: 1.5rem 0 3rem; 
-      margin-top: -7rem;
-    }
-
-    .hero-inner { 
-      display: flex; 
-      flex-direction: column; 
-      gap: 1.5rem; 
-    }
-
-    /* Improved heading typography */
-    .hero h1 { 
-      font-family: 'Montserrat', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; 
-      font-weight: 800; 
-      text-transform: uppercase; 
-      letter-spacing: 0.6px; 
-      font-size: clamp(3.25rem, 6.5vw, 4.75rem); 
-      margin: 0; 
-      line-height: 1.1; 
-      max-width: 82ch; 
-      background: linear-gradient(90deg, var(--brand) 0%, #4B5563 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .hero p.lead { 
-      color: var(--muted); 
-      margin: 0; 
-      font-size: 1.15rem;
-      line-height: 1.5;
-    }
-
-    /* CTA grid with improved styling */
-    .hero-cta-grid { 
-      display: grid; 
-      grid-template-columns: repeat(2, minmax(120px, 1fr)); 
-      gap: 0.75rem; 
-      align-items: center;
-      margin-top: 0.5rem;
-    }
-
-    .hero-primary { 
-      grid-column: 1 / -1; 
-      height: 54px; 
-      padding: 0 1.25rem; 
-      display: inline-flex; 
-      align-items: center; 
-      justify-content: center; 
-      font-weight: 700; 
-      border-radius: 12px;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
-    }
-
-    .hero-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
-    }
-
-    .btn-secondary { 
-      height: 44px; 
-      padding: 0 1rem; 
-      display: inline-flex; 
-      align-items: center; 
-      justify-content: center; 
-      border-radius: 10px;
-      transition: background-color 0.2s ease;
-    }
-
-    .btn-primary, .hero-primary { 
-      color: #fff !important; 
-      background: var(--accent) !important;
-    }
-
-    /* Fixed hero visual container */
-    .hero-visual { 
-      background: linear-gradient(180deg, #ffffff, #f9fafb); 
-      border-radius: 16px; 
-      padding: 0; 
-      align-items: center; 
-      display: flex;
-      overflow: hidden;
-    }
-
-    #heroContainer { 
-      position: relative; 
-      width: 100%; 
-      max-width: 1000px; 
-      height: 740px;
-      overflow: hidden; 
-      border-radius: 16px;
-    }
-
-    /* Fixed lottie positioning to prevent cutting out */
-    .hero-visual .lottie-player { 
-      position: absolute; 
-      right: 0 !important; 
-      left: auto !important; 
-      top: 0 !important;
-      transform: translateY(0%) scale(1.2) !important;
-      height: auto !important; 
-      max-height: 740px !important; 
-      width: auto !important; 
-      max-width: 1600px !important;
-    }
-
-    /* Feature list styling */
-    .hero ul.mt-1 {
-      margin-top: 1rem;
-      padding-left: 1.5rem;
-      line-height: 1.6;
-    }
-
-    .hero ul.mt-1 li {
-      margin-bottom: 0.5rem;
-    }
-
-    /* smaller, centered CTA with guaranteed white text */
-    .hero-cta { 
-      display: inline-flex; 
-      align-items: center; 
-      justify-content: center; 
-      padding: 0.25rem 0.6rem !important; 
-      font-size: 0.86rem !important; 
-      font-weight: 700; 
-      color: #ffffff !important; 
-      background: var(--accent); 
-      border-radius: 8px; 
-      text-decoration: none; 
-      text-align: center; 
-      line-height: 1; 
-      border: 0; 
-      box-shadow: 0 6px 18px rgba(37, 99, 235, 0.15); 
-    }
-
-    .cta { 
-      display: flex; 
-      gap: 0.75rem; 
-      align-items: center; 
-      margin-top: 0.75rem; 
-    }
-
-    .features { 
-      display: grid; 
-      grid-template-columns: repeat(3, 1fr); 
-      gap: 1.5rem; 
-      margin: 3rem 0; 
-    }
-
-    .feature { 
-      background: #fff; 
-      border: 1px solid var(--border); 
-      padding: 1.5rem; 
-      border-radius: 12px; 
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .feature:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-    }
-
-    .logos { 
-      display: flex; 
-      gap: 1.5rem; 
-      align-items: center; 
-      justify-content: center; 
-      flex-wrap: wrap; 
-      padding: 1.5rem 0; 
-    }
-
-    .logo-placeholder { 
-      width: 120px; 
-      height: 36px; 
-      background: #f5f7fb; 
-      border-radius: 8px; 
-      display: inline-flex; 
-      align-items: center; 
-      justify-content: center; 
-      color: var(--muted); 
-      font-size: 0.85rem; 
-    }
-
-    .steps { 
-      display: grid; 
-      grid-template-columns: repeat(3, 1fr); 
-      gap: 1.5rem; 
-      margin: 3rem 0; 
-    }
-
-    .step { 
-      padding: 1.5rem; 
-      background: #fff; 
-      border: 1px solid var(--border); 
-      border-radius: 12px; 
-      text-align: center; 
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-    }
-
-    .pricing { 
-      display: grid; 
-      grid-template-columns: repeat(2, 1fr); 
-      gap: 1.5rem; 
-      margin: 3rem 0; 
-    }
-
-    .plan { 
-      padding: 1.5rem; 
-      border-radius: 12px; 
-      border: 1px solid var(--border); 
-      background: #fff; 
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-    }
-
-    .muted { 
-      color: var(--muted); 
-    }
-
-    /* Responsive adjustments */
-    @media (max-width: 900px) {
-      .hero {
-        grid-template-columns: 1fr;
-        padding: 2rem 0 3rem;
-        gap: 2rem;
-      }
-
-      #heroContainer {
-        height: 720px;
-      }
-
-      .features, .steps, .pricing {
-        grid-template-columns: 1fr;
-      }
-    }
-    /* Modal styles (simple) */
-    .modal-backdrop{ position:fixed; inset:0; background: rgba(0, 0, 0, 0.42); display:none; align-items:center; justify-content:center; z-index:1200; }
-    .modal{ background: #ffffff; max-width:680px; width:100%; border-radius:12px; padding:1rem; box-shadow:0 12px 40px rgba(0, 0, 0, 0.12); }
-    .modal .field{ margin-bottom:.75rem; }
-    .form-input, .form-textarea{ width:100%; padding:.6rem .75rem; border:1px solid var(--border); border-radius:8px; }
-    .modal-close{ background:transparent; border:0; font-size:1.25rem; cursor:pointer }
-  </style>
+<link rel="stylesheet" href="{% static 'app_web/home.css' %}">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap" rel="preload" as="style" onload="this.onload=null;this.rel='stylesheet'">
 {% endblock %}
 
 {% block content %}
-  <section class="hero">
+  <!-- Scroll Progress Bar -->
+  <div class="scroll-progress" id="scrollProgress"></div>
+
+  <section class="hero fade-in-up">
     <div class="hero-inner">
       <h1>FINANCE MADE EASY</h1>
       <p class="lead">Quickly upload bank exports, visualise cashflow, and get actionable breakdowns.</p>
@@ -291,57 +45,120 @@
     </aside>
   </section>
 
-  <section class="features">
-    <div class="feature">
-      <div style="margin-bottom:.5rem; width:80px; height:80px; display:flex; align-items:center; justify-content:center;">
-        <div class="icon-wrapper" data-json="{% static 'app_web/assets/lottie/upload-icon/upload-icon.json' %}">
-          <!-- inline SVG fallback -->
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" aria-hidden="true" role="img">
-            <path d="M12 3v12" stroke="#111827" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M8 11l4-4 4 4" stroke="#111827" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <rect x="3" y="17" width="18" height="4" rx="1" stroke="#111827" stroke-width="1.5"/>
-          </svg>
+  <!-- Features Section Title -->
+  <div class="fade-in-up" style="text-align: center; margin: 2rem 0 2rem;">
+    <h2 style="font-size: 2.5rem; font-weight: 800; margin: 0; color: var(--brand); letter-spacing: -0.02em;">FEATURES</h2>
+  </div>
+
+  <!-- Features Showcase - Cycling -->
+  <section class="features fade-in-up">
+    <div class="features-showcase">
+      <!-- Feature 1: Fast Uploads -->
+      <div class="feature-slide active" data-feature="0">
+        <div class="feature-animation">
+          <div class="icon-wrapper" data-json="{% static 'app_web/assets/lottie/upload-icon/upload-icon.json' %}">
+            <svg width="430" height="430" viewBox="0 0 24 24" fill="none" aria-hidden="true" role="img" style="width: 430px !important; height: 430px !important;">
+              <path d="M12 3v12" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 11l4-4 4 4" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="3" y="17" width="18" height="4" rx="1" stroke="#3b82f6" stroke-width="1.5"/>
+            </svg>
+          </div>
+        </div>
+        <div class="feature-content">
+          <h3>Fast Uploads</h3>
+          <p>Upload your CSV or Excel files in seconds. Our smart parsing automatically detects columns and maps them to the right fields.</p>
+          <ul class="feature-list">
+            <li>Support for CSV and Excel formats</li>
+            <li>Automatic column detection & mapping</li>
+            <li>Preview before importing</li>
+            <li>Bulk upload thousands of transactions</li>
+          </ul>
         </div>
       </div>
-      <h3>Fast uploads</h3>
-      <p class="muted">CSV and Excel support with smart parsing and mapping.</p>
-    </div>
-    <div class="feature">
-      <div style="margin-bottom:.5rem; width:80px; height:80px; display:flex; align-items:center; justify-content:center;">
-        <div class="icon-wrapper" data-json="{% static 'app_web/assets/lottie/insight-icon/insight-icon.json' %}">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" aria-hidden="true" role="img">
-            <path d="M3 17h18" stroke="#111827" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M6 13v4" stroke="#111827" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M10 9v8" stroke="#111827" stroke-width="1.5" stroke-linecap="round"/>
-            <path d="M14 5v12" stroke="#111827" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
+
+      <!-- Feature 2: Automatic Insights -->
+      <div class="feature-slide" data-feature="1">
+        <div class="feature-animation">
+          <div class="icon-wrapper" data-json="{% static 'app_web/assets/lottie/insight-icon/insight-icon.json' %}">
+            <svg width="430" height="430" viewBox="0 0 24 24" fill="none" aria-hidden="true" role="img" style="width: 430px !important; height: 430px !important;">
+              <path d="M3 17h18" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M6 13v4" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M10 9v8" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M14 5v12" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="feature-content">
+          <h3>Automatic Insights</h3>
+          <p>Get instant insights into your spending patterns. AI-powered categorization and trend detection help you understand your finances better.</p>
+          <ul class="feature-list">
+            <li>Automatic category breakdown</li>
+            <li>Trend detection & forecasting</li>
+            <li>Anomaly alerts for unusual spending</li>
+            <li>Budget tracking & recommendations</li>
+          </ul>
         </div>
       </div>
-      <h3>Automatic insights</h3>
-      <p class="muted">Category breakdowns, trend detection, and anomaly alerts.</p>
-    </div>
-    <div class="feature">
-      <div style="margin-bottom:.5rem; width:80px; height:80px; display:flex; align-items:center; justify-content:center;">
-        <div class="icon-wrapper" data-json="{% static 'app_web/assets/lottie/security-icon/security-icon.json' %}">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" aria-hidden="true" role="img">
-            <path d="M12 2l6 3v5c0 5-3 9-6 11-3-2-6-6-6-11V5l6-3z" stroke="#111827" stroke-width="1.2" fill="none"/>
-            <circle cx="12" cy="12" r="2" stroke="#111827" stroke-width="1.2" fill="none"/>
-          </svg>
+
+      <!-- Feature 3: Secure & Private -->
+      <div class="feature-slide" data-feature="2">
+        <div class="feature-animation">
+          <div class="icon-wrapper" data-json="{% static 'app_web/assets/lottie/security-icon/security-icon.json' %}">
+            <svg width="430" height="430" viewBox="0 0 24 24" fill="none" aria-hidden="true" role="img" style="width: 430px !important; height: 430px !important;">
+              <path d="M12 2l6 3v5c0 5-3 9-6 11-3-2-6-6-6-11V5l6-3z" stroke="#ef4444" stroke-width="1.2" fill="none"/>
+              <circle cx="12" cy="12" r="2" stroke="#ef4444" stroke-width="1.2" fill="none"/>
+            </svg>
+          </div>
+        </div>
+        <div class="feature-content">
+          <h3>Secure & Private</h3>
+          <p>Your data is encrypted and stored securely. We never share your information with third parties, and you have full control over your data.</p>
+          <ul class="feature-list">
+            <li>Bank-level AES-256 encryption</li>
+            <li>Data scoped to your account only</li>
+            <li>Full export & delete controls</li>
+            <li>No third-party data sharing</li>
+          </ul>
         </div>
       </div>
-      <h3>Secure & private</h3>
-      <p class="muted">Data scoped to your account, with export controls.</p>
+
+      <!-- Navigation Dots -->
+      <div class="feature-nav">
+        <button class="feature-dot active" data-slide="0" aria-label="Show feature 1"></button>
+        <button class="feature-dot" data-slide="1" aria-label="Show feature 2"></button>
+        <button class="feature-dot" data-slide="2" aria-label="Show feature 3"></button>
+      </div>
     </div>
   </section>
 
-  <section class="logos">
+  <!-- Statistics Section -->
+  <section class="statistics fade-in-up">
+    <div class="stat-item">
+      <span class="stat-number" data-target="10000">0</span>+
+      <div class="stat-label">Transactions Processed</div>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number" data-target="500">0</span>+
+      <div class="stat-label">Happy Customers</div>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number" data-target="99.9">0</span>%
+      <div class="stat-label">Uptime Guaranteed</div>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number" data-target="24">0</span>/7
+      <div class="stat-label">Expert Support</div>
+    </div>
+  </section>
+
+  <section class="logos fade-in-up">
     <div class="logo-placeholder">Customer 1</div>
     <div class="logo-placeholder">Customer 2</div>
     <div class="logo-placeholder">Customer 3</div>
     <div class="logo-placeholder">Customer 4</div>
   </section>
 
-  <section class="steps">
+  <section class="steps fade-in-up">
     <div class="step">
       <div style="font-weight:700;font-size:1.25rem;">1</div>
       <div class="muted">Upload</div>
@@ -359,16 +176,220 @@
     </div>
   </section>
 
-  <section class="pricing">
-    <div class="plan">
-      <h3>Free</h3>
-      <p class="muted">Single account, basic uploads and dashboard.</p>
-      <div style="margin-top:.75rem;"><a class="btn btn-ghost" href="/signup/">Get started</a></div>
+  <!-- Testimonials Section -->
+  <section class="testimonials fade-in-up">
+    <div class="testimonials-header">
+      <h2>What Our Customers Say</h2>
+      <p style="font-size: 1.125rem; color: var(--muted);">Join thousands of satisfied users transforming their financial management</p>
     </div>
+
+    <div class="testimonials-carousel">
+      <div class="testimonial-track" id="testimonialTrack">
+        <!-- Testimonial 1 -->
+        <div class="testimonial-card">
+          <div class="testimonial-content">
+            "Nasheet has completely transformed how we manage our business finances. The automatic categorization saves us hours every week, and the insights help us make better decisions."
+          </div>
+          <div class="testimonial-author">
+            <div class="author-avatar">JD</div>
+            <div class="author-info">
+              <h4>John Davidson</h4>
+              <p>CEO, TechStart Solutions</p>
+              <div class="testimonial-stars">★★★★★</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Testimonial 2 -->
+        <div class="testimonial-card">
+          <div class="testimonial-content">
+            "The best financial tracking tool we've used. Clean interface, powerful features, and excellent customer support. Highly recommend for any small business!"
+          </div>
+          <div class="testimonial-author">
+            <div class="author-avatar">SM</div>
+            <div class="author-info">
+              <h4>Sarah Mitchell</h4>
+              <p>Founder, Creative Agency</p>
+              <div class="testimonial-stars">★★★★★</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Testimonial 3 -->
+        <div class="testimonial-card">
+          <div class="testimonial-content">
+            "Finally, a finance tool that's both powerful and easy to use. The CSV import works flawlessly, and the budget tracking features have helped us cut costs by 20%."
+          </div>
+          <div class="testimonial-author">
+            <div class="author-avatar">MP</div>
+            <div class="author-info">
+              <h4>Michael Park</h4>
+              <p>CFO, Growth Ventures</p>
+              <div class="testimonial-stars">★★★★★</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testimonial-nav">
+        <button class="testimonial-dot active" data-index="0"></button>
+        <button class="testimonial-dot" data-index="1"></button>
+        <button class="testimonial-dot" data-index="2"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="faq-section fade-in-up">
+    <div class="faq-header">
+      <h2>Frequently Asked Questions</h2>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        <span>How secure is my financial data?</span>
+        <span class="faq-icon">▼</span>
+      </button>
+      <div class="faq-answer">
+        <p>We use bank-level AES-256 encryption for all data at rest and in transit. Your data is stored securely and never shared with third parties. We're also SOC 2 compliant and undergo regular security audits.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        <span>Can I import data from my bank?</span>
+        <span class="faq-icon">▼</span>
+      </button>
+      <div class="faq-answer">
+        <p>Yes! We support CSV and Excel imports from all major banks. Our smart column mapping automatically detects transaction data, making imports quick and painless.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        <span>Is there a free trial?</span>
+        <span class="faq-icon">▼</span>
+      </button>
+      <div class="faq-answer">
+        <p>Absolutely! Our Professional plan includes a 14-day free trial with full access to all features. No credit card required to start.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        <span>Can I cancel anytime?</span>
+        <span class="faq-icon">▼</span>
+      </button>
+      <div class="faq-answer">
+        <p>Yes. There are no long-term contracts. You can cancel your subscription at any time from your account settings, and you'll retain access until the end of your billing period.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        <span>Do you offer customer support?</span>
+        <span class="faq-icon">▼</span>
+      </button>
+      <div class="faq-answer">
+        <p>Yes! All plans include email support. Professional and Enterprise plans get priority support with faster response times. Enterprise customers also get a dedicated account manager.</p>
+      </div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-question">
+        <span>Can I upgrade or downgrade my plan?</span>
+        <span class="faq-icon">▼</span>
+      </button>
+      <div class="faq-answer">
+        <p>You can change your plan at any time. Upgrades take effect immediately, and we'll prorate your billing. Downgrades take effect at the end of your current billing cycle.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing Section Header -->
+  <div class="fade-in-up" style="text-align: center; margin: 4rem 0 2rem;">
+    <h2 style="font-size: 2.5rem; font-weight: 800; margin: 0 0 1rem; color: var(--brand);">Choose Your Plan</h2>
+    <p style="font-size: 1.25rem; color: var(--muted); margin: 0;">Simple, transparent pricing that grows with you</p>
+  </div>
+
+  <section class="pricing fade-in-up">
+    <!-- Starter Plan -->
     <div class="plan">
-      <h3>Pro</h3>
-      <p class="muted">Multiple accounts, priority support, advanced insights.</p>
-      <div style="margin-top:.75rem;"><a class="btn btn-primary" href="/signup/">Try Pro</a></div>
+      <h3>Starter</h3>
+      <div class="price">
+        <span class="price-currency">£</span>0
+        <span class="price-period">/month</span>
+      </div>
+      <p class="plan-description">Perfect for individuals getting started with financial tracking.</p>
+
+      <ul class="plan-features">
+        <li>Up to 100 transactions/month</li>
+        <li>Single account tracking</li>
+        <li>Basic dashboard & charts</li>
+        <li>CSV/Excel upload</li>
+        <li>Export reports</li>
+        <li class="unavailable">Advanced insights</li>
+        <li class="unavailable">Multiple accounts</li>
+        <li class="unavailable">Priority support</li>
+      </ul>
+
+      <a class="btn btn-ghost" href="/accounts/signup/">Get Started Free</a>
+    </div>
+
+    <!-- Professional Plan (Featured) -->
+    <div class="plan featured">
+      <span class="plan-badge">Popular</span>
+      <h3>Professional</h3>
+      <div class="price">
+        <span class="price-currency">£</span>29
+        <span class="price-period">/month</span>
+      </div>
+      <p class="plan-description">Ideal for small businesses and professionals managing multiple accounts.</p>
+
+      <ul class="plan-features">
+        <li>Unlimited transactions</li>
+        <li>Up to 5 accounts</li>
+        <li>Advanced dashboard & insights</li>
+        <li>CSV/Excel upload</li>
+        <li>Custom categories & labels</li>
+        <li>Budget tracking & alerts</li>
+        <li>Export & scheduled reports</li>
+        <li>Priority email support</li>
+      </ul>
+
+      <a class="btn btn-primary" href="/signup/">Start 14-Day Trial</a>
+    </div>
+
+    <!-- Enterprise Plan -->
+    <div class="plan enterprise">
+      <h3>Enterprise</h3>
+      <div class="price">Custom</div>
+      <p class="plan-description">Tailored solutions for large organizations with complex needs.</p>
+
+      <ul class="plan-features">
+        <li>Unlimited transactions</li>
+        <li>Unlimited accounts</li>
+        <li>Advanced analytics & AI insights</li>
+        <li>API access & integrations</li>
+        <li>Custom workflows</li>
+        <li>Dedicated account manager</li>
+        <li>SSO & advanced security</li>
+        <li>24/7 priority support</li>
+      </ul>
+
+      <a class="btn" href="/demo/">Contact Sales</a>
+    </div>
+  </section>
+
+  <!-- Final CTA Section -->
+  <section class="final-cta fade-in-up">
+    <div class="final-cta-content">
+      <h2>Ready to Transform Your Finances?</h2>
+      <p>Join thousands of businesses already using Nasheet to gain complete control over their financial data</p>
+      <div class="cta-buttons">
+        <a class="btn btn-primary" href="{% url 'app_web:signup' %}">Start Free Trial</a>
+        <a class="btn btn-secondary" href="{% url 'app_web:demo' %}">Schedule a Demo</a>
+      </div>
     </div>
   </section>
 
@@ -441,7 +462,13 @@
           lp.setAttribute('speed','1');
           lp.setAttribute('loop','');
           lp.setAttribute('autoplay','');
-          lp.style.width='48px'; lp.style.height='48px';
+          // Make Lottie fill the entire container
+          lp.style.width='100%';
+          lp.style.height='100%';
+          lp.style.maxWidth='450px';
+          lp.style.maxHeight='450px';
+          lp.style.minWidth='350px';
+          lp.style.minHeight='350px';
           // remove existing SVG fallback
           el.innerHTML = '';
           el.appendChild(lp);
@@ -498,6 +525,232 @@
       // Run again after a delay to ensure Lottie is fully loaded
       setTimeout(adaptHero, 1000);
     })();
+  })();
+
+  // ========================================
+  // MODERN HOME PAGE ENHANCEMENTS
+  // ========================================
+
+  // 1. Scroll Progress Bar
+  (function() {
+    const scrollProgress = document.getElementById('scrollProgress');
+    if (!scrollProgress) return;
+
+    function updateScrollProgress() {
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollPercent = (scrollTop / (documentHeight - windowHeight)) * 100;
+      scrollProgress.style.width = scrollPercent + '%';
+    }
+
+    window.addEventListener('scroll', updateScrollProgress);
+    updateScrollProgress();
+  })();
+
+  // 2. Scroll Animations (Intersection Observer)
+  (function() {
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, observerOptions);
+
+    document.querySelectorAll('.fade-in-up, .fade-in').forEach(el => {
+      observer.observe(el);
+    });
+  })();
+
+  // 3. Animated Counter
+  (function() {
+    const counters = document.querySelectorAll('.stat-number');
+    let hasAnimated = false;
+
+    function animateCounters() {
+      if (hasAnimated) return;
+
+      counters.forEach(counter => {
+        const target = parseFloat(counter.dataset.target);
+        const duration = 2000; // 2 seconds
+        const steps = 60;
+        const increment = target / steps;
+        let current = 0;
+        const isDecimal = target % 1 !== 0;
+
+        const timer = setInterval(() => {
+          current += increment;
+          if (current >= target) {
+            counter.textContent = isDecimal ? target.toFixed(1) : Math.floor(target).toLocaleString();
+            clearInterval(timer);
+          } else {
+            counter.textContent = isDecimal ? current.toFixed(1) : Math.floor(current).toLocaleString();
+          }
+        }, duration / steps);
+      });
+
+      hasAnimated = true;
+    }
+
+    // Trigger when statistics section is visible
+    const statsSection = document.querySelector('.statistics');
+    if (statsSection) {
+      const statsObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            animateCounters();
+          }
+        });
+      }, { threshold: 0.5 });
+
+      statsObserver.observe(statsSection);
+    }
+  })();
+
+  // 4. Testimonials Carousel
+  (function() {
+    const track = document.getElementById('testimonialTrack');
+    const dots = document.querySelectorAll('.testimonial-dot');
+    let currentIndex = 0;
+    let autoplayInterval;
+
+    if (!track || dots.length === 0) return;
+
+    function showTestimonial(index) {
+      currentIndex = index;
+      track.style.transform = `translateX(-${index * 100}%)`;
+
+      dots.forEach((dot, i) => {
+        dot.classList.toggle('active', i === index);
+      });
+    }
+
+    function nextTestimonial() {
+      const next = (currentIndex + 1) % dots.length;
+      showTestimonial(next);
+    }
+
+    function startAutoplay() {
+      autoplayInterval = setInterval(nextTestimonial, 7000); // Change every 7 seconds
+    }
+
+    function stopAutoplay() {
+      if (autoplayInterval) {
+        clearInterval(autoplayInterval);
+      }
+    }
+
+    // Dot navigation
+    dots.forEach((dot, index) => {
+      dot.addEventListener('click', () => {
+        showTestimonial(index);
+        stopAutoplay();
+        startAutoplay(); // Restart autoplay
+      });
+    });
+
+    // Start autoplay
+    startAutoplay();
+
+    // Pause on hover
+    const carousel = document.querySelector('.testimonials-carousel');
+    if (carousel) {
+      carousel.addEventListener('mouseenter', stopAutoplay);
+      carousel.addEventListener('mouseleave', startAutoplay);
+    }
+  })();
+
+  // 5. FAQ Accordion
+  (function() {
+    const faqItems = document.querySelectorAll('.faq-item');
+
+    faqItems.forEach(item => {
+      const question = item.querySelector('.faq-question');
+
+      question.addEventListener('click', () => {
+        const isActive = item.classList.contains('active');
+
+        // Close all items
+        faqItems.forEach(faqItem => {
+          faqItem.classList.remove('active');
+        });
+
+        // Open clicked item if it wasn't active
+        if (!isActive) {
+          item.classList.add('active');
+        }
+      });
+    });
+  })();
+
+  // Feature Showcase Cycling
+  (function() {
+    const slides = document.querySelectorAll('.feature-slide');
+    const dots = document.querySelectorAll('.feature-dot');
+    let currentSlide = 0;
+    let autoplayInterval;
+
+    if (slides.length === 0) return;
+
+    function showSlide(index) {
+      // Hide all slides
+      slides.forEach(slide => slide.classList.remove('active'));
+      dots.forEach(dot => dot.classList.remove('active'));
+
+      // Show selected slide
+      slides[index].classList.add('active');
+      dots[index].classList.add('active');
+      currentSlide = index;
+    }
+
+    function nextSlide() {
+      const next = (currentSlide + 1) % slides.length;
+      showSlide(next);
+    }
+
+    function startAutoplay() {
+      autoplayInterval = setInterval(nextSlide, 10000); // Change slide every 10 seconds
+    }
+
+    function stopAutoplay() {
+      if (autoplayInterval) {
+        clearInterval(autoplayInterval);
+      }
+    }
+
+    // Dot navigation
+    dots.forEach((dot, index) => {
+      dot.addEventListener('click', () => {
+        showSlide(index);
+        stopAutoplay();
+        startAutoplay(); // Restart autoplay after manual selection
+      });
+    });
+
+    // Start autoplay
+    startAutoplay();
+
+    // Pause on hover
+    const showcase = document.querySelector('.features-showcase');
+    if (showcase) {
+      showcase.addEventListener('mouseenter', stopAutoplay);
+      showcase.addEventListener('mouseleave', startAutoplay);
+    }
+
+    // Stop autoplay when tab is hidden
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopAutoplay();
+      } else {
+        startAutoplay();
+      }
+    });
   })();
 </script>
 {% endblock %}

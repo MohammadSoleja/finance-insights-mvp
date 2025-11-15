@@ -1,16 +1,202 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}Pricing — Nasheet{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{% static 'app_web/pricing.css' %}">
+{% endblock %}
+
 {% block content %}
-  <h1>Pricing (Placeholder)</h1>
-  <p class="muted">Plans and pricing will be added here. For now this is a placeholder page.</p>
-  <div class="card mt-1">
-    <h2>Free Plan</h2>
-    <p>Basic upload and dashboard for one account.</p>
-  </div>
-  <div class="card mt-1">
-    <h2>Pro Plan</h2>
-    <p>Advanced features, multiple accounts, priority support.</p>
-  </div>
+<!-- Pricing Header -->
+<div class="pricing-page-header">
+  <h1>Simple, Transparent Pricing</h1>
+  <p>Choose the plan that's right for you. No hidden fees, cancel anytime.</p>
+</div>
+
+<!-- Pricing Cards Container -->
+<div class="pricing-container">
+  <section class="pricing">
+    <!-- Starter Plan -->
+    <div class="plan">
+      <h3>Starter</h3>
+      <div class="price">
+        <span class="price-currency">£</span>0
+        <span class="price-period">/month</span>
+      </div>
+      <p class="plan-description">Perfect for individuals getting started with financial tracking.</p>
+
+      <ul class="plan-features">
+        <li>Up to 100 transactions/month</li>
+        <li>Single account tracking</li>
+        <li>Basic dashboard & charts</li>
+        <li>CSV/Excel upload</li>
+        <li>Export reports (PDF/CSV)</li>
+        <li>Email support</li>
+        <li class="unavailable">Advanced insights</li>
+        <li class="unavailable">Multiple accounts</li>
+        <li class="unavailable">Budget tracking</li>
+        <li class="unavailable">Custom labels</li>
+        <li class="unavailable">Priority support</li>
+      </ul>
+
+      <a class="btn btn-ghost" href="{% url 'app_web:signup' %}">Get Started Free</a>
+    </div>
+
+    <!-- Professional Plan (Featured) -->
+    <div class="plan featured">
+      <span class="plan-badge">Popular</span>
+      <h3>Professional</h3>
+      <div class="price">
+        <span class="price-currency">£</span>29
+        <span class="price-period">/month</span>
+      </div>
+      <p class="plan-description">Ideal for small businesses and professionals managing multiple accounts.</p>
+
+      <ul class="plan-features">
+        <li>Unlimited transactions</li>
+        <li>Up to 5 accounts</li>
+        <li>Advanced dashboard & insights</li>
+        <li>CSV/Excel upload</li>
+        <li>Custom categories & labels</li>
+        <li>Budget tracking & alerts</li>
+        <li>Export & scheduled reports</li>
+        <li>AI-powered insights</li>
+        <li>Priority email support</li>
+        <li>2-hour response time</li>
+        <li class="unavailable">API access</li>
+      </ul>
+
+      <a class="btn btn-primary" href="{% url 'app_web:signup' %}">Start 14-Day Free Trial</a>
+    </div>
+
+    <!-- Enterprise Plan -->
+    <div class="plan enterprise">
+      <h3>Enterprise</h3>
+      <div class="price">Custom</div>
+      <p class="plan-description">Tailored solutions for large organizations with complex needs.</p>
+
+      <ul class="plan-features">
+        <li>Unlimited transactions</li>
+        <li>Unlimited accounts & users</li>
+        <li>Advanced analytics & AI insights</li>
+        <li>Full API access & integrations</li>
+        <li>Custom workflows & automation</li>
+        <li>Dedicated account manager</li>
+        <li>SSO & advanced security</li>
+        <li>Custom branding</li>
+        <li>On-premise deployment option</li>
+        <li>24/7 priority support</li>
+        <li>SLA guarantee</li>
+      </ul>
+
+      <a class="btn" href="{% url 'app_web:demo' %}">Contact Sales</a>
+    </div>
+  </section>
+
+  <!-- Feature Comparison Table -->
+  <section style="margin: 4rem 0;">
+    <h2 style="text-align: center; font-size: 2rem; font-weight: 800; margin: 0 0 2rem; color: var(--brand);">Compare Plans</h2>
+
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; background: var(--bg); border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);">
+        <thead>
+          <tr style="background: var(--bg-secondary);">
+            <th style="padding: 1rem; text-align: left; font-weight: 700; color: var(--brand); border-bottom: 2px solid var(--border);">Feature</th>
+            <th style="padding: 1rem; text-align: center; font-weight: 700; color: var(--brand); border-bottom: 2px solid var(--border);">Starter</th>
+            <th style="padding: 1rem; text-align: center; font-weight: 700; color: var(--accent); border-bottom: 2px solid var(--accent);">Professional</th>
+            <th style="padding: 1rem; text-align: center; font-weight: 700; color: var(--brand); border-bottom: 2px solid var(--border);">Enterprise</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 1rem; border-bottom: 1px solid var(--border);">Transactions/month</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">100</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border); background: rgba(59, 130, 246, 0.05);">Unlimited</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">Unlimited</td>
+          </tr>
+          <tr>
+            <td style="padding: 1rem; border-bottom: 1px solid var(--border);">Accounts</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">1</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border); background: rgba(59, 130, 246, 0.05);">5</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">Unlimited</td>
+          </tr>
+          <tr>
+            <td style="padding: 1rem; border-bottom: 1px solid var(--border);">Dashboard & Charts</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">✓</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border); background: rgba(59, 130, 246, 0.05);">✓</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">✓</td>
+          </tr>
+          <tr>
+            <td style="padding: 1rem; border-bottom: 1px solid var(--border);">Budget Tracking</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">—</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border); background: rgba(59, 130, 246, 0.05);">✓</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">✓</td>
+          </tr>
+          <tr>
+            <td style="padding: 1rem; border-bottom: 1px solid var(--border);">AI Insights</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">—</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border); background: rgba(59, 130, 246, 0.05);">✓</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">✓</td>
+          </tr>
+          <tr>
+            <td style="padding: 1rem; border-bottom: 1px solid var(--border);">API Access</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">—</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border); background: rgba(59, 130, 246, 0.05);">—</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">✓</td>
+          </tr>
+          <tr>
+            <td style="padding: 1rem; border-bottom: 1px solid var(--border);">Support</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">Email</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border); background: rgba(59, 130, 246, 0.05);">Priority</td>
+            <td style="padding: 1rem; text-align: center; border-bottom: 1px solid var(--border);">24/7 Dedicated</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="pricing-faq">
+    <h2>Frequently Asked Questions</h2>
+
+    <div class="faq-item">
+      <h3>Can I switch plans later?</h3>
+      <p>Yes! You can upgrade or downgrade your plan at any time. Changes take effect immediately, and we'll prorate your billing accordingly.</p>
+    </div>
+
+    <div class="faq-item">
+      <h3>Is there a free trial?</h3>
+      <p>The Professional plan includes a 14-day free trial with full access to all features. No credit card required to start.</p>
+    </div>
+
+    <div class="faq-item">
+      <h3>What payment methods do you accept?</h3>
+      <p>We accept all major credit cards (Visa, Mastercard, Amex), debit cards, and bank transfers for Enterprise plans.</p>
+    </div>
+
+    <div class="faq-item">
+      <h3>Can I cancel anytime?</h3>
+      <p>Absolutely. There are no long-term contracts. You can cancel your subscription at any time from your account settings.</p>
+    </div>
+
+    <div class="faq-item">
+      <h3>Is my data secure?</h3>
+      <p>Yes. We use bank-level encryption (AES-256) for data at rest and in transit. Your data is stored securely and never shared with third parties.</p>
+    </div>
+
+    <div class="faq-item">
+      <h3>Do you offer discounts for non-profits?</h3>
+      <p>Yes! We offer special pricing for non-profit organizations and educational institutions. Contact our sales team for details.</p>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="pricing-cta">
+    <h2>Ready to get started?</h2>
+    <p>Join thousands of businesses already using Nasheet to manage their finances.</p>
+    <a class="btn" href="{% url 'app_web:signup' %}">Start Free Trial</a>
+  </section>
+</div>
+
 {% endblock %}
 
