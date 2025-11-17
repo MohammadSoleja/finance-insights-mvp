@@ -3,6 +3,7 @@ from .views import upload_view, dashboard_view, health_view, signup_view, home_v
 from .views import transaction_edit_view, transaction_delete_view, transaction_bulk_edit_view
 from .views import transaction_columns_view
 from .views import budgets_view, budget_widget_data, budget_list_data
+from .views import projects_view, project_list_data, project_detail_data
 from .forms import LoginForm
 from django.contrib.auth import views as auth_views
 
@@ -23,6 +24,9 @@ urlpatterns = [
     path("budgets/", budgets_view, name="budgets"),
     path("api/budget-widget/", budget_widget_data, name="budget_widget_data"),
     path("api/budget-list/", budget_list_data, name="budget_list_data"),
+    path("projects/", projects_view, name="projects"),
+    path("api/project-list/", project_list_data, name="project_list_data"),
+    path("api/project-detail/<int:project_id>/", project_detail_data, name="project_detail_data"),
     path("health/", health_view, name="health"),
     path("", home_view, name="home"),
     # Override the default login so we can use our form with placeholders
