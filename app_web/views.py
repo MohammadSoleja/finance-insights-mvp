@@ -1323,3 +1323,372 @@ def budget_list_data(request):
         'count': len(summary)
     })
 
+
+@login_required
+def projects_view(request):
+    """Project management page - list, create, edit, delete projects with hierarchy support."""
+    from app_core.models import Project, Label, ProjectMilestone, ProjectBudgetCategory
+    from app_core.projects import get_project_summary, log_project_activity
+
+    # Handle POST requests for create/edit/delete
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'create':
+            try:
+                # Get parent project if specified
+                parent_id = request.POST.get('parent_project')
+                parent_project = None
+                level = 0
+
+                if parent_id:
+                    parent_project = get_object_or_404(Project, id=parent_id, user=request.user)
+                    level = parent_project.level + 1
+
+                    # Enforce max 3 levels (0, 1, 2)
+                    if level > 2:
+                        return JsonResponse({'ok': False, 'error': 'Maximum nesting depth (3 levels) exceeded'}, status=400)
+
+                # Create new project
+                project = Project.objects.create(
+                    user=request.user,
+                    name=request.POST.get('name'),
+                    description=request.POST.get('description', ''),
+                    budget=request.POST.get('budget') if request.POST.get('budget') else None,
+                    start_date=request.POST.get('start_date') if request.POST.get('start_date') else None,
+                    end_date=request.POST.get('end_date') if request.POST.get('end_date') else None,
+                    status=request.POST.get('status', 'active'),
+                    color=request.POST.get('color', '#3b82f6'),
+                    parent_project=parent_project,
+                    level=level,
+                )
+
+                # Add labels
+                label_ids = request.POST.getlist('labels')
+                if label_ids:
+                    project.labels.set(label_ids)
+
+                # Log activity
+                log_project_activity(
+                    project,
+                    request.user,
+                    'created',
+                    f'Project "{project.name}" created'
+                )
+
+                if parent_project:
+                    log_project_activity(
+                        parent_project,
+                        request.user,
+                        'sub_project_added',
+                        f'Sub-project "{project.name}" added'
+                    )
+
+                return JsonResponse({'ok': True, 'message': 'Project created successfully', 'project_id': project.id})
+            except Exception as e:
+                return JsonResponse({'ok': False, 'error': str(e)}, status=400)
+
+        elif action == 'edit':
+            try:
+                project_id = request.POST.get('project_id')
+                project = get_object_or_404(Project, id=project_id, user=request.user)
+
+                # Update fields
+                old_budget = project.budget
+                project.name = request.POST.get('name')
+                project.description = request.POST.get('description', '')
+                project.budget = request.POST.get('budget') if request.POST.get('budget') else None
+                project.start_date = request.POST.get('start_date') if request.POST.get('start_date') else None
+                project.end_date = request.POST.get('end_date') if request.POST.get('end_date') else None
+                old_status = project.status
+                project.status = request.POST.get('status', 'active')
+                project.color = request.POST.get('color', '#3b82f6')
+                project.save()
+
+                # Update labels
+                label_ids = request.POST.getlist('labels')
+                project.labels.set(label_ids if label_ids else [])
+
+                # Log activities
+                log_project_activity(project, request.user, 'updated', f'Project "{project.name}" updated')
+
+                if old_budget != project.budget:
+                    log_project_activity(
+                        project,
+                        request.user,
+                        'budget_changed',
+                        f'Budget changed from £{old_budget or 0} to £{project.budget or 0}'
+                    )
+
+                if old_status != project.status:
+                    log_project_activity(
+                        project,
+                        request.user,
+                        'status_changed',
+                        f'Status changed from {old_status} to {project.status}'
+                    )
+
+                return JsonResponse({'ok': True, 'message': 'Project updated successfully'})
+            except Exception as e:
+                return JsonResponse({'ok': False, 'error': str(e)}, status=400)
+
+        elif action == 'delete':
+            try:
+                project_id = request.POST.get('project_id')
+                project = get_object_or_404(Project, id=project_id, user=request.user)
+                project_name = project.name
+                project.delete()
+                return JsonResponse({'ok': True, 'message': f'Project "{project_name}" deleted successfully'})
+            except Exception as e:
+                return JsonResponse({'ok': False, 'error': str(e)}, status=400)
+
+        elif action == 'bulk_delete':
+            try:
+                project_ids = request.POST.getlist('project_ids[]')
+                count = Project.objects.filter(id__in=project_ids, user=request.user).delete()[0]
+                return JsonResponse({'ok': True, 'message': f'{count} project(s) deleted successfully'})
+            except Exception as e:
+                return JsonResponse({'ok': False, 'error': str(e)}, status=400)
+
+        elif action == 'add_milestone':
+            try:
+                project_id = request.POST.get('project_id')
+                project = get_object_or_404(Project, id=project_id, user=request.user)
+
+                milestone = ProjectMilestone.objects.create(
+                    project=project,
+                    name=request.POST.get('name'),
+                    description=request.POST.get('description', ''),
+                    due_date=request.POST.get('due_date'),
+                    status=request.POST.get('status', 'pending'),
+                    budget=request.POST.get('budget') if request.POST.get('budget') else None,
+                    owner=request.POST.get('owner', ''),
+                    order=project.milestones.count(),
+                )
+
+                log_project_activity(
+                    project,
+                    request.user,
+                    'milestone_added',
+                    f'Milestone "{milestone.name}" added'
+                )
+
+                return JsonResponse({'ok': True, 'message': 'Milestone added successfully', 'milestone_id': milestone.id})
+            except Exception as e:
+                return JsonResponse({'ok': False, 'error': str(e)}, status=400)
+
+        elif action == 'add_budget_category':
+            try:
+                project_id = request.POST.get('project_id')
+                project = get_object_or_404(Project, id=project_id, user=request.user)
+
+                category = ProjectBudgetCategory.objects.create(
+                    project=project,
+                    name=request.POST.get('name'),
+                    allocated_amount=request.POST.get('allocated_amount'),
+                    color=request.POST.get('color', '#6b7280'),
+                )
+
+                # Add labels
+                label_ids = request.POST.getlist('labels')
+                if label_ids:
+                    category.labels.set(label_ids)
+
+                return JsonResponse({'ok': True, 'message': 'Budget category added successfully', 'category_id': category.id})
+            except Exception as e:
+                return JsonResponse({'ok': False, 'error': str(e)}, status=400)
+
+    # GET request - render page
+    # Get all user labels for the label selector
+    labels = Label.objects.filter(user=request.user).order_by('name')
+
+    # Get all parent projects (for sub-project creation)
+    parent_projects = Project.objects.filter(user=request.user, level__lt=2).order_by('name')
+
+    # Get project summary with hierarchy
+    projects_summary = get_project_summary(request.user, Transaction, include_sub_projects=True)
+
+    # Convert projects to JSON for JavaScript
+    import json
+    from datetime import date
+
+    def serialize_project(proj):
+        """Convert project dict to JSON-serializable format"""
+        result = proj.copy()
+        # Convert dates to ISO format strings
+        if result.get('start_date') and isinstance(result['start_date'], date):
+            result['start_date'] = result['start_date'].isoformat()
+        if result.get('end_date') and isinstance(result['end_date'], date):
+            result['end_date'] = result['end_date'].isoformat()
+        if result.get('created_at'):
+            result['created_at'] = result['created_at'].isoformat()
+        if result.get('updated_at'):
+            result['updated_at'] = result['updated_at'].isoformat()
+
+        # Convert Decimal to float
+        for key in ['budget', 'total_inflow', 'total_outflow', 'net_amount', 'budget_variance', 'budget_variance_abs']:
+            if result.get(key) is not None:
+                result[key] = float(result[key])
+
+        # Convert labels to simple list
+        if result.get('labels'):
+            result['labels'] = [{'id': l.id, 'name': l.name, 'color': l.color} for l in result['labels']]
+
+        # Recursively serialize sub-projects
+        if result.get('sub_projects'):
+            result['sub_projects'] = [serialize_project(sp) for sp in result['sub_projects']]
+
+        # Serialize budget categories
+        if result.get('budget_categories'):
+            for cat in result['budget_categories']:
+                for key in ['allocated', 'spent', 'remaining', 'usage_pct']:
+                    if key in cat:
+                        cat[key] = float(cat[key])
+
+        return result
+
+    serialized_projects = [serialize_project(p) for p in projects_summary]
+    projects_json = json.dumps(serialized_projects)
+
+    # Debug: Print to console
+    print(f"DEBUG: Found {len(projects_summary)} projects for user {request.user.username}")
+    print(f"DEBUG: JSON length: {len(projects_json)} characters")
+    if projects_summary:
+        print(f"DEBUG: First project: {projects_summary[0].get('name', 'Unknown')}")
+
+    context = {
+        'title': 'Projects',
+        'labels': labels,
+        'projects': projects_json,  # JSON string for JavaScript
+        'parent_projects': parent_projects,
+    }
+
+    return render(request, 'app_web/projects.html', context)
+
+
+@login_required
+def project_list_data(request):
+    """AJAX endpoint to get all project data."""
+    from app_core.projects import get_project_summary
+
+    summary = get_project_summary(request.user, Transaction)
+
+    return JsonResponse({
+        'ok': True,
+        'projects': summary,
+        'count': len(summary)
+    })
+
+
+@login_required
+def project_detail_data(request, project_id):
+    """AJAX endpoint to get detailed project data including transactions, P&L, milestones, budget categories, and activities."""
+    from app_core.models import Project
+    from app_core.projects import get_project_transactions, calculate_project_pl
+
+    project = get_object_or_404(Project, id=project_id, user=request.user)
+
+    # Get P&L calculation
+    pl_data = calculate_project_pl(project, Transaction)
+
+    # Get transactions
+    transactions = get_project_transactions(project, Transaction)
+    tx_list = []
+    for tx in transactions[:100]:  # Limit to 100 most recent
+        tx_list.append({
+            'id': tx.id,
+            'date': tx.date.isoformat(),
+            'description': tx.description,
+            'amount': float(tx.amount),
+            'direction': tx.direction,
+            'label': tx.label.name if tx.label else 'Uncategorized',
+            'label_color': tx.label.color if tx.label else '#6b7280',
+        })
+
+    # Get milestones
+    milestones_list = []
+    for milestone in project.milestones.all():
+        milestones_list.append({
+            'id': milestone.id,
+            'name': milestone.name,
+            'description': milestone.description,
+            'due_date': milestone.due_date.isoformat(),
+            'completed_date': milestone.completed_date.isoformat() if milestone.completed_date else None,
+            'status': milestone.status,
+            'status_display': milestone.get_status_display(),
+            'budget': float(milestone.budget) if milestone.budget else None,
+            'owner': milestone.owner,
+            'order': milestone.order,
+        })
+
+    # Get budget categories with spending
+    budget_categories_list = []
+    for category in project.budget_categories.all():
+        from app_core.projects import _calculate_category_spending
+        spent = _calculate_category_spending(category, Transaction)
+        budget_categories_list.append({
+            'id': category.id,
+            'name': category.name,
+            'allocated': float(category.allocated_amount),
+            'spent': float(spent),
+            'remaining': float(category.allocated_amount - spent),
+            'usage_pct': float((spent / category.allocated_amount) * 100) if category.allocated_amount > 0 else 0,
+            'color': category.color,
+            'label_ids': list(category.labels.values_list('id', flat=True)),
+        })
+
+    # Get sub-projects
+    sub_projects_list = []
+    for sub in project.sub_projects.all():
+        sub_projects_list.append({
+            'id': sub.id,
+            'name': sub.name,
+            'status': sub.status,
+            'budget': float(sub.budget) if sub.budget else None,
+            'level': sub.level,
+        })
+
+    # Get recent activities
+    activities_list = []
+    for activity in project.activities.all()[:20]:  # Last 20 activities
+        activities_list.append({
+            'id': activity.id,
+            'action': activity.action,
+            'action_display': activity.get_action_display(),
+            'description': activity.description,
+            'user': activity.user.username,
+            'created_at': activity.created_at.isoformat(),
+        })
+
+    return JsonResponse({
+        'ok': True,
+        'project': {
+            'id': project.id,
+            'name': project.name,
+            'description': project.description,
+            'budget': float(project.budget) if project.budget else None,
+            'status': project.status,
+            'start_date': project.start_date.isoformat() if project.start_date else None,
+            'end_date': project.end_date.isoformat() if project.end_date else None,
+            'color': project.color,
+            'label_ids': list(project.labels.values_list('id', flat=True)),
+            'level': project.level,
+            'parent_project_id': project.parent_project_id if project.parent_project else None,
+        },
+        'pl': {
+            'total_inflow': float(pl_data['total_inflow']),
+            'total_outflow': float(pl_data['total_outflow']),
+            'net_profit': float(pl_data['net_profit']),
+            'profit_margin_pct': pl_data['profit_margin_pct'],
+            'inflow_by_label': {k: float(v) for k, v in pl_data['inflow_by_label'].items()},
+            'outflow_by_label': {k: float(v) for k, v in pl_data['outflow_by_label'].items()},
+        },
+        'transactions': tx_list,
+        'transaction_count': transactions.count(),
+        'milestones': milestones_list,
+        'budget_categories': budget_categories_list,
+        'sub_projects': sub_projects_list,
+        'activities': activities_list,
+    })
+
+
