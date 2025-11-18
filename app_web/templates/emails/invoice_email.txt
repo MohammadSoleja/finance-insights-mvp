@@ -1,0 +1,41 @@
+INVOICE #{{ invoice.invoice_number }}
+
+Dear {{ invoice.client.name }},
+
+{% if custom_message %}{{ custom_message }}{% else %}Thank you for your business! Please find your invoice attached to this email.{% endif %}
+
+INVOICE DETAILS
+================
+Invoice Date: {{ invoice.invoice_date|date:"F d, Y" }}
+Due Date: {{ invoice.due_date|date:"F d, Y" }}
+Payment Terms: {{ invoice.client.payment_terms }}
+
+AMOUNT DUE: {{ invoice.currency }} {{ invoice.total|floatformat:2 }}
+
+{% if invoice.items.all %}
+ITEMS
+=====
+{% for item in invoice.items.all %}
+{{ item.description }}{% if item.quantity > 1 %} ({{ item.quantity }} × {{ invoice.currency }}{{ item.unit_price|floatformat:2 }}){% endif %}
+{{ invoice.currency }} {{ item.amount|floatformat:2 }}
+
+{% endfor %}
+{% endif %}
+
+{% if invoice.terms %}
+PAYMENT TERMS
+=============
+{{ invoice.terms }}
+
+{% endif %}
+The complete invoice is attached as a PDF document.
+
+{% if view_online_url %}
+View invoice online: {{ view_online_url }}
+{% endif %}
+
+If you have any questions about this invoice, please contact us at {{ from_email }}.
+
+---
+© {{ current_year }} Finance Insights. All rights reserved.
+

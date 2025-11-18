@@ -1,0 +1,22 @@
+PAYMENT REMINDER
+Invoice #{{ invoice.invoice_number }}
+{% if days_overdue %}*** {{ days_overdue }} DAY{{ days_overdue|pluralize }} OVERDUE ***{% endif %}
+
+Dear {{ invoice.client.name }},
+
+{{ custom_message }}
+
+INVOICE DETAILS
+================
+Invoice Date: {{ invoice.invoice_date|date:"F d, Y" }}
+Due Date: {{ invoice.due_date|date:"F d, Y" }}
+
+AMOUNT DUE: {{ invoice.currency }} {{ invoice.balance_due|floatformat:2 }}
+
+Please remit payment at your earliest convenience.
+
+If you have any questions or have already made this payment, please contact us at {{ from_email }}.
+
+---
+© {{ current_year }} Finance Insights. All rights reserved.
+

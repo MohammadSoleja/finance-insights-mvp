@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Invoice Templates - Finance Insights{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{% static 'app_web/invoices.css' %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Invoice Templates</h1>
+  <button class="btn btn-primary" onclick="openCreateTemplateModal()">+ New Template</button>
+</div>
+
+<div class="templates-grid">
+  {% for template in templates %}
+  <div class="template-card" data-template-id="{{ template.id }}">
+    <div class="template-header">
+      <h3>{{ template.name }}</h3>
+      <div class="template-actions">
+        <button class="btn-icon" onclick="useTemplate({{ template.id }})" title="Use Template">Use</button>
+        <button class="btn-icon" onclick="editTemplate({{ template.id }})" title="Edit">Edit</button>
+        <button class="btn-icon btn-icon-delete" onclick="deleteTemplate({{ template.id }})" title="Delete">Delete</button>
+      </div>
+    </div>
+
+    {% if template.description %}
+    <p class="template-description">{{ template.description }}</p>
+    {% endif %}
+
+    <div class="template-stats">
+      <div class="stat">
+        <span class="stat-label">Items:</span>
+        <span class="stat-value">{{ template.item_count }}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Est. Total:</span>
+        <span class="stat-value">£{{ template.estimated_total|floatformat:2 }}</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Tax Rate:</span>
+        <span class="stat-value">{{ template.default_tax_rate }}%</span>
+      </div>
+    </div>
+
+    <div class="template-footer">
+      <small>Created: {{ template.created_at|date:"M d, Y" }}</small>
+    </div>
+  </div>
+  {% empty %}
+  <div class="empty-state">
+    <h3>No Templates Yet</h3>
+    <p>Create reusable invoice templates to save time on recurring invoices.</p>
+    <button class="btn btn-primary" onclick="openCreateTemplateModal()">Create Your First Template</button>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Create/Edit Template Modal -->
+<div id="template-modal" class="modal-backdrop" style="display: none;">
+  <div class="modal modal-large">
+    <div class="modal-header">
+      <h2 id="modal-title">Create Template</h2>
+      <button class="modal-close" onclick="closeTemplateModal()">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <form id="template-form" onsubmit="saveTemplate(event)">
+        <div class="field">
+          <label for="template-name">Template Name *</label>
+          <input type="text" id="template-name" class="form-input" required>
+        </div>
+
+        <div class="field">
+          <label for="template-description">Description</label>
+          <textarea id="template-description" class="form-input" rows="2"></textarea>
+        </div>
+
+        <div class="field-group">
+          <div class="field">
+            <label for="template-tax-rate">Default Tax Rate (%)</label>
+            <input type="number" id="template-tax-rate" class="form-input" step="0.01" min="0" value="0">
+          </div>
+
+          <div class="field">
+            <label for="template-payment-terms">Payment Terms</label>
+            <select id="template-payment-terms" class="form-input">
+              <option value="Due on Receipt">Due on Receipt</option>
+              <option value="Net 7">Net 7</option>
+              <option value="Net 15">Net 15</option>
+              <option value="Net 30" selected>Net 30</option>
+              <option value="Net 60">Net 60</option>
+              <option value="Net 90">Net 90</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="template-notes">Default Notes</label>
+          <textarea id="template-notes" class="form-input" rows="3"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="template-terms">Default Terms & Conditions</label>
+          <textarea id="template-terms" class="form-input" rows="3"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Line Items</label>
+          <div id="template-items-container">
+            <!-- Items will be added here -->
+          </div>
+          <button type="button" class="btn btn-secondary" onclick="addTemplateItem()">+ Add Item</button>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeTemplateModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Template</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Use Template Modal -->
+<div id="use-template-modal" class="modal-backdrop" style="display: none;">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Create Invoice from Template</h2>
+      <button class="modal-close" onclick="closeUseTemplateModal()">&times;</button>
+    </div>
+
+    <div class="modal-body">
+      <form id="use-template-form" onsubmit="createFromTemplate(event)">
+        <div class="field">
+          <label for="use-template-client">Client *</label>
+          <select id="use-template-client" class="form-input" required>
+            <option value="">Select a client...</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <div class="field">
+            <label for="use-template-date">Invoice Date</label>
+            <input type="text" id="use-template-date" class="date-picker form-input" required>
+          </div>
+
+          <div class="field">
+            <label for="use-template-due-date">Due Date</label>
+            <input type="text" id="use-template-due-date" class="date-picker form-input" required>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeUseTemplateModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Invoice</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="delete-modal" class="modal-backdrop" style="display: none;">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>Delete Template</h2>
+      <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>Are you sure you want to delete this template? This action cannot be undone.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDeleteTemplate()">Delete Template</button>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Form field styles */
+.field {
+  margin-bottom: 1.25rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.875rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.field-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.field-group .field {
+  margin-bottom: 0;
+}
+
+/* Templates grid */
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.template-card {
+  background: white;
+  border: 1px solid rgba(16, 24, 40, 0.06);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 6px 22px rgba(16, 24, 40, 0.06);
+  transition: all 0.2s;
+}
+
+.template-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.08);
+}
+
+.template-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.template-header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.template-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.template-description {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.template-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.template-footer {
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+  color: #9ca3af;
+  font-size: 0.75rem;
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border: 2px dashed #e5e7eb;
+  border-radius: 12px;
+}
+
+.empty-state h3 {
+  margin: 0 0 0.5rem;
+  color: #374151;
+}
+
+.empty-state p {
+  margin: 0 0 1.5rem;
+  color: #6b7280;
+}
+
+.template-item {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.template-item .field {
+  margin-bottom: 0;
+}
+
+.template-item .form-input {
+  background: white;
+}
+
+#template-items-container {
+  margin-bottom: 1rem;
+}
+
+#template-items-container:empty {
+  margin-bottom: 0;
+}
+
+.btn-remove-item {
+  background: transparent;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  padding: 0.5rem;
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: all 0.2s;
+  border-radius: 6px;
+}
+
+.btn-remove-item:hover {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.modal-sm {
+  max-width: 400px;
+}
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="{% static 'app_web/templates.js' %}"></script>
+{% endblock %}
+

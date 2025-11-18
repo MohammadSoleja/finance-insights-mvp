@@ -392,3 +392,281 @@ class ProjectActivity(models.Model):
         return f"{self.project.name} - {self.get_action_display()} at {self.created_at}"
 
 
+# ==================== INVOICING & BILLING MODELS ====================
+
+class Client(models.Model):
+    """
+    Client/Customer management for invoicing.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="clients")
+    name = models.CharField(max_length=128, help_text="Client name")
+    email = models.EmailField(help_text="Client email address")
+    company = models.CharField(max_length=128, blank=True, default="", help_text="Company name (optional)")
+    phone = models.CharField(max_length=32, blank=True, default="", help_text="Phone number (optional)")
+    address = models.TextField(blank=True, default="", help_text="Full address")
+    tax_id = models.CharField(max_length=64, blank=True, default="", help_text="VAT/Tax ID (optional)")
+
+    # Payment terms
+    payment_terms = models.CharField(
+        max_length=64,
+        default="Net 30",
+        help_text="Payment terms (e.g., Net 30, Net 60, Due on Receipt)"
+    )
+
+    # Currency support
+    currency = models.CharField(max_length=3, default="GBP", help_text="Currency code (GBP, USD, EUR, etc.)")
+
+    # Notes and metadata
+    notes = models.TextField(blank=True, default="", help_text="Internal notes about the client")
+    active = models.BooleanField(default=True, help_text="Whether client is active")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "name"]),
+            models.Index(fields=["user", "email"]),
+            models.Index(fields=["user", "active"]),
+        ]
+        ordering = ["name"]
+        unique_together = [["user", "email"]]  # Each user's client emails must be unique
+
+    def __str__(self):
+        return f"{self.name}" + (f" ({self.company})" if self.company else "")
+
+
+class Invoice(models.Model):
+    """
+    Professional invoices for billing clients.
+    """
+    STATUS_DRAFT = "draft"
+    STATUS_SENT = "sent"
+    STATUS_PAID = "paid"
+    STATUS_PARTIALLY_PAID = "partially_paid"
+    STATUS_OVERDUE = "overdue"
+    STATUS_CANCELLED = "cancelled"
+
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Draft"),
+        (STATUS_SENT, "Sent"),
+        (STATUS_PAID, "Paid"),
+        (STATUS_PARTIALLY_PAID, "Partially Paid"),
+        (STATUS_OVERDUE, "Overdue"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="invoices")
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="invoices")
+
+    # Invoice identification
+    invoice_number = models.CharField(max_length=32, unique=True, help_text="Unique invoice number (auto-generated)")
+
+    # Dates
+    invoice_date = models.DateField(help_text="Invoice issue date")
+    due_date = models.DateField(help_text="Payment due date")
+    sent_date = models.DateField(null=True, blank=True, help_text="Date invoice was sent")
+    paid_date = models.DateField(null=True, blank=True, help_text="Date invoice was fully paid")
+
+    # Status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+
+    # Amounts
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Subtotal before tax")
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Tax rate percentage (e.g., 20 for 20%)")
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Tax amount")
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Discount amount")
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Total invoice amount")
+    paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Amount paid so far")
+
+    # Currency
+    currency = models.CharField(max_length=3, default="GBP", help_text="Currency code")
+
+    # Notes and terms
+    notes = models.TextField(blank=True, default="", help_text="Notes to client (visible on invoice)")
+    terms = models.TextField(blank=True, default="", help_text="Payment terms and conditions")
+    internal_notes = models.TextField(blank=True, default="", help_text="Internal notes (not visible on invoice)")
+
+    # Project linkage (optional)
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoices")
+
+    # Recurring invoice settings
+    is_recurring = models.BooleanField(default=False, help_text="Whether this invoice recurs automatically")
+    recurrence_frequency = models.CharField(
+        max_length=10,
+        choices=[
+            ("monthly", "Monthly"),
+            ("quarterly", "Quarterly"),
+            ("yearly", "Yearly"),
+        ],
+        null=True,
+        blank=True,
+        help_text="How often the invoice recurs"
+    )
+    recurrence_count = models.PositiveIntegerField(null=True, blank=True, help_text="Number of recurrences (null = indefinite)")
+    recurring_group_id = models.CharField(max_length=64, null=True, blank=True, help_text="UUID linking related recurring invoices")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["user", "invoice_date"]),
+            models.Index(fields=["client"]),
+            models.Index(fields=["due_date"]),
+            models.Index(fields=["invoice_number"]),
+        ]
+        ordering = ["-invoice_date", "-id"]
+
+    def __str__(self):
+        return f"Invoice {self.invoice_number} - {self.client.name} - {self.currency}{self.total} ({self.get_status_display()})"
+
+    @property
+    def balance_due(self):
+        """Calculate remaining balance"""
+        from decimal import Decimal
+        return self.total - (self.paid_amount or Decimal('0.00'))
+
+    @property
+    def is_overdue(self):
+        """Check if invoice is overdue"""
+        from datetime import date
+        return (
+            self.status in [self.STATUS_SENT, self.STATUS_PARTIALLY_PAID] and
+            self.due_date < date.today()
+        )
+
+    def calculate_totals(self):
+        """Calculate subtotal, tax, and total from line items"""
+        from decimal import Decimal
+        items = self.items.all()
+        self.subtotal = sum(item.amount for item in items)
+        self.tax_amount = (self.subtotal * self.tax_rate / 100).quantize(Decimal('0.01'))
+        self.total = self.subtotal + self.tax_amount - self.discount
+        return self.total
+
+
+class InvoiceItem(models.Model):
+    """
+    Line items for invoices.
+    """
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="items")
+    description = models.CharField(max_length=256, help_text="Item/service description")
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1, help_text="Quantity")
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, help_text="Price per unit")
+    amount = models.DecimalField(max_digits=12, decimal_places=2, help_text="Line total (quantity × unit_price)")
+    order = models.PositiveIntegerField(default=0, help_text="Display order")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["invoice", "order"]),
+        ]
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.description} - {self.quantity} × {self.unit_price}"
+
+    def save(self, *args, **kwargs):
+        """Auto-calculate amount when saving"""
+        self.amount = self.quantity * self.unit_price
+        super().save(*args, **kwargs)
+
+
+class InvoicePayment(models.Model):
+    """
+    Track payments received for invoices.
+    """
+    PAYMENT_METHOD_BANK_TRANSFER = "bank_transfer"
+    PAYMENT_METHOD_CARD = "card"
+    PAYMENT_METHOD_CASH = "cash"
+    PAYMENT_METHOD_CHEQUE = "cheque"
+    PAYMENT_METHOD_OTHER = "other"
+
+    PAYMENT_METHOD_CHOICES = [
+        (PAYMENT_METHOD_BANK_TRANSFER, "Bank Transfer"),
+        (PAYMENT_METHOD_CARD, "Card"),
+        (PAYMENT_METHOD_CASH, "Cash"),
+        (PAYMENT_METHOD_CHEQUE, "Cheque"),
+        (PAYMENT_METHOD_OTHER, "Other"),
+    ]
+
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="payments")
+    transaction = models.ForeignKey(
+        Transaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invoice_payments",
+        help_text="Link to the actual transaction (optional)"
+    )
+
+    amount = models.DecimalField(max_digits=12, decimal_places=2, help_text="Payment amount")
+    payment_date = models.DateField(help_text="Date payment was received")
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default=PAYMENT_METHOD_BANK_TRANSFER)
+    reference = models.CharField(max_length=128, blank=True, default="", help_text="Payment reference/transaction ID")
+    notes = models.TextField(blank=True, default="", help_text="Payment notes")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["invoice", "payment_date"]),
+        ]
+        ordering = ["-payment_date"]
+
+    def __str__(self):
+        return f"Payment {self.amount} for {self.invoice.invoice_number} on {self.payment_date}"
+
+
+class InvoiceTemplate(models.Model):
+    """
+    Reusable invoice templates for common services/products.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="invoice_templates")
+    name = models.CharField(max_length=128, help_text="Template name")
+    description = models.TextField(blank=True, default="", help_text="Template description")
+
+    # Default settings
+    default_tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Default tax rate %")
+    default_payment_terms = models.CharField(max_length=64, default="Net 30", help_text="Default payment terms")
+    default_notes = models.TextField(blank=True, default="", help_text="Default notes for invoices")
+    default_terms = models.TextField(blank=True, default="", help_text="Default terms and conditions")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "name"]),
+        ]
+        ordering = ["name"]
+        unique_together = [["user", "name"]]
+
+    def __str__(self):
+        return self.name
+
+
+class InvoiceTemplateItem(models.Model):
+    """
+    Line items for invoice templates.
+    """
+    template = models.ForeignKey(InvoiceTemplate, on_delete=models.CASCADE, related_name="items")
+    description = models.CharField(max_length=256, help_text="Item/service description")
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1, help_text="Default quantity")
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, help_text="Default price per unit")
+    order = models.PositiveIntegerField(default=0, help_text="Display order")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.description} - {self.quantity} × {self.unit_price}"
+
+

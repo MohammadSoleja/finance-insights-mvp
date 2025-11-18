@@ -1692,3 +1692,1004 @@ def project_detail_data(request, project_id):
     })
 
 
+# ==================== INVOICING & BILLING VIEWS ====================
+
+@login_required
+def invoices_view(request):
+    """Main invoices list page"""
+    from app_core.models import Invoice, Client
+    from app_core.invoicing import get_invoice_statistics
+    from datetime import date
+    from decimal import Decimal
+
+    # Get filter parameters
+    status_filter = request.GET.get('status', '')
+    client_filter = request.GET.get('client', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    search_query = request.GET.get('q', '')
+
+    # Base queryset
+    invoices = Invoice.objects.filter(user=request.user).select_related('client', 'project')
+
+    # Apply filters
+    if status_filter:
+        invoices = invoices.filter(status=status_filter)
+
+    if client_filter:
+        invoices = invoices.filter(client_id=client_filter)
+
+    if date_from:
+        invoices = invoices.filter(invoice_date__gte=date_from)
+
+    if date_to:
+        invoices = invoices.filter(invoice_date__lte=date_to)
+
+    if search_query:
+        from django.db.models import Q
+        invoices = invoices.filter(
+            Q(invoice_number__icontains=search_query) |
+            Q(client__name__icontains=search_query) |
+            Q(client__company__icontains=search_query) |
+            Q(notes__icontains=search_query)
+        )
+
+    # Update overdue invoices
+    today = date.today()
+    overdue_invoices = invoices.filter(
+        status__in=[Invoice.STATUS_SENT, Invoice.STATUS_PARTIALLY_PAID],
+        due_date__lt=today
+    )
+    overdue_invoices.update(status=Invoice.STATUS_OVERDUE)
+
+    # Get stats
+    stats = get_invoice_statistics(request.user)
+
+    # Get all clients for filter dropdown
+    clients = Client.objects.filter(user=request.user, active=True).order_by('name')
+
+    # Serialize invoices
+    invoices_list = []
+    for inv in invoices:
+        invoices_list.append({
+            'id': inv.id,
+            'invoice_number': inv.invoice_number,
+            'client': {
+                'id': inv.client.id,
+                'name': inv.client.name,
+                'company': inv.client.company,
+            },
+            'invoice_date': inv.invoice_date.isoformat(),
+            'due_date': inv.due_date.isoformat(),
+            'status': inv.status,
+            'status_display': inv.get_status_display(),
+            'total': float(inv.total),
+            'paid_amount': float(inv.paid_amount),
+            'balance_due': float(inv.balance_due),
+            'currency': inv.currency,
+            'is_overdue': inv.is_overdue,
+            'project': {'id': inv.project.id, 'name': inv.project.name} if inv.project else None,
+        })
+
+    context = {
+        'invoices': invoices_list,
+        'clients': list(clients.values('id', 'name', 'company')),
+        'stats': stats,
+        'status_filter': status_filter,
+        'client_filter': client_filter,
+        'date_from': date_from,
+        'date_to': date_to,
+        'search_query': search_query,
+    }
+
+    return render(request, "app_web/invoices.html", context)
+
+
+@login_required
+def clients_view(request):
+    """Clients management page"""
+    from app_core.models import Client
+    from app_core.invoicing import get_client_statistics
+
+    clients = Client.objects.filter(user=request.user).order_by('name')
+
+    clients_list = []
+    for client in clients:
+        stats = get_client_statistics(client)
+        clients_list.append({
+            'id': client.id,
+            'name': client.name,
+            'email': client.email,
+            'company': client.company,
+            'phone': client.phone,
+            'address': client.address,
+            'tax_id': client.tax_id,
+            'payment_terms': client.payment_terms,
+            'currency': client.currency,
+            'notes': client.notes,
+            'active': client.active,
+            'created_at': client.created_at.isoformat(),
+            'stats': stats,
+        })
+
+    return render(request, "app_web/clients.html", {'clients': clients_list})
+
+
+@login_required
+def clients_list_api(request):
+    """API endpoint to get list of clients for dropdowns"""
+    from app_core.models import Client
+
+    clients = Client.objects.filter(user=request.user, active=True).order_by('name')
+
+    clients_list = []
+    for client in clients:
+        clients_list.append({
+            'id': client.id,
+            'name': client.name,
+            'company': client.company,
+            'email': client.email,
+        })
+
+    return JsonResponse({'clients': clients_list})
+
+
+@login_required
+@require_http_methods(["POST"])
+def invoice_create_view(request):
+    """Create a new invoice"""
+    from app_core.models import Invoice, InvoiceItem, Client
+    from app_core.invoicing import generate_invoice_number
+    from datetime import date, timedelta
+    import json
+
+    try:
+        data = json.loads(request.body)
+
+        client = Client.objects.get(id=data['client_id'], user=request.user)
+
+        # Parse dates
+        invoice_date = date.fromisoformat(data.get('invoice_date', date.today().isoformat()))
+        due_date = date.fromisoformat(data.get('due_date', (date.today() + timedelta(days=30)).isoformat()))
+
+        # Create invoice
+        invoice = Invoice.objects.create(
+            user=request.user,
+            client=client,
+            invoice_number=generate_invoice_number(request.user),
+            invoice_date=invoice_date,
+            due_date=due_date,
+            status=data.get('status', Invoice.STATUS_DRAFT),
+            tax_rate=Decimal(str(data.get('tax_rate', 0))),
+            discount=Decimal(str(data.get('discount', 0))),
+            currency=data.get('currency', client.currency),
+            notes=data.get('notes', ''),
+            terms=data.get('terms', ''),
+            project_id=data.get('project_id') if data.get('project_id') else None,
+        )
+
+        # Add line items
+        for item_data in data.get('items', []):
+            InvoiceItem.objects.create(
+                invoice=invoice,
+                description=item_data['description'],
+                quantity=Decimal(str(item_data.get('quantity', 1))),
+                unit_price=Decimal(str(item_data['unit_price'])),
+                order=item_data.get('order', 0),
+            )
+
+        # Calculate totals
+        from app_core.invoicing import calculate_invoice_totals
+        calculate_invoice_totals(invoice)
+
+        return JsonResponse({
+            'success': True,
+            'invoice_id': invoice.id,
+            'invoice_number': invoice.invoice_number,
+        })
+
+    except Client.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Client not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def invoice_edit_view(request, invoice_id):
+    """Edit an existing invoice"""
+    from app_core.models import Invoice, InvoiceItem
+    from datetime import date
+    import json
+
+    try:
+        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+        data = json.loads(request.body)
+
+        # Update invoice fields
+        if 'invoice_date' in data:
+            invoice.invoice_date = date.fromisoformat(data['invoice_date'])
+        if 'due_date' in data:
+            invoice.due_date = date.fromisoformat(data['due_date'])
+        if 'status' in data:
+            invoice.status = data['status']
+        if 'tax_rate' in data:
+            invoice.tax_rate = Decimal(str(data['tax_rate']))
+        if 'discount' in data:
+            invoice.discount = Decimal(str(data['discount']))
+        if 'notes' in data:
+            invoice.notes = data['notes']
+        if 'terms' in data:
+            invoice.terms = data['terms']
+
+        invoice.save()
+
+        # Update line items if provided
+        if 'items' in data:
+            # Delete existing items
+            invoice.items.all().delete()
+
+            # Add new items
+            for item_data in data['items']:
+                InvoiceItem.objects.create(
+                    invoice=invoice,
+                    description=item_data['description'],
+                    quantity=Decimal(str(item_data.get('quantity', 1))),
+                    unit_price=Decimal(str(item_data['unit_price'])),
+                    order=item_data.get('order', 0),
+                )
+
+            # Recalculate totals
+            from app_core.invoicing import calculate_invoice_totals
+            calculate_invoice_totals(invoice)
+
+        return JsonResponse({'success': True})
+
+    except Invoice.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Invoice not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def invoice_delete_view(request, invoice_id):
+    """Delete an invoice"""
+    from app_core.models import Invoice
+
+    try:
+        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+        invoice.delete()
+        return JsonResponse({'success': True})
+    except Invoice.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Invoice not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def invoice_send_view(request, invoice_id):
+    """Send invoice email to client with PDF attachment"""
+    from app_core.models import Invoice
+    from app_core.invoicing import send_invoice_email
+    import json
+
+    try:
+        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+
+        # Get optional parameters from request body
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            data = {}
+
+        custom_message = data.get('custom_message', None)
+        cc_emails = data.get('cc_emails', None)
+        bcc_emails = data.get('bcc_emails', None)
+
+        # Send the email
+        result = send_invoice_email(
+            invoice=invoice,
+            custom_message=custom_message,
+            cc_emails=cc_emails,
+            bcc_emails=bcc_emails
+        )
+
+        if result['success']:
+            return JsonResponse({
+                'success': True,
+                'message': result['message']
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result['message']
+            }, status=400)
+
+    except Invoice.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Invoice not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def invoice_reminder_view(request, invoice_id):
+    """Send payment reminder email for an invoice"""
+    from app_core.models import Invoice
+    from app_core.invoicing import send_payment_reminder
+    import json
+
+    try:
+        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+
+        # Get optional custom message from request body
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            data = {}
+
+        custom_message = data.get('custom_message', None)
+
+        # Send the reminder
+        result = send_payment_reminder(
+            invoice=invoice,
+            custom_message=custom_message
+        )
+
+        if result['success']:
+            return JsonResponse({
+                'success': True,
+                'message': result['message']
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result['message']
+            }, status=400)
+
+    except Invoice.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Invoice not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def invoice_payment_view(request, invoice_id):
+    """Record a payment for an invoice"""
+    from app_core.models import Invoice
+    from app_core.invoicing import record_payment
+    from datetime import date
+    import json
+
+    try:
+        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+        data = json.loads(request.body)
+
+        payment_date = date.fromisoformat(data.get('payment_date', date.today().isoformat()))
+        amount = Decimal(str(data['amount']))
+        payment_method = data.get('payment_method', 'bank_transfer')
+        reference = data.get('reference', '')
+        notes = data.get('notes', '')
+
+        payment = record_payment(
+            invoice=invoice,
+            amount=amount,
+            payment_date=payment_date,
+            payment_method=payment_method,
+            reference=reference,
+            notes=notes,
+        )
+
+        return JsonResponse({
+            'success': True,
+            'payment_id': payment.id,
+            'new_status': invoice.status,
+        })
+
+    except Invoice.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Invoice not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def client_create_view(request):
+    """Create a new client"""
+    from app_core.models import Client
+    import json
+
+    try:
+        data = json.loads(request.body)
+
+        client = Client.objects.create(
+            user=request.user,
+            name=data['name'],
+            email=data['email'],
+            company=data.get('company', ''),
+            phone=data.get('phone', ''),
+            address=data.get('address', ''),
+            tax_id=data.get('tax_id', ''),
+            payment_terms=data.get('payment_terms', 'Net 30'),
+            currency=data.get('currency', 'GBP'),
+            notes=data.get('notes', ''),
+            active=data.get('active', True),
+        )
+
+        return JsonResponse({
+            'success': True,
+            'client_id': client.id,
+        })
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def client_edit_view(request, client_id):
+    """Edit a client"""
+    from app_core.models import Client
+    import json
+
+    try:
+        client = Client.objects.get(id=client_id, user=request.user)
+        data = json.loads(request.body)
+
+        client.name = data.get('name', client.name)
+        client.email = data.get('email', client.email)
+        client.company = data.get('company', client.company)
+        client.phone = data.get('phone', client.phone)
+        client.address = data.get('address', client.address)
+        client.tax_id = data.get('tax_id', client.tax_id)
+        client.payment_terms = data.get('payment_terms', client.payment_terms)
+        client.currency = data.get('currency', client.currency)
+        client.notes = data.get('notes', client.notes)
+        client.active = data.get('active', client.active)
+
+        client.save()
+
+        return JsonResponse({'success': True})
+
+    except Client.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Client not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def client_delete_view(request, client_id):
+    """Delete a client"""
+    from app_core.models import Client
+
+    try:
+        client = Client.objects.get(id=client_id, user=request.user)
+        # Check if client has invoices
+        if client.invoices.exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'Cannot delete client with existing invoices. Deactivate instead.'
+            }, status=400)
+
+        client.delete()
+        return JsonResponse({'success': True})
+    except Client.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Client not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def invoice_detail_view(request, invoice_id):
+    """Get detailed invoice data"""
+    from app_core.models import Invoice
+
+    try:
+        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+
+        items = []
+        for item in invoice.items.all():
+            items.append({
+                'id': item.id,
+                'description': item.description,
+                'quantity': float(item.quantity),
+                'unit_price': float(item.unit_price),
+                'amount': float(item.amount),
+                'order': item.order,
+            })
+
+        payments = []
+        for payment in invoice.payments.all():
+            payments.append({
+                'id': payment.id,
+                'amount': float(payment.amount),
+                'payment_date': payment.payment_date.isoformat(),
+                'payment_method': payment.payment_method,
+                'payment_method_display': payment.get_payment_method_display(),
+                'reference': payment.reference,
+                'notes': payment.notes,
+            })
+
+        data = {
+            'id': invoice.id,
+            'invoice_number': invoice.invoice_number,
+            'client': {
+                'id': invoice.client.id,
+                'name': invoice.client.name,
+                'email': invoice.client.email,
+                'company': invoice.client.company,
+                'address': invoice.client.address,
+                'phone': invoice.client.phone,
+                'tax_id': invoice.client.tax_id,
+            },
+            'invoice_date': invoice.invoice_date.isoformat(),
+            'due_date': invoice.due_date.isoformat(),
+            'sent_date': invoice.sent_date.isoformat() if invoice.sent_date else None,
+            'paid_date': invoice.paid_date.isoformat() if invoice.paid_date else None,
+            'status': invoice.status,
+            'status_display': invoice.get_status_display(),
+            'subtotal': float(invoice.subtotal),
+            'tax_rate': float(invoice.tax_rate),
+            'tax_amount': float(invoice.tax_amount),
+            'discount': float(invoice.discount),
+            'total': float(invoice.total),
+            'paid_amount': float(invoice.paid_amount),
+            'balance_due': float(invoice.balance_due),
+            'currency': invoice.currency,
+            'notes': invoice.notes,
+            'terms': invoice.terms,
+            'internal_notes': invoice.internal_notes,
+            'project': {'id': invoice.project.id, 'name': invoice.project.name} if invoice.project else None,
+            'items': items,
+            'payments': payments,
+            'is_overdue': invoice.is_overdue,
+        }
+
+        return JsonResponse(data)
+
+    except Invoice.DoesNotExist:
+        return JsonResponse({'error': 'Invoice not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+@login_required
+def invoice_pdf_view(request, invoice_id):
+    """Display invoice in PDF-ready format with download button"""
+    from app_core.models import Invoice
+
+    try:
+        invoice = get_object_or_404(Invoice, id=invoice_id, user=request.user)
+
+        context = {
+            'invoice': invoice,
+            'user': request.user,
+        }
+
+        return render(request, 'app_web/invoice_view.html', context)
+
+    except Invoice.DoesNotExist:
+        return HttpResponse('Invoice not found', status=404)
+
+
+@login_required
+def invoice_pdf_download(request, invoice_id):
+    """Generate and download invoice as PDF using ReportLab"""
+    from app_core.models import Invoice
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+    from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+    from io import BytesIO
+    from datetime import date
+
+    try:
+        invoice = get_object_or_404(Invoice, id=invoice_id, user=request.user)
+
+        # Create PDF buffer
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=50, leftMargin=50, topMargin=50, bottomMargin=50)
+
+        # Container for PDF elements
+        elements = []
+
+        # Styles
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#2563eb'),
+            spaceAfter=6,
+            alignment=TA_LEFT
+        )
+
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=14,
+            textColor=colors.HexColor('#374151'),
+            spaceAfter=12,
+            spaceBefore=12
+        )
+
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            parent=styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#111827')
+        )
+
+        small_style = ParagraphStyle(
+            'CustomSmall',
+            parent=styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#6b7280')
+        )
+
+        # Title
+        elements.append(Paragraph("INVOICE", title_style))
+        elements.append(Paragraph(f"#{invoice.invoice_number}", heading_style))
+        elements.append(Spacer(1, 0.2*inch))
+
+        # Status badge text
+        status_text = invoice.get_status_display()
+        status_para = Paragraph(f"<b>Status:</b> {status_text}", normal_style)
+        elements.append(status_para)
+        elements.append(Spacer(1, 0.3*inch))
+
+        # Bill To and Invoice Details side by side
+        info_data = [
+            [
+                Paragraph("<b>BILL TO</b>", heading_style),
+                Paragraph("<b>INVOICE DETAILS</b>", heading_style)
+            ],
+            [
+                Paragraph(f"<b>{invoice.client.name}</b><br/>"
+                         f"{invoice.client.company if invoice.client.company else ''}<br/>"
+                         f"{invoice.client.email}<br/>"
+                         f"{invoice.client.phone if invoice.client.phone else ''}", normal_style),
+                Paragraph(f"<b>Invoice Date:</b> {invoice.invoice_date.strftime('%B %d, %Y')}<br/>"
+                         f"<b>Due Date:</b> {invoice.due_date.strftime('%B %d, %Y')}<br/>"
+                         f"<b>Payment Terms:</b> {invoice.client.payment_terms}", normal_style)
+            ]
+        ]
+
+        info_table = Table(info_data, colWidths=[3*inch, 3*inch])
+        info_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 0.4*inch))
+
+        # Line Items Table
+        items_data = [['Description', 'Qty', 'Unit Price', 'Amount']]
+
+        for item in invoice.items.all():
+            items_data.append([
+                item.description,
+                str(item.quantity),
+                f"{invoice.currency} {item.unit_price:.2f}",
+                f"{invoice.currency} {item.amount:.2f}"
+            ])
+
+        items_table = Table(items_data, colWidths=[3*inch, 0.75*inch, 1.25*inch, 1.25*inch])
+        items_table.setStyle(TableStyle([
+            # Header row
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#374151')),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TOPPADDING', (0, 0), (-1, 0), 12),
+
+            # Data rows
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 8),
+
+            # Alignment
+            ('ALIGN', (1, 0), (1, -1), 'CENTER'),  # Qty center
+            ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),  # Price and Amount right
+
+            # Grid
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+            ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#e5e7eb')),
+        ]))
+        elements.append(items_table)
+        elements.append(Spacer(1, 0.3*inch))
+
+        # Totals
+        totals_data = [
+            ['Subtotal:', f"{invoice.currency} {invoice.subtotal:.2f}"],
+        ]
+
+        if invoice.tax_rate > 0:
+            totals_data.append(['Tax ({:.1f}%):'.format(invoice.tax_rate), f"{invoice.currency} {invoice.tax_amount:.2f}"])
+
+        if invoice.discount > 0:
+            totals_data.append(['Discount:', f"-{invoice.currency} {invoice.discount:.2f}"])
+
+        totals_data.append(['<b>Total:</b>', f"<b>{invoice.currency} {invoice.total:.2f}</b>"])
+
+        if invoice.paid_amount > 0:
+            totals_data.append(['Paid:', f"-{invoice.currency} {invoice.paid_amount:.2f}"])
+            totals_data.append(['<b>Balance Due:</b>', f"<b>{invoice.currency} {invoice.balance_due:.2f}</b>"])
+
+        # Convert to Paragraphs for bold support
+        totals_data_formatted = []
+        for label, value in totals_data:
+            totals_data_formatted.append([
+                Paragraph(label, normal_style if '<b>' not in label else heading_style),
+                Paragraph(value, normal_style if '<b>' not in value else heading_style)
+            ])
+
+        totals_table = Table(totals_data_formatted, colWidths=[4.5*inch, 1.75*inch])
+        totals_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('LINEABOVE', (0, -2), (-1, -2), 1, colors.HexColor('#e5e7eb')),
+        ]))
+        elements.append(totals_table)
+
+        # Notes
+        if invoice.notes:
+            elements.append(Spacer(1, 0.3*inch))
+            elements.append(Paragraph("<b>Notes:</b>", heading_style))
+            elements.append(Paragraph(invoice.notes, normal_style))
+
+        # Terms
+        if invoice.terms:
+            elements.append(Spacer(1, 0.2*inch))
+            elements.append(Paragraph("<b>Payment Terms & Conditions:</b>", heading_style))
+            elements.append(Paragraph(invoice.terms, normal_style))
+
+        # Footer
+        elements.append(Spacer(1, 0.5*inch))
+        footer_text = f"<i>Thank you for your business!<br/>For questions about this invoice, please contact {request.user.email}</i>"
+        elements.append(Paragraph(footer_text, small_style))
+
+        # Build PDF
+        doc.build(elements)
+
+        # Get PDF from buffer
+        pdf = buffer.getvalue()
+        buffer.close()
+
+        # Create response
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Invoice_{invoice.invoice_number}.pdf"'
+
+        return response
+
+    except Invoice.DoesNotExist:
+        return HttpResponse('Invoice not found', status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return HttpResponse(f'Error generating PDF: {str(e)}', status=500)
+
+
+# ==================== INVOICE TEMPLATES VIEWS ====================
+
+@login_required
+def invoice_templates_view(request):
+    """Invoice templates management page"""
+    from app_core.invoicing import get_user_templates
+
+    templates = get_user_templates(request.user)
+
+    return render(request, 'app_web/invoice_templates.html', {
+        'title': 'Invoice Templates',
+        'templates': templates
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def template_create_view(request):
+    """Create invoice template from scratch or from existing invoice"""
+    from app_core.models import InvoiceTemplate, InvoiceTemplateItem, Invoice
+    from app_core.invoicing import save_invoice_as_template
+    import json
+
+    try:
+        data = json.loads(request.body)
+
+        # Check if creating from existing invoice
+        invoice_id = data.get('invoice_id')
+        if invoice_id:
+            invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+            template = save_invoice_as_template(
+                invoice=invoice,
+                template_name=data['name'],
+                description=data.get('description', '')
+            )
+        else:
+            # Create template from scratch
+            template = InvoiceTemplate.objects.create(
+                user=request.user,
+                name=data['name'],
+                description=data.get('description', ''),
+                default_tax_rate=Decimal(str(data.get('tax_rate', 0))),
+                default_payment_terms=data.get('payment_terms', 'Net 30'),
+                default_notes=data.get('notes', ''),
+                default_terms=data.get('terms', ''),
+            )
+
+            # Add items
+            for item_data in data.get('items', []):
+                InvoiceTemplateItem.objects.create(
+                    template=template,
+                    description=item_data['description'],
+                    quantity=Decimal(str(item_data.get('quantity', 1))),
+                    unit_price=Decimal(str(item_data['unit_price'])),
+                    order=item_data.get('order', 0),
+                )
+
+        return JsonResponse({
+            'success': True,
+            'template_id': template.id,
+            'message': f'Template "{template.name}" created successfully'
+        })
+
+    except Invoice.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Invoice not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def template_edit_view(request, template_id):
+    """Edit an invoice template"""
+    from app_core.models import InvoiceTemplate, InvoiceTemplateItem
+    import json
+
+    try:
+        template = InvoiceTemplate.objects.get(id=template_id, user=request.user)
+        data = json.loads(request.body)
+
+        # Update template
+        template.name = data.get('name', template.name)
+        template.description = data.get('description', template.description)
+        template.default_tax_rate = Decimal(str(data.get('tax_rate', template.default_tax_rate)))
+        template.default_payment_terms = data.get('payment_terms', template.default_payment_terms)
+        template.default_notes = data.get('notes', template.default_notes)
+        template.default_terms = data.get('terms', template.default_terms)
+        template.save()
+
+        # Update items if provided
+        if 'items' in data:
+            template.items.all().delete()
+            for item_data in data['items']:
+                InvoiceTemplateItem.objects.create(
+                    template=template,
+                    description=item_data['description'],
+                    quantity=Decimal(str(item_data.get('quantity', 1))),
+                    unit_price=Decimal(str(item_data['unit_price'])),
+                    order=item_data.get('order', 0),
+                )
+
+        return JsonResponse({'success': True, 'message': 'Template updated successfully'})
+
+    except InvoiceTemplate.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Template not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def template_delete_view(request, template_id):
+    """Delete an invoice template"""
+    from app_core.models import InvoiceTemplate
+
+    try:
+        template = InvoiceTemplate.objects.get(id=template_id, user=request.user)
+        template_name = template.name
+        template.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Template "{template_name}" deleted successfully'
+        })
+
+    except InvoiceTemplate.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Template not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def template_use_view(request, template_id):
+    """Create a new invoice from a template"""
+    from app_core.models import InvoiceTemplate, Client
+    from app_core.invoicing import create_invoice_from_template
+    from datetime import date, timedelta
+    import json
+
+    try:
+        template = InvoiceTemplate.objects.get(id=template_id, user=request.user)
+        data = json.loads(request.body)
+
+        client = Client.objects.get(id=data['client_id'], user=request.user)
+
+        invoice_date = date.fromisoformat(data.get('invoice_date', date.today().isoformat()))
+        due_date = date.fromisoformat(data.get('due_date', (date.today() + timedelta(days=30)).isoformat()))
+
+        invoice = create_invoice_from_template(
+            template=template,
+            client=client,
+            user=request.user,
+            invoice_date=invoice_date,
+            due_date=due_date
+        )
+
+        return JsonResponse({
+            'success': True,
+            'invoice_id': invoice.id,
+            'invoice_number': invoice.invoice_number,
+            'message': 'Invoice created from template successfully'
+        })
+
+    except (InvoiceTemplate.DoesNotExist, Client.DoesNotExist) as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def template_detail_view(request, template_id):
+    """Get template details including all items"""
+    from app_core.models import InvoiceTemplate
+
+    try:
+        template = InvoiceTemplate.objects.get(id=template_id, user=request.user)
+
+        items = []
+        for item in template.items.all():
+            items.append({
+                'id': item.id,
+                'description': item.description,
+                'quantity': float(item.quantity),
+                'unit_price': float(item.unit_price),
+                'amount': float(item.quantity * item.unit_price),
+                'order': item.order,
+            })
+
+        data = {
+            'id': template.id,
+            'name': template.name,
+            'description': template.description,
+            'default_tax_rate': float(template.default_tax_rate),
+            'default_payment_terms': template.default_payment_terms,
+            'default_notes': template.default_notes,
+            'default_terms': template.default_terms,
+            'items': items,
+            'created_at': template.created_at.isoformat(),
+            'updated_at': template.updated_at.isoformat(),
+        }
+
+        return JsonResponse(data)
+
+    except InvoiceTemplate.DoesNotExist:
+        return JsonResponse({'error': 'Template not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
