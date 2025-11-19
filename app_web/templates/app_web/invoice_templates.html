@@ -133,6 +133,7 @@
     </div>
 
     <div class="modal-body">
+      <div id="use-template-message" style="display:none; margin-bottom: .75rem; padding: .5rem; border-radius:6px;"></div>
       <form id="use-template-form" onsubmit="createFromTemplate(event)">
         <div class="field">
           <label for="use-template-client">Client *</label>
@@ -155,7 +156,7 @@
 
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" onclick="closeUseTemplateModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Create Invoice</button>
+          <button type="submit" class="btn btn-primary" id="use-template-create-btn">Create Invoice</button>
         </div>
       </form>
     </div>
@@ -391,4 +392,3 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="{% static 'app_web/templates.js' %}"></script>
 {% endblock %}
-

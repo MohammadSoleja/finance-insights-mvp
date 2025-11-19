@@ -168,18 +168,37 @@ function useTemplate(templateId) {
   const dueDate = new Date(today);
   dueDate.setDate(dueDate.getDate() + 30);
 
-  document.getElementById('use-template-date').value = today.toISOString().split('T')[0];
-  document.getElementById('use-template-due-date').value = dueDate.toISOString().split('T')[0];
+  const dateEl = document.getElementById('use-template-date');
+  const dueEl = document.getElementById('use-template-due-date');
+  if (dateEl) dateEl.value = today.toISOString().split('T')[0];
+  if (dueEl) dueEl.value = dueDate.toISOString().split('T')[0];
 
-  // Load clients into dropdown
-  loadClientsForTemplate();
-
-  document.getElementById('use-template-modal').style.display = 'flex';
+  // Load clients into dropdown and show modal after loaded
+  loadClientsForTemplate().then(() => {
+    const modal = document.getElementById('use-template-modal');
+    if (modal) modal.style.display = 'flex';
+  }).catch(err => {
+    console.error('Error loading clients for template use:', err);
+    const msg = document.getElementById('use-template-message');
+    if (msg) {
+      msg.style.display = 'block';
+      msg.style.background = '#fde68a';
+      msg.style.color = '#92400e';
+      msg.textContent = 'Failed to load clients. Please try again.';
+    } else {
+      alert('Failed to load clients. Please try again.');
+    }
+  });
 }
 
 function closeUseTemplateModal() {
   document.getElementById('use-template-modal').style.display = 'none';
   useTemplateId = null;
+  const msg = document.getElementById('use-template-message');
+  if (msg) {
+    msg.style.display = 'none';
+    msg.textContent = '';
+  }
 }
 
 
@@ -188,10 +207,20 @@ async function createFromTemplate(event) {
 
   if (!useTemplateId) return;
 
+  const clientIdEl = document.getElementById('use-template-client');
+  const invoiceDateEl = document.getElementById('use-template-date');
+  const dueDateEl = document.getElementById('use-template-due-date');
+  const messageEl = document.getElementById('use-template-message');
+
+  if (!clientIdEl || !invoiceDateEl || !dueDateEl) {
+    alert('Required form elements are missing');
+    return;
+  }
+
   const data = {
-    client_id: document.getElementById('use-template-client').value,
-    invoice_date: document.getElementById('use-template-date').value,
-    due_date: document.getElementById('use-template-due-date').value
+    client_id: clientIdEl.value,
+    invoice_date: invoiceDateEl.value,
+    due_date: dueDateEl.value
   };
 
   try {
@@ -207,14 +236,37 @@ async function createFromTemplate(event) {
     const result = await response.json();
 
     if (result.success) {
-      alert(result.message);
-      window.location.href = '/invoices/';
+      if (messageEl) {
+        messageEl.style.display = 'block';
+        messageEl.style.background = '#d1fae5';
+        messageEl.style.color = '#065f46';
+        messageEl.textContent = result.message || 'Invoice created successfully';
+      } else {
+        alert(result.message || 'Invoice created successfully');
+      }
+      // short delay so user can see message, then redirect
+      setTimeout(() => { window.location.href = '/invoices/'; }, 600);
+
     } else {
-      alert('Error: ' + (result.error || 'Failed to create invoice'));
+      if (messageEl) {
+        messageEl.style.display = 'block';
+        messageEl.style.background = '#fee2e2';
+        messageEl.style.color = '#991b1b';
+        messageEl.textContent = result.error || 'Failed to create invoice from template';
+      } else {
+        alert('Error: ' + (result.error || 'Failed to create invoice'));
+      }
     }
   } catch (error) {
-    console.error('Error creating invoice:', error);
-    alert('Failed to create invoice from template');
+    console.error('Error creating invoice from template:', error);
+    if (messageEl) {
+      messageEl.style.display = 'block';
+      messageEl.style.background = '#fee2e2';
+      messageEl.style.color = '#991b1b';
+      messageEl.textContent = 'Failed to create invoice from template';
+    } else {
+      alert('Failed to create invoice from template');
+    }
   }
 }
 
@@ -269,4 +321,3 @@ function getCookie(name) {
   }
   return cookieValue;
 }
-
