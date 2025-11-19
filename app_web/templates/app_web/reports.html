@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Reports & Analytics - Finance Insights{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{% static 'app_web/reports.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Reports & Analytics</h1>
+</div>
+
+<div class="templates-grid">
+  {% for rep in reports %}
+  <a class="template-card" href="{{ rep.url }}">
+    <div class="template-header">
+      <h3>{{ rep.name }}</h3>
+    </div>
+    <div style="padding-top:.5rem; color:#6b7280">Open {{ rep.name }} report</div>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

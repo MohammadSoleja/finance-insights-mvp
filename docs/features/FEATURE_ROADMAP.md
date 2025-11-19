@@ -116,7 +116,7 @@ class InvoiceItem(models.Model):
 **Why**: Advanced reporting for tax, compliance, and business intelligence
 
 **Features**:
-- Profit & Loss Statement (P&L)
+- ✅ Profit & Loss Statement (P&L)
 - Balance Sheet
 - Cash Flow Statement
 - Tax reports (VAT, quarterly)
@@ -129,7 +129,7 @@ class InvoiceItem(models.Model):
 - Data visualization library
 
 **Reports to Add**:
-1. P&L Report
+1. ✅ P&L Report
 2. Cash Flow Report
 3. Expense Report by Category
 4. Income Report by Source
@@ -563,4 +563,3 @@ Based on your current setup and market needs:
 ---
 
 **Would you like me to start implementing any of these features? I recommend starting with Projects/Cost Centers - it's a natural fit with your label system and would add tremendous value!**
-

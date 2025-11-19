@@ -911,7 +911,7 @@ def transaction_edit_view(request, tx_id):
                         'amount': str(tx.amount),
                         'direction': tx.direction,
                         'label': tx.label.name if tx.label else '',
-                        'category': tx.category,  # backward compatibility
+                        'category': tx.category,
                         'subcategory': tx.subcategory,
                     }
                 })
@@ -2692,4 +2692,495 @@ def template_detail_view(request, template_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
+
+# ==================== REPORTS VIEWS ====================
+
+@login_required
+def reports_view(request):
+    """Reports overview page"""
+    from django.shortcuts import render
+
+    # Minimal overview page that lists available reports and quick links
+    reports = [
+        {'key': 'pnl', 'name': 'Profit & Loss (P&L)', 'url': '/reports/pnl/'},
+        {'key': 'cashflow', 'name': 'Cash Flow Statement', 'url': '#'},
+        {'key': 'expenses', 'name': 'Expense Report by Category', 'url': '#'},
+        {'key': 'income', 'name': 'Income Report by Source', 'url': '#'},
+        {'key': 'tax', 'name': 'Tax Summary Report', 'url': '#'},
+        {'key': 'budget_perf', 'name': 'Budget Performance Report', 'url': '#'},
+        {'key': 'project_perf', 'name': 'Project Performance Report', 'url': '#'},
+        {'key': 'vendor', 'name': 'Vendor Spending Report', 'url': '#'},
+    ]
+
+    context = {
+        'reports': reports,
+        'title': 'Reports & Analytics'
+    }
+
+    return render(request, 'app_web/reports.html', context)
+
+
+@login_required
+def report_pnl_view(request):
+    """Profit & Loss (P&L) report - aggregates transactions by labels and direction"""
+    from django.shortcuts import render
+    from app_core.models import Transaction, Label
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+
+    # Parse date range filters
+    start = request.GET.get('start')
+    end = request.GET.get('end')
+
+    try:
+        start_date = datetime.fromisoformat(start).date() if start else None
+    except Exception:
+        start_date = None
+
+    try:
+        end_date = datetime.fromisoformat(end).date() if end else None
+    except Exception:
+        end_date = None
+
+    today = date.today()
+    # Normalize single-side inputs: if only one provided, treat as single-day range
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+
+    # Default range: last 12 months (month-aligned) if nothing provided
+    if not start_date and not end_date:
+        # last 12 months: start = first day of month 11 months ago; end = today
+        m = today.month
+        y = today.year
+        m_back = m - 11
+        y_back = y
+        if m_back <= 0:
+            m_back += 12
+            y_back -= 1
+        start_date = date(y_back, m_back, 1)
+        end_date = today
+
+    # Compute previous same-length window (month/year-aware)
+    import calendar as _cal
+    try:
+        period_len = (end_date - start_date).days + 1
+    except Exception:
+        period_len = 1
+    last_day_of_month = _cal.monthrange(start_date.year, start_date.month)[1]
+    is_full_year = (start_date.month == 1 and start_date.day == 1 and end_date.month == 12 and end_date.day == 31 and start_date.year == end_date.year)
+    is_full_month = (start_date.day == 1 and end_date.day == last_day_of_month and start_date.month == end_date.month and start_date.year == end_date.year)
+
+    if is_full_year:
+        prev_start = date(start_date.year - 1, 1, 1)
+        prev_end = date(start_date.year - 1, 12, 31)
+    elif is_full_month:
+        prev_month = start_date.month - 1
+        prev_year = start_date.year
+        if prev_month == 0:
+            prev_month = 12
+            prev_year -= 1
+        prev_start = date(prev_year, prev_month, 1)
+        prev_end = date(prev_year, prev_month, _cal.monthrange(prev_year, prev_month)[1])
+    else:
+        prev_end = start_date - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=period_len - 1)
+
+    # Human-friendly labels for the two columns
+    def _friendly(d):
+        try:
+            return d.strftime('%b %d, %Y')
+        except Exception:
+            return ''
+
+    # Compact label helper: if range is whole year -> '2025', if whole month -> 'Dec 25', else full range
+    def _compact_label(start_d, end_d):
+        try:
+            # whole single year
+            if start_d.month == 1 and start_d.day == 1 and end_d.month == 12 and end_d.day == 31 and start_d.year == end_d.year:
+                return f"{start_d.year}"
+            # whole single month
+            import calendar as _cal
+            last = _cal.monthrange(start_d.year, start_d.month)[1]
+            if start_d.day == 1 and end_d.day == last and start_d.month == end_d.month and start_d.year == end_d.year:
+                return start_d.strftime('%b %y')
+        except Exception:
+            pass
+        return f"{_friendly(start_d)} – {_friendly(end_d)}"
+
+    curr_label = _compact_label(start_date, end_date)
+    prev_label = _compact_label(prev_start, prev_end)
+
+    # Querysets for current and previous windows
+    qs_cur = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date)
+    qs_prev = Transaction.objects.filter(user=request.user, date__gte=prev_start, date__lte=prev_end)
+
+    # Totals (inflow/outflow) for each window
+    income_total = qs_cur.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    expense_total = qs_cur.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+
+    income_total_prev = qs_prev.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    expense_total_prev = qs_prev.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+
+    # Build revenue and expense rows separately (use inflows for revenue, outflows for expenses)
+    labels = Label.objects.filter(user=request.user).order_by('name')
+    revenue_rows = []
+    expense_rows = []
+
+    def _pct_change(cur, prev):
+        try:
+            if prev == 0:
+                return None
+            return (float(cur) - float(prev)) / abs(float(prev)) * 100.0
+        except Exception:
+            return None
+
+    for lbl in labels:
+        cur_in = qs_cur.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+        prev_in = qs_prev.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
+        if cur_in or prev_in:
+            change_amt = (cur_in or 0) - (prev_in or 0)
+            change_pct = _pct_change(cur_in or 0, prev_in or 0)
+            revenue_rows.append({
+                'label': lbl.name,
+                'cur': cur_in,
+                'prev': prev_in,
+                'change': change_amt,
+                'pct': change_pct,
+            })
+
+        cur_out = qs_cur.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+        prev_out = qs_prev.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+        if cur_out or prev_out:
+            change_amt = (cur_out or 0) - (prev_out or 0)
+            change_pct = _pct_change(cur_out or 0, prev_out or 0)
+            expense_rows.append({
+                'label': lbl.name,
+                'cur': cur_out,
+                'prev': prev_out,
+                'change': change_amt,
+                'pct': change_pct,
+            })
+
+    # Uncategorized as revenue/expense if present
+    unc_cur_in = qs_cur.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    unc_prev_in = qs_prev.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    if unc_cur_in or unc_prev_in:
+        revenue_rows.append({
+            'label': 'Uncategorized', 'cur': unc_cur_in, 'prev': unc_prev_in, 'change': (unc_cur_in or 0) - (unc_prev_in or 0), 'pct': _pct_change(unc_cur_in or 0, unc_prev_in or 0)
+        })
+    unc_cur_out = qs_cur.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    unc_prev_out = qs_prev.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    if unc_cur_out or unc_prev_out:
+        expense_rows.append({
+            'label': 'Uncategorized', 'cur': unc_cur_out, 'prev': unc_prev_out, 'change': (unc_cur_out or 0) - (unc_prev_out or 0), 'pct': _pct_change(unc_cur_out or 0, unc_prev_out or 0)
+        })
+
+    # Totals and net change
+    total_revenue_cur = sum(r['cur'] for r in revenue_rows)
+    total_revenue_prev = sum(r['prev'] for r in revenue_rows)
+    total_expense_cur = sum(e['cur'] for e in expense_rows)
+    total_expense_prev = sum(e['prev'] for e in expense_rows)
+
+    income_before_tax = (total_revenue_cur or 0) - (total_expense_cur or 0)
+    income_before_tax_prev = (total_revenue_prev or 0) - (total_expense_prev or 0)
+    net_change = (income_before_tax or 0) - (income_before_tax_prev or 0)
+
+    # For now, tax amount placeholder = 0 (we can wire tax rules later)
+    tax_amount = 0.0
+
+    # Net profit values (compute here so template doesn't do arithmetic)
+    net_profit = (income_before_tax or 0) - (tax_amount or 0)
+    net_profit_prev = (income_before_tax_prev or 0) - 0
+
+    # totals change and percent
+    total_revenue_change = (total_revenue_cur or 0) - (total_revenue_prev or 0)
+    total_revenue_pct = _pct_change(total_revenue_cur or 0, total_revenue_prev or 0)
+    total_expense_change = (total_expense_cur or 0) - (total_expense_prev or 0)
+    total_expense_pct = _pct_change(total_expense_cur or 0, total_expense_prev or 0)
+
+    context = {
+        'title': 'Profit & Loss (P&L)',
+        'revenue_rows': revenue_rows,
+        'expense_rows': expense_rows,
+        'total_revenue_cur': total_revenue_cur,
+        'total_revenue_prev': total_revenue_prev,
+        'total_revenue_change': total_revenue_change,
+        'total_revenue_pct': total_revenue_pct,
+        'total_expense_cur': total_expense_cur,
+        'total_expense_prev': total_expense_prev,
+        'total_expense_change': total_expense_change,
+        'total_expense_pct': total_expense_pct,
+        'income_before_tax': income_before_tax,
+        'income_before_tax_prev': income_before_tax_prev,
+        'net_profit': net_profit,
+        'net_profit_prev': net_profit_prev,
+        'tax_amount': tax_amount,
+        'net_change': net_change,
+        'start_date': start_date,
+        'end_date': end_date,
+        'curr_label': curr_label,
+        'prev_label': prev_label,
+    }
+
+    return render(request, 'app_web/report_pnl.html', context)
+
+
+@login_required
+def report_pnl_download(request):
+    """Generate a downloadable P&L PDF for the given date range (A4) matching the on-screen layout."""
+    from app_core.models import Transaction, Label
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_LEFT, TA_RIGHT
+
+    # Parse dates robustly (accept ISO and common human formats like 'Jan 1, 2025' or 'Jan. 1, 2025')
+    def _parse_date(s):
+        if not s:
+            return None
+        # Already a date object
+        if isinstance(s, datetime):
+            return s.date()
+        if isinstance(s, date):
+            return s
+        s = str(s).strip()
+        # Try ISO first
+        try:
+            return datetime.fromisoformat(s).date()
+        except Exception:
+            pass
+        # Try common formats
+        common = ['%b %d, %Y', '%b. %d, %Y', '%B %d, %Y', '%d %b %Y', '%Y-%m-%d']
+        for fmt in common:
+            try:
+                return datetime.strptime(s, fmt).date()
+            except Exception:
+                continue
+        # As a last resort, try parsing numbers (e.g. '1 Jan 2025')
+        try:
+            return datetime.strptime(s, '%d %B %Y').date()
+        except Exception:
+            return None
+
+    start = request.GET.get('start')
+    end = request.GET.get('end')
+    start_date = _parse_date(start)
+    end_date = _parse_date(end)
+
+    # today's date used for header and default ranges
+    today = date.today()
+
+    # Normalize single-side inputs: if only one side provided, treat as single-day range
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+
+    # Default range: last 12 months (month-aligned) if nothing provided
+    if not start_date and not end_date:
+        m = today.month
+        y = today.year
+        m_back = m - 11
+        y_back = y
+        if m_back <= 0:
+            m_back += 12
+            y_back -= 1
+        start_date = date(y_back, m_back, 1)
+        end_date = today
+
+    # Compute previous same-length window (month/year-aware)
+    import calendar as _cal
+    try:
+        period_len = (end_date - start_date).days + 1
+    except Exception:
+        period_len = 1
+    last_day_of_month = _cal.monthrange(start_date.year, start_date.month)[1]
+    is_full_year = (start_date.month == 1 and start_date.day == 1 and end_date.month == 12 and end_date.day == 31 and start_date.year == end_date.year)
+    is_full_month = (start_date.day == 1 and end_date.day == last_day_of_month and start_date.month == end_date.month and start_date.year == end_date.year)
+
+    if is_full_year:
+        prev_start = date(start_date.year - 1, 1, 1)
+        prev_end = date(start_date.year - 1, 12, 31)
+    elif is_full_month:
+        prev_month = start_date.month - 1
+        prev_year = start_date.year
+        if prev_month == 0:
+            prev_month = 12
+            prev_year -= 1
+        prev_start = date(prev_year, prev_month, 1)
+        prev_end = date(prev_year, prev_month, _cal.monthrange(prev_year, prev_month)[1])
+    else:
+        prev_end = start_date - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=period_len - 1)
+
+    # Query data
+    qs = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date)
+    qs_prev = Transaction.objects.filter(user=request.user, date__gte=prev_start, date__lte=prev_end)
+
+    labels = Label.objects.filter(user=request.user).order_by('name')
+
+    revenue_rows = []
+    expense_rows = []
+    def _pct_change(cur, prev):
+        try:
+            if prev == 0:
+                return None
+            return (float(cur) - float(prev)) / abs(float(prev)) * 100.0
+        except Exception:
+            return None
+
+    for lbl in labels:
+        cur_in = qs.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+        prev_in = qs_prev.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
+        if cur_in or prev_in:
+            change_amt = (cur_in or 0) - (prev_in or 0)
+            change_pct = _pct_change(cur_in or 0, prev_in or 0)
+            revenue_rows.append((lbl.name, float(cur_in), float(prev_in), float((cur_in or 0) - (prev_in or 0)), change_pct))
+
+        cur_out = qs.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+        prev_out = qs_prev.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+        if cur_out or prev_out:
+            change_amt = (cur_out or 0) - (prev_out or 0)
+            change_pct = _pct_change(cur_out or 0, prev_out or 0)
+            expense_rows.append((lbl.name, float(cur_out), float(prev_out), float((cur_out or 0) - (prev_out or 0)), change_pct))
+
+    # Uncategorized
+    unc_cur_in = qs.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    unc_prev_in = qs_prev.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    if unc_cur_in or unc_prev_in:
+        revenue_rows.append(('Uncategorized', float(unc_cur_in), float(unc_prev_in), float((unc_cur_in or 0) - (unc_prev_in or 0)), _pct_change(unc_cur_in or 0, unc_prev_in or 0)))
+    unc_cur_out = qs.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    unc_prev_out = qs_prev.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    if unc_cur_out or unc_prev_out:
+        expense_rows.append(('Uncategorized', float(unc_cur_out), float(unc_prev_out), float((unc_cur_out or 0) - (unc_prev_out or 0)), _pct_change(unc_cur_out or 0, unc_prev_out or 0)))
+
+    total_revenue_cur = sum(r[1] for r in revenue_rows)
+    total_revenue_prev = sum(r[2] for r in revenue_rows)
+    total_expense_cur = sum(e[1] for e in expense_rows)
+    total_expense_prev = sum(e[2] for e in expense_rows)
+
+    income_before_tax = (total_revenue_cur or 0) - (total_expense_cur or 0)
+    income_before_tax_prev = (total_revenue_prev or 0) - (total_expense_prev or 0)
+    net_change = (income_before_tax or 0) - (income_before_tax_prev or 0)
+    tax_amount = 0.0
+    net_profit = (income_before_tax or 0) - (tax_amount or 0)
+    net_profit_prev = (income_before_tax_prev or 0) - 0
+
+    # Build PDF
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=40, rightMargin=40, topMargin=60, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    normal = styles['Normal']
+    header_style = ParagraphStyle('header', parent=styles['Heading2'], fontSize=14, alignment=TA_LEFT, spaceAfter=6)
+    title_style = ParagraphStyle('title', parent=styles['Heading1'], fontSize=18, alignment=TA_LEFT, spaceAfter=12)
+    small = ParagraphStyle('small', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#6b7280'))
+
+    elements = []
+
+    # Company header (left) and creation date (right)
+    company_name = getattr(request.user, 'company', None) or (request.user.get_full_name() or request.user.username)
+    created_str = today.strftime('%B %d, %Y')
+    elements.append(Paragraph(company_name, header_style))
+    elements.append(Paragraph(f'Date: {created_str}', small))
+    elements.append(Spacer(1, 8))
+
+    # Title
+    elements.append(Paragraph('Profit & Loss Statement', title_style))
+
+    # Period info
+    period_label = f"{start_date.strftime('%b %d, %Y')} – {end_date.strftime('%b %d, %Y')}"
+    prev_label = f"{prev_start.strftime('%b %d, %Y')} – {prev_end.strftime('%b %d, %Y')}"
+    elements.append(Paragraph(f'Period: {period_label}', small))
+    elements.append(Paragraph(f'Prior: {prev_label}', small))
+    elements.append(Spacer(1, 8))
+
+    # Build table rows: header, revenue section, total revenue, spacer, expenses, total expenses, income/tax/net
+    table_data = []
+    table_data.append(['Category', 'Current', 'Prior', 'Change'])
+
+    # Revenue rows
+    if revenue_rows:
+        # Put a revenue title row
+        table_data.append(['Revenue', '', '', ''])
+        for r in revenue_rows:
+            table_data.append([r[0], f'£{r[1]:,.2f}', f'£{r[2]:,.2f}', f'£{r[3]:,.2f}'])
+
+    # Total revenue
+    table_data.append(['Total Revenue & Gains', f'£{total_revenue_cur:,.2f}', f'£{total_revenue_prev:,.2f}', f'£{(total_revenue_cur - total_revenue_prev):,.2f}'])
+    # spacer
+    table_data.append(['', '', '', ''])
+
+    # Expenses
+    if expense_rows:
+        table_data.append(['Expenses', '', '', ''])
+        for e in expense_rows:
+            table_data.append([e[0], f'£{e[1]:,.2f}', f'£{e[2]:,.2f}', f'£{e[3]:,.2f}'])
+
+    # Total expenses
+    table_data.append(['Total Expenses', f'£{total_expense_cur:,.2f}', f'£{total_expense_prev:,.2f}', f'£{(total_expense_cur - total_expense_prev):,.2f}'])
+
+    # Income before tax
+    table_data.append(['Income before tax', f'£{income_before_tax:,.2f}', f'£{income_before_tax_prev:,.2f}', f'£{net_change:,.2f}'])
+    # Income tax
+    table_data.append(['Income tax expense', f'£{tax_amount:,.2f}', '', ''])
+    # Net profit
+    table_data.append(['Net Profit (Loss)', f'£{net_profit:,.2f}', f'£{net_profit_prev:,.2f}', f'£{(net_profit - net_profit_prev):,.2f}'])
+
+    # Create Table
+    col_widths = [3.6 * inch, 1.2 * inch, 1.2 * inch, 1.2 * inch]
+    t = Table(table_data, colWidths=col_widths, repeatRows=1)
+
+    # Table styling: header, section titles, totals, tax, net
+    style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#111827')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e5e7eb')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+    ])
+
+    # Identify special row indices for styling
+    # header row = 0
+    row_idx = 1
+    # After header, we iterate table_data to find indices of rows that are section titles or totals
+    for i, row in enumerate(table_data[1:], start=1):
+        label = (row[0] or '').strip()
+        if label == 'Revenue':
+            style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#ecfdf5'))
+            style.add('TEXTCOLOR', (0, i), (-1, i), colors.HexColor('#064e3b'))
+            style.add('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold')
+        elif label == 'Expenses':
+            style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#fff1f2'))
+            style.add('TEXTCOLOR', (0, i), (-1, i), colors.HexColor('#7f1d1d'))
+            style.add('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold')
+        elif label.startswith('Total Revenue') or label.startswith('Total Expenses') or label == 'Income before tax' or label == 'Income tax expense':
+            style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#f3f4f6'))
+            style.add('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold')
+        elif label.startswith('Net Profit'):
+            style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#fff8dc'))
+            style.add('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold')
+            style.add('LINEABOVE', (0, i), (-1, i), 1, colors.HexColor('#d6d3a8'))
+
+    t.setStyle(style)
+    elements.append(t)
+
+    # Build and return PDF
+    doc.build(elements)
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="P&L_Report.pdf"'
+    return response
 

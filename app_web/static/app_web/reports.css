@@ -1,0 +1,171 @@
+/* Modern report styles for Finance Insights */
+:root{
+  --ri-bg: #ffffff;
+  --ri-card: #ffffff;
+  --ri-border: rgba(16,24,40,0.06);
+  --ri-muted: #6b7280;
+  --ri-accent: #2563eb;
+  --ri-accent-dark: #1e40af; /* slightly darker variant of --ri-accent */
+  --ri-success: #059669;
+  --ri-danger: #dc2626;
+}
+
+/* Page layout tweaks */
+.reports-page { padding: 1rem; }
+.page-header { display:flex; align-items:center; gap:1rem; margin-bottom:1rem; }
+.page-header h1 { margin:0; font-size:1.5rem; font-weight:700; }
+
+/* Stat cards */
+.stats-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:1rem; margin-bottom:1rem; }
+.stat-card { background:var(--ri-card); border:1px solid var(--ri-border); border-radius:12px; padding:1rem; box-shadow:0 6px 22px rgba(16,24,40,0.03); }
+.stat-label { color:var(--ri-muted); font-size:0.85rem; margin-bottom:0.5rem; }
+.stat-value { font-size:1.25rem; font-weight:700; }
+.text-success { color:var(--ri-success); }
+.text-danger { color:var(--ri-danger); }
+
+/* Grid of breakdown cards */
+.templates-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap:1rem; margin-top:0.75rem; }
+.template-card { background:var(--ri-card); border:1px solid var(--ri-border); border-radius:10px; padding:0.75rem; cursor:pointer; transition: transform .08s ease, box-shadow .08s ease; }
+.template-card:hover { transform: translateY(-3px); box-shadow:0 12px 30px rgba(16,24,40,0.06); }
+.template-card strong { display:block; font-size:1rem; }
+.template-card .meta { color:var(--ri-muted); font-size:0.9rem; }
+
+/* Filter form */
+.filter-form { display:flex; gap:.5rem; align-items:center; }
+.filter-form .form-input { min-width:140px; }
+
+/* Card row helper to replace inline flex */
+.card-row { display:flex; align-items:center; gap:.75rem; }
+
+/* Slightly larger color-chip for reports */
+.color-chip { width:16px; height:16px; border-radius:4px; box-shadow:0 1px 0 rgba(0,0,0,0.04) inset; flex:0 0 auto; }
+
+/* Form input styles (to modernize default date inputs) */
+.form-input { padding:0.5rem 0.6rem; border:1px solid #e6e9ef; border-radius:8px; background:#fff; }
+.form-input:focus { outline:none; box-shadow:0 0 0 4px rgba(37,99,235,0.06); border-color:var(--ri-accent); }
+
+/* Screen-reader only helper */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0,0,0,0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Button helpers */
+.btn { padding:.5rem .75rem; border-radius:8px; border:1px solid transparent; cursor:pointer; }
+.btn-primary { background:var(--ri-accent); color:#fff; border-color:var(--ri-accent); }
+.btn-secondary { background:#f3f4f6; color:#111827; border-color:#e6e9ef; }
+
+/* Profit & Loss header bar */
+.pl-header { display:flex; align-items:center; gap:1rem; padding:.9rem 1rem; border-radius:10px; background:var(--ri-accent); color:#fff; margin-bottom:1rem; }
+.pl-header .pl-title { font-weight:700; font-size:1.05rem; }
+.pl-header .pl-periods { margin-left:auto; text-align:right; font-size:0.95rem; }
+.pl-header .pl-periods .curr, .pl-header .pl-periods .prev { display:block; }
+.pl-header .pl-periods .label { font-size:0.75rem; opacity:0.85; }
+
+/* Table tweaks for P&L statement */
+.pl-table { width:100%; border-collapse:collapse; }
+.pl-table thead th { background: var(--ri-accent-dark); color: #fff; padding:.65rem; text-align:left; }
+.pl-table th, .pl-table td { padding:.6rem; border-top:1px solid #eef2f7; }
+.pl-table tbody tr:nth-child(odd) { background: transparent; }
+.pl-table tfoot tr { font-weight:700; border-top:2px solid #e6e9ef; }
+
+/* Make change column use mono-like alignment */
+.pl-table .num { text-align:right; font-variant-numeric: tabular-nums; }
+
+/* Change indicators */
+.change-up { color: var(--ri-success); font-weight:600; }
+.change-down { color: var(--ri-danger); font-weight:600; }
+.pl-table tbody tr:nth-child(odd) { background: transparent; }
+.pl-table .pct { color: #6b7280; font-size:0.85rem; margin-left:.4rem; }
+
+/* P&L specific styles */
+#pnl-periods{ display:flex; gap:1.5rem; align-items:center; margin-top:.5rem; }
+#pnl-periods .period-col{ display:flex; flex-direction:column; min-width:140px }
+#pnl-periods .period-label{ font-size:.85rem; color:var(--muted,#6b7280) }
+#pnl-periods .period-value{ font-size:1.05rem }
+#pnl-periods .period-actions{ margin-left:auto; display:flex; align-items:center; gap:.5rem }
+
+.pnl-filter-form .form-input{ width:120px; padding:.4rem .5rem }
+
+.pl-table{ width:100%; border-collapse:collapse; font-size:.95rem }
+.pl-table th, .pl-table td{ padding:.45rem .6rem; border-bottom:1px solid #eef2f7 }
+.pl-table td.num{ text-align:right; white-space:nowrap }
+
+/* gap between revenue totals and expenses */
+.pl-table tr.separator-row td{ padding-top:1rem; padding-bottom:1rem }
+
+/* Highlight rows */
+.pl-table tr.total-row{ background:#f3f4f6 }
+.pl-table tr.tax-row{ background:#f9fafb }
+.pl-table tr.net-row{ background:#eefbf0 }
+
+/* Change colours */
+.change-up{ color:#16a34a; font-weight:600 }
+.change-down{ color:#dc2626; font-weight:600 }
+.pct{ color:inherit; font-weight:400; margin-left:.35rem }
+
+/* Make totals visually distinct (thicker border) */
+.pl-table tr.total-row td{ border-top:2px solid #d1d5db }
+.pl-table tr.net-row td{ border-top:3px solid #111827; font-weight:800 }
+
+/* P&L specific additions */
+.date-row .date-cell { padding:.5rem 0.6rem; font-size:0.95rem; color:var(--ri-muted); text-align:center; vertical-align:middle }
+.section-title td { padding:.6rem; font-weight:700; font-size:1.0rem; }
+.spacer-row td { height:12px; border:none; background:transparent }
+
+/* Remove tinting from every data row; only color the section title rows */
+.revenue-row { background: transparent }
+.expense-row { background: transparent }
+
+/* Section title highlights: color only the Revenue/Expenses title rows */
+.revenue-title td { background: rgba(236, 252, 235, 0.9); color: #064e3b; font-weight:700; }
+.expense-title td { background: rgba(255, 240, 240, 0.95); color: #7f1d1d; font-weight:700; }
+
+/* Ensure only these title rows have distinct backgrounds and padding */
+.revenue-title td, .expense-title td { padding: .6rem; border-bottom:1px solid rgba(16,24,40,0.04) }
+
+/* Make the specific rows gray as requested */
+.pl-table tr.total-row { background:#f3f4f6; }
+.pl-table tr.tax-row { background:#f3f4f6; }
+.pl-table tr.net-row { background:#fff8dc; /* light yellow */ }
+
+/* Ensure the net-row stands out without being too heavy */
+.pl-table tr.net-row td { border-top:2px solid #d6d3a8 }
+
+/* Make section titles slightly larger */
+.section-title td { font-size:1.02rem; color:#111827; }
+
+/* Align date cell to be centered across table */
+.date-row .date-cell { text-align:center }
+
+/* Buttons and controls: ensure no background behind control area */
+#pnl-controls { background:transparent; padding:0; }
+
+/* Make the blue header area just the bar with title */
+.pl-header { background:var(--ri-accent); color:#fff; padding:.75rem 1rem; border-radius:8px; }
+.pl-title { font-size:1.2rem; font-weight:700 }
+
+/* Revenue tint fallback for very small opacity */
+.revenue-row td, .expense-row td { transition: background .12s ease }
+
+/* Keep previous change colours */
+.change-up{ color:#16a34a; font-weight:600 }
+.change-down{ color:#dc2626; font-weight:600 }
+
+/* Responsive tweaks */
+@media (max-width:700px){
+  .page-header { flex-direction:column; align-items:flex-start; gap:0.5rem; }
+  .page-header form { width:100%; }
+}
+
+@media (max-width:800px){
+  #pnl-periods{ flex-direction:column; align-items:flex-start }
+  .pnl-filter-form{ margin-top:.5rem }
+}

@@ -9,6 +9,7 @@ from .views import invoice_send_view, invoice_payment_view, invoice_detail_view,
 from .views import invoice_pdf_view, invoice_pdf_download
 from .views import invoice_templates_view, template_create_view, template_edit_view, template_delete_view, template_use_view, template_detail_view
 from .views import client_create_view, client_edit_view, client_delete_view
+from .views import reports_view, report_pnl_view, report_pnl_download
 from .forms import LoginForm
 from django.contrib.auth import views as auth_views
 
@@ -59,6 +60,11 @@ urlpatterns = [
     path("clients/create/", client_create_view, name="client_create"),
     path("clients/<int:client_id>/edit/", client_edit_view, name="client_edit"),
     path("clients/<int:client_id>/delete/", client_delete_view, name="client_delete"),
+
+    # Reports
+    path("reports/", reports_view, name="reports"),
+    path("reports/pnl/", report_pnl_view, name="report_pnl"),
+    path("reports/pnl/download/", report_pnl_download, name="report_pnl_download"),
 
     path("health/", health_view, name="health"),
     path("", home_view, name="home"),
