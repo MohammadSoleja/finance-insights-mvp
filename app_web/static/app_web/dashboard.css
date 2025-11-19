@@ -1,165 +1,233 @@
 /* Dashboard Page Styles */
 
-/* Dashboard Toolbar */
+/* Dashboard Toolbar - Override global styles */
 .dashboard-toolbar {
-  display: grid;
-  grid-template-columns: auto 1fr;
+  display: flex !important;
+  flex-wrap: nowrap !important;
   gap: 1rem;
-  align-items: center;
+  align-items: center !important;
   width: 100%;
   margin-bottom: 0.5rem;
 }
 
-.freq-group {
+.dashboard-toolbar .freq-group {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  flex-shrink: 0;
 }
 
-.freq-group .btn {
-  height: 38px;
-  padding: 6px 12px;
+.dashboard-toolbar .freq-group .btn {
+  height: 40px !important;
+  padding: 0 12px !important;
   border-radius: 8px;
   border: 1px solid rgba(16, 24, 40, 0.08);
   background: transparent;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap;
+  margin: 0 !important;
+  min-width: auto !important;
 }
 
-.freq-group .btn:hover {
+.dashboard-toolbar .freq-group .btn:hover {
   background: rgba(37, 99, 235, 0.04);
 }
 
-.freq-group .btn[aria-current="page"] {
-  background: var(--accent);
-  color: #fff;
+.dashboard-toolbar .freq-group .btn[aria-current="page"] {
+  background: var(--accent) !important;
+  color: #fff !important;
   border-color: transparent;
   box-shadow: 0 6px 18px rgba(37, 99, 235, 0.08);
 }
 
-/* Dashboard Filters */
-.dashboard-filters {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) 140px 140px 140px auto;
+/* Dashboard Filters - Override global styles */
+.dashboard-toolbar .dashboard-filters {
+  display: flex !important;
   gap: 0.5rem;
+  align-items: center !important;
+  width: 100%;
+  flex-wrap: nowrap !important;
+}
+
+.dashboard-filters .field-group {
+  display: flex;
   align-items: center;
+  margin: 0 !important;
+}
+
+.dashboard-filters .search-field {
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+
+.dashboard-filters .date-field {
+  flex: 0 0 130px;
+}
+
+.dashboard-filters .category-field {
+  flex: 0 0 130px;
+}
+
+.dashboard-filters .field-group .form-input,
+.dashboard-filters .field-group .form-select,
+.dashboard-filters .field-group .form-date {
+  height: 40px !important;
+  padding: 0 0.75rem !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
   width: 100%;
 }
 
-.dashboard-filters .search {
-  min-width: 180px;
+.dashboard-filters .toolbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: .5rem;
+  flex-shrink: 0;
+  margin: 0 !important;
 }
 
-.dashboard-filters .date-field .form-input,
-.dashboard-filters .date-field .form-date {
-  width: 100%;
+/* Make toolbar buttons consistent height so they align with inputs */
+.dashboard-filters .toolbar-actions .btn,
+.dashboard-filters .toolbar-actions a.btn,
+.dashboard-filters .toolbar-actions button.btn {
+  height: 40px !important;
+  padding: 0 .85rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  white-space: nowrap;
+  min-width: auto !important;
 }
 
-/* Dashboard KPI Grid */
+/* Dashboard KPI Grid - Override global styles */
+body .kpi-grid,
 .kpi-grid {
-  display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(180px, 220px) minmax(180px, 220px) minmax(200px, 1.6fr) minmax(200px, 1.6fr);
-  gap: 0.5rem;
-  align-items: start;
+  display: grid !important;
+  grid-template-columns: 155px 155px 155px 1fr 1fr !important;
+  gap: 0.65rem !important;
+  align-items: stretch !important;
   width: 100%;
-  margin-top: 0.5rem;
-  margin-bottom: 0.75rem;
-  grid-auto-rows: auto;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.75rem !important;
+  flex-direction: row !important;
 }
 
+body .kpi-grid .card,
 .kpi-grid .card {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5rem;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.45rem 0.6rem;
-  min-height: 64px;
-  box-sizing: border-box;
-  background: var(--card-bg, #fff) !important;
-  border: 1px solid rgba(16, 24, 40, 0.06) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  gap: 0.3rem !important;
+  padding: 0.65rem 0.75rem !important;
+  min-height: 100px !important;
+  height: auto !important;
+  box-sizing: border-box !important;
+  background: #fff !important;
+  border: 1px solid rgba(16, 24, 40, 0.08) !important;
   border-radius: 8px !important;
-  box-shadow: 0 6px 12px rgba(16, 24, 40, 0.06) !important;
-  will-change: transform, box-shadow;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  contain: layout style paint;
-  height: 105px !important;
-  padding: 0.28rem 0.45rem;
-  align-items: stretch;
-  min-width: 0;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08) !important;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.kpi-grid .card > div {
-  width: 100%;
-  box-sizing: border-box;
-  min-width: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 0.28rem;
-}
-
-.kpi-grid .card:focus,
+body .kpi-grid .card:hover,
 .kpi-grid .card:hover {
-  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.08);
-  transform: translateY(-2px) translateZ(0);
-  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  box-shadow: 0 4px 12px rgba(16, 24, 40, 0.12) !important;
+  transform: translateY(-1px);
 }
 
-.kpi-grid .card .muted,
-.kpi-grid .card .kpi,
-.kpi-grid .card .kpi-delta {
-  display: block;
-}
-
-.kpi::before {
+/* Remove the decorative left accent bar on KPI cards */
+body .kpi-grid .card::before,
+.kpi-grid .card::before {
   display: none !important;
   content: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: none !important;
 }
 
-.kpi-grid > .card.numeric > div .kpi {
-  font-size: 2rem !important;
-  line-height: 1 !important;
+body .kpi-grid .card > div,
+.kpi-grid .card > div {
+  width: 100%;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.3rem !important;
+}
+
+/* KPI title smaller and only first letter uppercase */
+body .kpi-grid .card .muted,
+.kpi-grid .card .muted {
+  font-size: 0.85rem !important;
+  color: #6b7280 !important;
+  font-weight: 600 !important;
+  text-transform: lowercase !important;
+  line-height: 1.2 !important;
+}
+
+body .kpi-grid .card .muted::first-letter,
+.kpi-grid .card .muted::first-letter {
+  text-transform: uppercase !important;
+}
+
+/* KPI numeric style adjustments */
+body .kpi-grid .card .kpi,
+.kpi-grid .card .kpi,
+body .kpi-grid .kpi,
+.kpi-grid .kpi {
+  font-size: 1.5rem !important;
   font-weight: 700 !important;
-  overflow: visible;
-  white-space: nowrap;
-  text-overflow: clip;
+  color: #111827 !important;
+  line-height: 1.1 !important;
+  letter-spacing: normal !important;
 }
 
-.kpi {
-  font-size: clamp(11px, 1.1vw, 14px);
-  font-weight: 700;
-  color: #111827;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+/* Remove dot before KPI numbers */
+body .kpi::before,
+.kpi::before,
+body .kpi-grid .kpi::before,
+.kpi-grid .kpi::before {
+  display: none !important;
+  content: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  margin: 0 !important;
+  background: none !important;
 }
 
-.kpi-grid .card .kpi {
-  font-size: clamp(11px, 1.0vw, 14px) !important;
-  line-height: 1;
-}
-
-/* KPI Delta Styling */
+/* KPI Delta Styling with proper colors */
 .kpi-delta {
-  font-size: 0.9rem;
-  color: #374151;
-  display: inline-flex;
-  gap: 0.4rem;
+  font-size: 0.85rem;
+  display: flex;
+  gap: 0.35rem;
   align-items: center;
+  line-height: 1.3;
 }
 
 .kpi-delta .arrow {
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
+/* Positive changes (green) - for Inflow increases and Outflow decreases */
 .kpi-delta.positive {
-  color: #16a34a;
+  color: #16a34a !important;
 }
 
+.kpi-delta.positive * {
+  color: #16a34a !important;
+}
+
+/* Negative changes (red) - for Outflow increases and Inflow decreases */
 .kpi-delta.negative {
-  color: #ef4444;
+  color: #ef4444 !important;
+}
+
+.kpi-delta.negative * {
+  color: #ef4444 !important;
 }
 
 /* Top Category Styling */
@@ -258,9 +326,9 @@
 
 .pie-header select {
   width: auto;
-  min-width: 110px;
-  max-width: 130px;
-  padding: 0.4rem 0.5rem;
+  min-width: 90px;
+  max-width: 120px;
+  padding: 0.35rem 0.5rem;
   font-size: 0.875rem;
   text-align: center;
   text-align-last: center;
@@ -268,7 +336,7 @@
 
 .pie-chart-container {
   max-width: 100%;
-  max-height: 200px;
+  max-height: 180px;
   margin: 0 auto;
   position: relative;
   display: flex;
@@ -277,8 +345,8 @@
 }
 
 .pie-chart-container canvas {
-  max-width: 280px !important;
-  max-height: 200px !important;
+  max-width: 220px !important;
+  max-height: 180px !important;
 }
 
 /* Utilities */
@@ -295,21 +363,35 @@
 }
 
 /* Responsive Design */
-@media (max-width: 1600px) {
+/* Large screens - keep all 5 cards on one line */
+@media (min-width: 1400px) {
+  body .kpi-grid,
   .kpi-grid {
-    grid-template-columns: repeat(4, minmax(130px, 1fr));
+    grid-template-columns: 160px 160px 160px 1fr 1fr !important;
   }
 }
 
-@media (max-width: 1200px) {
+/* Medium-large screens - slightly smaller cards but still 5 columns */
+@media (max-width: 1399px) and (min-width: 1200px) {
+  body .kpi-grid,
   .kpi-grid {
-    grid-template-columns: repeat(3, minmax(120px, 1fr));
+    grid-template-columns: 150px 150px 150px 1fr 1fr !important;
   }
 }
 
-@media (max-width: 900px) {
+/* Medium screens - reduce to 4 columns */
+@media (max-width: 1199px) and (min-width: 900px) {
+  body .kpi-grid,
   .kpi-grid {
-    grid-template-columns: repeat(2, minmax(140px, 1fr));
+    grid-template-columns: repeat(4, minmax(140px, 1fr)) !important;
+  }
+}
+
+/* Small-medium screens - 3 columns */
+@media (max-width: 899px) and (min-width: 700px) {
+  body .kpi-grid,
+  .kpi-grid {
+    grid-template-columns: repeat(3, minmax(140px, 1fr)) !important;
   }
 
   .charts {
@@ -321,25 +403,50 @@
   }
 }
 
-@media (max-width: 800px) {
+/* Small screens - 2 columns */
+@media (max-width: 699px) and (min-width: 500px) {
+  body .kpi-grid,
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr)) !important;
+  }
+
   .dashboard-toolbar {
-    grid-template-columns: 1fr;
+    flex-direction: column !important;
+    align-items: stretch !important;
   }
 
   .dashboard-filters {
-    grid-template-columns: 1fr 1fr;
-    grid-auto-rows: auto;
+    flex-wrap: wrap !important;
   }
 
+  .dashboard-filters .search-field,
   .dashboard-filters .date-field,
   .dashboard-filters .category-field {
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 45%;
   }
 }
 
-@media (max-width: 600px) {
+/* Extra small screens - single column */
+@media (max-width: 499px) {
+  body .kpi-grid,
   .kpi-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+  }
+
+  .dashboard-toolbar {
+    flex-direction: column !important;
+  }
+
+  .dashboard-filters {
+    flex-direction: column !important;
+  }
+
+  .dashboard-filters .search-field,
+  .dashboard-filters .date-field,
+  .dashboard-filters .category-field,
+  .dashboard-filters .toolbar-actions {
+    width: 100%;
   }
 }
 
