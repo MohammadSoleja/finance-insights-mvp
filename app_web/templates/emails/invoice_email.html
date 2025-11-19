@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice {{ invoice.invoice_number }}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background-color: #f9fafb;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 40px 20px;">
+                <!-- Main Container -->
+                <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border-radius: 12px 12px 0 0;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">INVOICE</h1>
+                            <p style="margin: 10px 0 0; color: #dbeafe; font-size: 16px;">#{{ invoice.invoice_number }}</p>
+                        </td>
+                    </tr>
+
+                    <!-- Greeting -->
+                    <tr>
+                        <td style="padding: 30px 40px 20px;">
+                            <p style="margin: 0; font-size: 16px; color: #111827; line-height: 1.6;">
+                                Dear {{ invoice.client.name }},
+                            </p>
+                            <p style="margin: 15px 0 0; font-size: 16px; color: #6b7280; line-height: 1.6;">
+                                {% if custom_message %}
+                                    {{ custom_message }}
+                                {% else %}
+                                    Thank you for your business! Please find your invoice attached to this email.
+                                {% endif %}
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Invoice Summary -->
+                    <tr>
+                        <td style="padding: 20px 40px;">
+                            <table role="presentation" style="width: 100%; background-color: #f9fafb; border-radius: 8px; padding: 20px;">
+                                <tr>
+                                    <td style="padding: 8px 0;">
+                                        <span style="color: #6b7280; font-size: 14px;">Invoice Date:</span>
+                                        <strong style="float: right; color: #111827; font-size: 14px;">{{ invoice.invoice_date|date:"F d, Y" }}</strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 0;">
+                                        <span style="color: #6b7280; font-size: 14px;">Due Date:</span>
+                                        <strong style="float: right; color: #111827; font-size: 14px;">{{ invoice.due_date|date:"F d, Y" }}</strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 0;">
+                                        <span style="color: #6b7280; font-size: 14px;">Payment Terms:</span>
+                                        <strong style="float: right; color: #111827; font-size: 14px;">{{ invoice.client.payment_terms }}</strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 12px 0 8px; border-top: 2px solid #e5e7eb;">
+                                        <span style="color: #111827; font-size: 16px; font-weight: 600;">Amount Due:</span>
+                                        <strong style="float: right; color: #2563eb; font-size: 20px;">{{ invoice.currency }} {{ invoice.total|floatformat:2 }}</strong>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Items Summary -->
+                    {% if invoice.items.all %}
+                    <tr>
+                        <td style="padding: 20px 40px;">
+                            <h3 style="margin: 0 0 15px; color: #111827; font-size: 16px; font-weight: 600;">Invoice Items:</h3>
+                            <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                {% for item in invoice.items.all %}
+                                <tr>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #f3f4f6;">
+                                        <span style="color: #374151; font-size: 14px;">{{ item.description }}</span>
+                                        {% if item.quantity > 1 %}
+                                            <span style="color: #9ca3af; font-size: 12px;"> ({{ item.quantity }} × {{ invoice.currency }}{{ item.unit_price|floatformat:2 }})</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="padding: 8px 0; text-align: right; border-bottom: 1px solid #f3f4f6;">
+                                        <strong style="color: #111827; font-size: 14px;">{{ invoice.currency }} {{ item.amount|floatformat:2 }}</strong>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </table>
+                        </td>
+                    </tr>
+                    {% endif %}
+
+                    <!-- Payment Instructions -->
+                    {% if invoice.terms %}
+                    <tr>
+                        <td style="padding: 20px 40px;">
+                            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
+                                <h4 style="margin: 0 0 8px; color: #92400e; font-size: 14px; font-weight: 600;">Payment Terms:</h4>
+                                <p style="margin: 0; color: #78350f; font-size: 13px; line-height: 1.5;">{{ invoice.terms }}</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+
+                    <!-- Call to Action -->
+                    <tr>
+                        <td style="padding: 30px 40px; text-align: center;">
+                            <p style="margin: 0 0 20px; color: #6b7280; font-size: 14px;">
+                                The complete invoice is attached as a PDF document.
+                            </p>
+                            {% if view_online_url %}
+                            <a href="{{ view_online_url }}" style="display: inline-block; padding: 12px 30px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">View Invoice Online</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 30px 40px; background-color: #f9fafb; border-radius: 0 0 12px 12px;">
+                            <p style="margin: 0; color: #6b7280; font-size: 13px; text-align: center; line-height: 1.6;">
+                                If you have any questions about this invoice, please contact us at<br>
+                                <strong style="color: #374151;">{{ from_email }}</strong>
+                            </p>
+                            <p style="margin: 15px 0 0; color: #9ca3af; font-size: 12px; text-align: center;">
+                                © {{ current_year }} Finance Insights. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+

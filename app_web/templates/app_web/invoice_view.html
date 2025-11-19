@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Invoice {{ invoice.invoice_number }} - Finance Insights{% endblock %}
+
+{% block head_extra %}
+<style>
+  .pdf-viewer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+  }
+
+  .pdf-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 1rem 1.5rem;
+    background: white;
+    border: 1px solid rgba(16, 24, 40, 0.06);
+    border-radius: 12px;
+    box-shadow: 0 6px 22px rgba(16, 24, 40, 0.06);
+  }
+
+  .pdf-actions h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #111827;
+  }
+
+  .pdf-actions-buttons {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .btn {
+    padding: 0.625rem 1.25rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .btn-primary {
+    background: #2563eb;
+    color: white !important;
+  }
+
+  .btn-primary:hover {
+    background: #1d4ed8;
+    color: white !important;
+  }
+
+  .btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+  }
+
+  .btn-secondary:hover {
+    background: #e5e7eb;
+  }
+
+  .invoice-preview {
+    background: white;
+    border: 1px solid rgba(16, 24, 40, 0.06);
+    border-radius: 12px;
+    box-shadow: 0 6px 22px rgba(16, 24, 40, 0.06);
+    padding: 3rem;
+  }
+
+  /* Print styles */
+  @media print {
+    .pdf-actions {
+      display: none;
+    }
+
+    .invoice-preview {
+      box-shadow: none;
+      border: none;
+      padding: 0;
+    }
+
+    body {
+      background: white;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pdf-viewer-container">
+  <div class="pdf-actions">
+    <h1>Invoice {{ invoice.invoice_number }}</h1>
+    <div class="pdf-actions-buttons">
+      <a href="/invoices/" class="btn btn-secondary">← Back to Invoices</a>
+      <button onclick="window.print()" class="btn btn-secondary">Print</button>
+      <a href="/invoices/{{ invoice.id }}/download/" class="btn btn-primary">Download PDF</a>
+    </div>
+  </div>
+
+  <div class="invoice-preview">
+    {% include "app_web/invoice_pdf.html" %}
+  </div>
+</div>
+{% endblock %}
+

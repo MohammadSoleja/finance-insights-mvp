@@ -2,7 +2,8 @@
 from django.contrib import admin
 from .models import (
     Transaction, Rule, Budget, Label, RecurringTransaction,
-    Project, ProjectTransaction, ProjectMilestone, ProjectBudgetCategory, ProjectActivity
+    Project, ProjectTransaction, ProjectMilestone, ProjectBudgetCategory, ProjectActivity,
+    Client, Invoice, InvoiceItem, InvoicePayment, InvoiceTemplate, InvoiceTemplateItem
 )
 
 @admin.register(Label)
@@ -83,5 +84,80 @@ class ProjectActivityAdmin(admin.ModelAdmin):
     search_fields = ("description", "project__name")
     ordering = ("-created_at",)
     readonly_fields = ("created_at",)
+
+
+# ==================== INVOICING & BILLING ADMIN ====================
+
+@admin.register(Client)
+class ClientAdmin(admin.ModelAdmin):
+    list_display = ("name", "email", "company", "currency", "active", "user", "created_at")
+    list_filter = ("active", "currency", "user")
+    search_fields = ("name", "email", "company", "user__username")
+    ordering = ("user", "name")
+
+
+class InvoiceItemInline(admin.TabularInline):
+    model = InvoiceItem
+    extra = 1
+    fields = ("description", "quantity", "unit_price", "amount", "order")
+    readonly_fields = ("amount",)
+
+
+class InvoicePaymentInline(admin.TabularInline):
+    model = InvoicePayment
+    extra = 0
+    fields = ("amount", "payment_date", "payment_method", "reference", "notes")
+
+
+@admin.register(Invoice)
+class InvoiceAdmin(admin.ModelAdmin):
+    list_display = ("invoice_number", "client", "invoice_date", "due_date", "status", "total", "paid_amount", "balance_due", "user")
+    list_filter = ("status", "invoice_date", "user", "currency")
+    search_fields = ("invoice_number", "client__name", "client__email", "user__username")
+    ordering = ("-invoice_date", "-id")
+    inlines = [InvoiceItemInline, InvoicePaymentInline]
+    readonly_fields = ("invoice_number", "subtotal", "tax_amount", "total", "paid_amount", "created_at", "updated_at")
+
+    def balance_due(self, obj):
+        return obj.balance_due
+    balance_due.short_description = "Balance Due"
+
+
+@admin.register(InvoiceItem)
+class InvoiceItemAdmin(admin.ModelAdmin):
+    list_display = ("invoice", "description", "quantity", "unit_price", "amount", "order")
+    list_filter = ("invoice__status",)
+    search_fields = ("description", "invoice__invoice_number")
+    ordering = ("invoice", "order")
+
+
+@admin.register(InvoicePayment)
+class InvoicePaymentAdmin(admin.ModelAdmin):
+    list_display = ("invoice", "amount", "payment_date", "payment_method", "reference")
+    list_filter = ("payment_method", "payment_date")
+    search_fields = ("invoice__invoice_number", "reference", "notes")
+    ordering = ("-payment_date",)
+
+
+class InvoiceTemplateItemInline(admin.TabularInline):
+    model = InvoiceTemplateItem
+    extra = 1
+    fields = ("description", "quantity", "unit_price", "order")
+
+
+@admin.register(InvoiceTemplate)
+class InvoiceTemplateAdmin(admin.ModelAdmin):
+    list_display = ("name", "default_tax_rate", "default_payment_terms", "user", "created_at")
+    list_filter = ("user",)
+    search_fields = ("name", "description", "user__username")
+    ordering = ("user", "name")
+    inlines = [InvoiceTemplateItemInline]
+
+
+@admin.register(InvoiceTemplateItem)
+class InvoiceTemplateItemAdmin(admin.ModelAdmin):
+    list_display = ("template", "description", "quantity", "unit_price", "order")
+    search_fields = ("description", "template__name")
+    ordering = ("template", "order")
 
 

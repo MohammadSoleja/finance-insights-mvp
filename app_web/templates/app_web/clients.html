@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Clients - Finance Insights{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{% static 'app_web/clients.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="clients-page">
+  <div class="page-header">
+    <h1>Clients</h1>
+    <button class="btn btn-primary" onclick="openCreateClientModal()">
+      <span>+</span> Add Client
+    </button>
+  </div>
+
+  <!-- Clients Grid -->
+  <div class="clients-grid">
+    {% for client in clients %}
+    <div class="client-card" data-client-id="{{ client.id }}">
+      <div class="client-header">
+        <h3>{{ client.name }}</h3>
+        {% if not client.active %}
+          <span class="status-badge status-inactive">Inactive</span>
+        {% endif %}
+      </div>
+
+      {% if client.company %}
+        <div class="client-company">{{ client.company }}</div>
+      {% endif %}
+
+      <div class="client-info">
+        <div class="info-item">
+          <span class="info-label">Email:</span>
+          <span>{{ client.email }}</span>
+        </div>
+        {% if client.phone %}
+          <div class="info-item">
+            <span class="info-label">Phone:</span>
+            <span>{{ client.phone }}</span>
+          </div>
+        {% endif %}
+        {% if client.payment_terms %}
+          <div class="info-item">
+            <span class="info-label">Payment Terms:</span>
+            <span>{{ client.payment_terms }}</span>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="client-stats">
+        <div class="stat-item">
+          <div class="stat-label">Total Invoiced</div>
+          <div class="stat-value">{{ client.currency }} {{ client.stats.total_invoiced|floatformat:2 }}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Outstanding</div>
+          <div class="stat-value text-warning">{{ client.currency }} {{ client.stats.outstanding|floatformat:2 }}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Invoices</div>
+          <div class="stat-value">{{ client.stats.invoice_count }}</div>
+        </div>
+      </div>
+
+      <div class="client-actions">
+        <button class="btn btn-sm btn-secondary" onclick="editClient({{ client.id }})">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteClient({{ client.id }})">Delete</button>
+      </div>
+    </div>
+    {% empty %}
+    <div class="empty-state">
+      <p>No clients yet. Add your first client to get started!</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Create/Edit Client Modal -->
+<div id="client-modal" class="modal-backdrop" style="display: none;">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Add Client</h2>
+      <button class="modal-close" onclick="closeClientModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="client-form">
+        <div class="form-group">
+          <label for="client-name">Name *</label>
+          <input type="text" id="client-name" required>
+        </div>
+
+        <div class="form-group">
+          <label for="client-email">Email *</label>
+          <input type="email" id="client-email" required>
+        </div>
+
+        <div class="form-group">
+          <label for="client-company">Company</label>
+          <input type="text" id="client-company">
+        </div>
+
+        <div class="form-group">
+          <label for="client-phone">Phone</label>
+          <input type="tel" id="client-phone">
+        </div>
+
+        <div class="form-group">
+          <label for="client-address">Address</label>
+          <textarea id="client-address" rows="3"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="client-tax-id">Tax ID</label>
+            <input type="text" id="client-tax-id">
+          </div>
+          <div class="form-group">
+            <label for="client-payment-terms">Payment Terms</label>
+            <input type="text" id="client-payment-terms" value="Net 30">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="client-currency">Currency</label>
+          <select id="client-currency">
+            <option value="GBP">GBP (£)</option>
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="JPY">JPY (¥)</option>
+            <option value="AUD">AUD (A$)</option>
+            <option value="CAD">CAD (C$)</option>
+            <option value="CHF">CHF</option>
+            <option value="INR">INR (₹)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="client-notes">Notes</label>
+          <textarea id="client-notes" rows="3"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="client-active" checked>
+            Active
+          </label>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeClientModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveClient()">Save Client</button>
+    </div>
+  </div>
+</div>
+
+<script src="{% static 'app_web/clients.js' %}"></script>
+{% endblock %}
+
