@@ -14,13 +14,13 @@
 <!-- Controls (plain, no background) -->
 <div id="pnl-controls" style="display:flex; gap:.5rem; align-items:center; margin-bottom:.75rem; justify-content:flex-end;">
   <form id="pnl-filter-form" method="get" style="display:inline-flex; gap:.5rem; align-items:center;">
-    <input type="text" id="pnl-start" name="start" placeholder="Start date" value="{{ start_date|default_if_none:'' }}" class="form-input">
-    <input type="text" id="pnl-end" name="end" placeholder="End date" value="{{ end_date|default_if_none:'' }}" class="form-input">
+    <input type="text" id="pnl-start" name="start" placeholder="Start date" value="{{ start_date|date:'Y-m-d' }}" class="form-input">
+    <input type="text" id="pnl-end" name="end" placeholder="End date" value="{{ end_date|date:'Y-m-d' }}" class="form-input">
     <button class="btn btn-secondary" type="submit">Apply</button>
   </form>
 
   {% url 'app_web:report_pnl_download' as base %}
-  <a class="btn btn-primary" id="pnl-download" href="{% if start_date and end_date %}{{ base }}?start={{ start_date }}&end={{ end_date }}{% else %}{{ base }}{% endif %}">Download PDF</a>
+  <a class="btn btn-primary" id="pnl-download" href="{% if start_date and end_date %}{{ base }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ base }}{% endif %}">Download PDF</a>
   <button class="btn btn-secondary" id="printBtn">Print</button>
 </div>
 

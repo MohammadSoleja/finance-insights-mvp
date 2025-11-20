@@ -10,6 +10,12 @@ from .views import invoice_pdf_view, invoice_pdf_download
 from .views import invoice_templates_view, template_create_view, template_edit_view, template_delete_view, template_use_view, template_detail_view
 from .views import client_create_view, client_edit_view, client_delete_view
 from .views import reports_view, report_pnl_view, report_pnl_download
+from .views import report_cashflow_view, report_cashflow_download
+from .views import report_expenses_view, report_expenses_download
+from .views import report_income_view, report_income_download
+from .views import report_tax_view, report_tax_download
+from .views import report_budget_performance_view, report_budget_performance_download
+from .views import report_project_performance_view, report_project_performance_download
 from .forms import LoginForm
 from django.contrib.auth import views as auth_views
 
@@ -65,6 +71,18 @@ urlpatterns = [
     path("reports/", reports_view, name="reports"),
     path("reports/pnl/", report_pnl_view, name="report_pnl"),
     path("reports/pnl/download/", report_pnl_download, name="report_pnl_download"),
+    path("reports/cashflow/", report_cashflow_view, name="report_cashflow"),
+    path("reports/cashflow/download/", report_cashflow_download, name="report_cashflow_download"),
+    path("reports/expenses/", report_expenses_view, name="report_expenses"),
+    path("reports/expenses/download/", report_expenses_download, name="report_expenses_download"),
+    path("reports/income/", report_income_view, name="report_income"),
+    path("reports/income/download/", report_income_download, name="report_income_download"),
+    path("reports/tax/", report_tax_view, name="report_tax"),
+    path("reports/tax/download/", report_tax_download, name="report_tax_download"),
+    path("reports/budget-performance/", report_budget_performance_view, name="report_budget_performance"),
+    path("reports/budget-performance/download/", report_budget_performance_download, name="report_budget_performance_download"),
+    path("reports/project-performance/", report_project_performance_view, name="report_project_performance"),
+    path("reports/project-performance/download/", report_project_performance_download, name="report_project_performance_download"),
 
     path("health/", health_view, name="health"),
     path("", home_view, name="home"),

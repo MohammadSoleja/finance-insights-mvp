@@ -367,7 +367,7 @@ body .kpi-grid .kpi::before,
 @media (min-width: 1400px) {
   body .kpi-grid,
   .kpi-grid {
-    grid-template-columns: 160px 160px 160px 1fr 1fr !important;
+    grid-template-columns: 200px 200px 200px 1fr 1fr !important;
   }
 }
 
