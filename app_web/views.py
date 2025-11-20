@@ -911,7 +911,7 @@ def transaction_edit_view(request, tx_id):
                         'amount': str(tx.amount),
                         'direction': tx.direction,
                         'label': tx.label.name if tx.label else '',
-                        'category': tx.category,  # backward compatibility
+                        'category': tx.category,
                         'subcategory': tx.subcategory,
                     }
                 })
@@ -2691,5 +2691,1740 @@ def template_detail_view(request, template_id):
         return JsonResponse({'error': 'Template not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
+
+
+# ==================== REPORTS VIEWS ====================
+
+@login_required
+def reports_view(request):
+    """Reports overview page"""
+    from django.shortcuts import render
+
+    # Minimal overview page that lists available reports and quick links
+    reports = [
+        {'key': 'pnl', 'name': 'Profit & Loss (P&L)', 'url': '/reports/pnl/'},
+        {'key': 'cashflow', 'name': 'Cash Flow Statement', 'url': '/reports/cashflow/'},
+        {'key': 'expenses', 'name': 'Expense Report by Category', 'url': '/reports/expenses/'},
+        {'key': 'income', 'name': 'Income Report by Source', 'url': '/reports/income/'},
+        {'key': 'tax', 'name': 'Tax Summary Report', 'url': '/reports/tax/'},
+        {'key': 'budget_perf', 'name': 'Budget Performance Report', 'url': '/reports/budget-performance/'},
+        {'key': 'project_perf', 'name': 'Project Performance Report', 'url': '/reports/project-performance/'},
+    ]
+
+    context = {
+        'reports': reports,
+        'title': 'Reports & Analytics'
+    }
+
+    return render(request, 'app_web/reports.html', context)
+
+
+@login_required
+def report_pnl_view(request):
+    """Profit & Loss (P&L) report - aggregates transactions by labels and direction"""
+    from django.shortcuts import render
+    from app_core.models import Transaction, Label
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+
+    # Parse date range filters
+    start = request.GET.get('start')
+    end = request.GET.get('end')
+
+    try:
+        start_date = datetime.fromisoformat(start).date() if start else None
+    except Exception:
+        start_date = None
+
+    try:
+        end_date = datetime.fromisoformat(end).date() if end else None
+    except Exception:
+        end_date = None
+
+    today = date.today()
+    # Normalize single-side inputs: if only one provided, treat as single-day range
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+
+    # Default range: last 12 months (month-aligned) if nothing provided
+    if not start_date and not end_date:
+        # last 12 months: start = first day of month 11 months ago; end = today
+        m = today.month
+        y = today.year
+        m_back = m - 11
+        y_back = y
+        if m_back <= 0:
+            m_back += 12
+            y_back -= 1
+        start_date = date(y_back, m_back, 1)
+        end_date = today
+
+    # Compute previous same-length window (month/year-aware)
+    import calendar as _cal
+    try:
+        period_len = (end_date - start_date).days + 1
+    except Exception:
+        period_len = 1
+    last_day_of_month = _cal.monthrange(start_date.year, start_date.month)[1]
+    is_full_year = (start_date.month == 1 and start_date.day == 1 and end_date.month == 12 and end_date.day == 31 and start_date.year == end_date.year)
+    is_full_month = (start_date.day == 1 and end_date.day == last_day_of_month and start_date.month == end_date.month and start_date.year == end_date.year)
+
+    if is_full_year:
+        prev_start = date(start_date.year - 1, 1, 1)
+        prev_end = date(start_date.year - 1, 12, 31)
+    elif is_full_month:
+        prev_month = start_date.month - 1
+        prev_year = start_date.year
+        if prev_month == 0:
+            prev_month = 12
+            prev_year -= 1
+        prev_start = date(prev_year, prev_month, 1)
+        prev_end = date(prev_year, prev_month, _cal.monthrange(prev_year, prev_month)[1])
+    else:
+        prev_end = start_date - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=period_len - 1)
+
+    # Human-friendly labels for the two columns
+    def _friendly(d):
+        try:
+            return d.strftime('%b %d, %Y')
+        except Exception:
+            return ''
+
+    # Compact label helper: if range is whole year -> '2025', if whole month -> 'Dec 25', else full range
+    def _compact_label(start_d, end_d):
+        try:
+            # whole single year
+            if start_d.month == 1 and start_d.day == 1 and end_d.month == 12 and end_d.day == 31 and start_d.year == end_d.year:
+                return f"{start_d.year}"
+            # whole single month
+            import calendar as _cal
+            last = _cal.monthrange(start_d.year, start_d.month)[1]
+            if start_d.day == 1 and end_d.day == last and start_d.month == end_d.month and start_d.year == end_d.year:
+                return start_d.strftime('%b %y')
+        except Exception:
+            pass
+        return f"{_friendly(start_d)} – {_friendly(end_d)}"
+
+    curr_label = _compact_label(start_date, end_date)
+    prev_label = _compact_label(prev_start, prev_end)
+
+    # Querysets for current and previous windows
+    qs_cur = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date)
+    qs_prev = Transaction.objects.filter(user=request.user, date__gte=prev_start, date__lte=prev_end)
+
+    # Totals (inflow/outflow) for each window
+    income_total = qs_cur.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    expense_total = qs_cur.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+
+    income_total_prev = qs_prev.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    expense_total_prev = qs_prev.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+
+    # Build revenue and expense rows separately (use inflows for revenue, outflows for expenses)
+    labels = Label.objects.filter(user=request.user).order_by('name')
+    revenue_rows = []
+    expense_rows = []
+
+    def _pct_change(cur, prev):
+        try:
+            if prev == 0:
+                return None
+            return (float(cur) - float(prev)) / abs(float(prev)) * 100.0
+        except Exception:
+            return None
+
+    for lbl in labels:
+        cur_in = qs_cur.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+        prev_in = qs_prev.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
+        if cur_in or prev_in:
+            change_amt = (cur_in or 0) - (prev_in or 0)
+            change_pct = _pct_change(cur_in or 0, prev_in or 0)
+            revenue_rows.append({
+                'label': lbl.name,
+                'cur': cur_in,
+                'prev': prev_in,
+                'change': change_amt,
+                'pct': change_pct,
+            })
+
+        cur_out = qs_cur.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+        prev_out = qs_prev.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+        if cur_out or prev_out:
+            change_amt = (cur_out or 0) - (prev_out or 0)
+            change_pct = _pct_change(cur_out or 0, prev_out or 0)
+            expense_rows.append({
+                'label': lbl.name,
+                'cur': cur_out,
+                'prev': prev_out,
+                'change': change_amt,
+                'pct': change_pct,
+            })
+
+    # Uncategorized as revenue/expense if present
+    unc_cur_in = qs_cur.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    unc_prev_in = qs_prev.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    if unc_cur_in or unc_prev_in:
+        revenue_rows.append({
+            'label': 'Uncategorized', 'cur': unc_cur_in, 'prev': unc_prev_in, 'change': (unc_cur_in or 0) - (unc_prev_in or 0), 'pct': _pct_change(unc_cur_in or 0, unc_prev_in or 0)
+        })
+    unc_cur_out = qs_cur.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    unc_prev_out = qs_prev.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    if unc_cur_out or unc_prev_out:
+        expense_rows.append({
+            'label': 'Uncategorized', 'cur': unc_cur_out, 'prev': unc_prev_out, 'change': (unc_cur_out or 0) - (unc_prev_out or 0), 'pct': _pct_change(unc_cur_out or 0, unc_prev_out or 0)
+        })
+
+    # Totals and net change
+    total_revenue_cur = sum(r['cur'] for r in revenue_rows)
+    total_revenue_prev = sum(r['prev'] for r in revenue_rows)
+    total_expense_cur = sum(e['cur'] for e in expense_rows)
+    total_expense_prev = sum(e['prev'] for e in expense_rows)
+
+    income_before_tax = (total_revenue_cur or 0) - (total_expense_cur or 0)
+    income_before_tax_prev = (total_revenue_prev or 0) - (total_expense_prev or 0)
+    net_change = (income_before_tax or 0) - (income_before_tax_prev or 0)
+
+    # For now, tax amount placeholder = 0 (we can wire tax rules later)
+    tax_amount = 0.0
+
+    # Net profit values (compute here so template doesn't do arithmetic)
+    net_profit = (income_before_tax or 0) - (tax_amount or 0)
+    net_profit_prev = (income_before_tax_prev or 0) - 0
+
+    # totals change and percent
+    total_revenue_change = (total_revenue_cur or 0) - (total_revenue_prev or 0)
+    total_revenue_pct = _pct_change(total_revenue_cur or 0, total_revenue_prev or 0)
+    total_expense_change = (total_expense_cur or 0) - (total_expense_prev or 0)
+    total_expense_pct = _pct_change(total_expense_cur or 0, total_expense_prev or 0)
+
+    context = {
+        'title': 'Profit & Loss (P&L)',
+        'revenue_rows': revenue_rows,
+        'expense_rows': expense_rows,
+        'total_revenue_cur': total_revenue_cur,
+        'total_revenue_prev': total_revenue_prev,
+        'total_revenue_change': total_revenue_change,
+        'total_revenue_pct': total_revenue_pct,
+        'total_expense_cur': total_expense_cur,
+        'total_expense_prev': total_expense_prev,
+        'total_expense_change': total_expense_change,
+        'total_expense_pct': total_expense_pct,
+        'income_before_tax': income_before_tax,
+        'income_before_tax_prev': income_before_tax_prev,
+        'net_profit': net_profit,
+        'net_profit_prev': net_profit_prev,
+        'tax_amount': tax_amount,
+        'net_change': net_change,
+        'start_date': start_date,
+        'end_date': end_date,
+        'curr_label': curr_label,
+        'prev_label': prev_label,
+    }
+
+    return render(request, 'app_web/report_pnl.html', context)
+
+
+@login_required
+def report_pnl_download(request):
+    """Generate a downloadable P&L PDF for the given date range (A4) matching the on-screen layout."""
+    from app_core.models import Transaction, Label
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_LEFT, TA_RIGHT
+
+    # Parse dates robustly (accept ISO and common human formats like 'Jan 1, 2025' or 'Jan. 1, 2025')
+    def _parse_date(s):
+        if not s:
+            return None
+        # Already a date object
+        if isinstance(s, datetime):
+            return s.date()
+        if isinstance(s, date):
+            return s
+        s = str(s).strip()
+        # Try ISO first
+        try:
+            return datetime.fromisoformat(s).date()
+        except Exception:
+            pass
+        # Try common formats
+        common = ['%b %d, %Y', '%b. %d, %Y', '%B %d, %Y', '%d %b %Y', '%Y-%m-%d']
+        for fmt in common:
+            try:
+                return datetime.strptime(s, fmt).date()
+            except Exception:
+                continue
+        # As a last resort, try parsing numbers (e.g. '1 Jan 2025')
+        try:
+            return datetime.strptime(s, '%d %B %Y').date()
+        except Exception:
+            return None
+
+    start = request.GET.get('start')
+    end = request.GET.get('end')
+    start_date = _parse_date(start)
+    end_date = _parse_date(end)
+
+    # today's date used for header and default ranges
+    today = date.today()
+
+    # Normalize single-side inputs: if only one side provided, treat as single-day range
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+
+    # Default range: last 12 months (month-aligned) if nothing provided
+    if not start_date and not end_date:
+        m = today.month
+        y = today.year
+        m_back = m - 11
+        y_back = y
+        if m_back <= 0:
+            m_back += 12
+            y_back -= 1
+        start_date = date(y_back, m_back, 1)
+        end_date = today
+
+    # Compute previous same-length window (month/year-aware)
+    import calendar as _cal
+    try:
+        period_len = (end_date - start_date).days + 1
+    except Exception:
+        period_len = 1
+    last_day_of_month = _cal.monthrange(start_date.year, start_date.month)[1]
+    is_full_year = (start_date.month == 1 and start_date.day == 1 and end_date.month == 12 and end_date.day == 31 and start_date.year == end_date.year)
+    is_full_month = (start_date.day == 1 and end_date.day == last_day_of_month and start_date.month == end_date.month and start_date.year == end_date.year)
+
+    if is_full_year:
+        prev_start = date(start_date.year - 1, 1, 1)
+        prev_end = date(start_date.year - 1, 12, 31)
+    elif is_full_month:
+        prev_month = start_date.month - 1
+        prev_year = start_date.year
+        if prev_month == 0:
+            prev_month = 12
+            prev_year -= 1
+        prev_start = date(prev_year, prev_month, 1)
+        prev_end = date(prev_year, prev_month, _cal.monthrange(prev_year, prev_month)[1])
+    else:
+        prev_end = start_date - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=period_len - 1)
+
+    # Query data
+    qs = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date)
+    qs_prev = Transaction.objects.filter(user=request.user, date__gte=prev_start, date__lte=prev_end)
+
+    labels = Label.objects.filter(user=request.user).order_by('name')
+
+    revenue_rows = []
+    expense_rows = []
+    def _pct_change(cur, prev):
+        try:
+            if prev == 0:
+                return None
+            return (float(cur) - float(prev)) / abs(float(prev)) * 100.0
+        except Exception:
+            return None
+
+    for lbl in labels:
+        cur_in = qs.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+        prev_in = qs_prev.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
+        if cur_in or prev_in:
+            change_amt = (cur_in or 0) - (prev_in or 0)
+            change_pct = _pct_change(cur_in or 0, prev_in or 0)
+            revenue_rows.append((lbl.name, float(cur_in), float(prev_in), float((cur_in or 0) - (prev_in or 0)), change_pct))
+
+        cur_out = qs.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+        prev_out = qs_prev.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+        if cur_out or prev_out:
+            change_amt = (cur_out or 0) - (prev_out or 0)
+            change_pct = _pct_change(cur_out or 0, prev_out or 0)
+            expense_rows.append((lbl.name, float(cur_out), float(prev_out), float((cur_out or 0) - (prev_out or 0)), change_pct))
+
+    # Uncategorized
+    unc_cur_in = qs.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    unc_prev_in = qs_prev.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    if unc_cur_in or unc_prev_in:
+        revenue_rows.append(('Uncategorized', float(unc_cur_in), float(unc_prev_in), float((unc_cur_in or 0) - (unc_prev_in or 0)), _pct_change(unc_cur_in or 0, unc_prev_in or 0)))
+    unc_cur_out = qs.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    unc_prev_out = qs_prev.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    if unc_cur_out or unc_prev_out:
+        expense_rows.append(('Uncategorized', float(unc_cur_out), float(unc_prev_out), float((unc_cur_out or 0) - (unc_prev_out or 0)), _pct_change(unc_cur_out or 0, unc_prev_out or 0)))
+
+    total_revenue_cur = sum(r[1] for r in revenue_rows)
+    total_revenue_prev = sum(r[2] for r in revenue_rows)
+    total_expense_cur = sum(e[1] for e in expense_rows)
+    total_expense_prev = sum(e[2] for e in expense_rows)
+
+    income_before_tax = (total_revenue_cur or 0) - (total_expense_cur or 0)
+    income_before_tax_prev = (total_revenue_prev or 0) - (total_expense_prev or 0)
+    net_change = (income_before_tax or 0) - (income_before_tax_prev or 0)
+    tax_amount = 0.0
+    net_profit = (income_before_tax or 0) - (tax_amount or 0)
+    net_profit_prev = (income_before_tax_prev or 0) - 0
+
+    # Build PDF with modern styling
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=0.75*inch,
+        rightMargin=0.75*inch,
+        topMargin=0.5*inch,
+        bottomMargin=0.5*inch
+    )
+    styles = getSampleStyleSheet()
+
+    # Modern style definitions
+    company_style = ParagraphStyle(
+        'CompanyHeader',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#6b7280'),
+        spaceAfter=4
+    )
+
+    title_style = ParagraphStyle(
+        'ReportTitle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        fontName='Helvetica-Bold',
+        textColor=colors.HexColor('#111827'),
+        spaceAfter=6,
+        spaceBefore=12
+    )
+
+    subtitle_style = ParagraphStyle(
+        'ReportSubtitle',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#6b7280'),
+        spaceAfter=4
+    )
+
+    date_style = ParagraphStyle(
+        'DateGenerated',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#9ca3af'),
+        spaceAfter=20
+    )
+
+    small = ParagraphStyle('small', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#6b7280'))
+
+    elements = []
+
+    # Company Information at top
+    company_name = 'Finance Insights'  # TODO: Replace with user's company settings when multi-tenant is implemented
+    elements.append(Paragraph(company_name, company_style))
+
+    # Report Title
+    elements.append(Paragraph('Profit & Loss Statement', title_style))
+
+    # Period info
+    period_label = f"{start_date.strftime('%b %d, %Y')} – {end_date.strftime('%b %d, %Y')}"
+    prev_label = f"{prev_start.strftime('%b %d, %Y')} – {prev_end.strftime('%b %d, %Y')}"
+    elements.append(Paragraph(f'Period: {period_label}', subtitle_style))
+    elements.append(Paragraph(f'Comparison: {prev_label}', subtitle_style))
+
+    elements.append(Spacer(1, 0.2*inch))
+
+
+    # Build table rows: header, revenue section, total revenue, spacer, expenses, total expenses, income/tax/net
+    table_data = []
+    table_data.append(['Category', 'Current', 'Prior', 'Change'])
+
+    # Revenue rows
+    if revenue_rows:
+        # Put a revenue title row
+        table_data.append(['Revenue', '', '', ''])
+        for r in revenue_rows:
+            table_data.append([r[0], f'£{r[1]:,.2f}', f'£{r[2]:,.2f}', f'£{r[3]:,.2f}'])
+
+    # Total revenue
+    table_data.append(['Total Revenue & Gains', f'£{total_revenue_cur:,.2f}', f'£{total_revenue_prev:,.2f}', f'£{(total_revenue_cur - total_revenue_prev):,.2f}'])
+    # spacer
+    table_data.append(['', '', '', ''])
+
+    # Expenses
+    if expense_rows:
+        table_data.append(['Expenses', '', '', ''])
+        for e in expense_rows:
+            table_data.append([e[0], f'£{e[1]:,.2f}', f'£{e[2]:,.2f}', f'£{e[3]:,.2f}'])
+
+    # Total expenses
+    table_data.append(['Total Expenses', f'£{total_expense_cur:,.2f}', f'£{total_expense_prev:,.2f}', f'£{(total_expense_cur - total_expense_prev):,.2f}'])
+
+    # Income before tax
+    table_data.append(['Income before tax', f'£{income_before_tax:,.2f}', f'£{income_before_tax_prev:,.2f}', f'£{net_change:,.2f}'])
+    # Income tax
+    table_data.append(['Income tax expense', f'£{tax_amount:,.2f}', '', ''])
+    # Net profit
+    table_data.append(['Net Profit (Loss)', f'£{net_profit:,.2f}', f'£{net_profit_prev:,.2f}', f'£{(net_profit - net_profit_prev):,.2f}'])
+
+    # Create Table
+    col_widths = [3.6 * inch, 1.2 * inch, 1.2 * inch, 1.2 * inch]
+    t = Table(table_data, colWidths=col_widths, repeatRows=1)
+
+    # Table styling: header, section titles, totals, tax, net
+    style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#111827')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e5e7eb')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+    ])
+
+    # Identify special row indices for styling
+    # header row = 0
+    row_idx = 1
+    # After header, we iterate table_data to find indices of rows that are section titles or totals
+    for i, row in enumerate(table_data[1:], start=1):
+        label = (row[0] or '').strip()
+        if label == 'Revenue':
+            style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#ecfdf5'))
+            style.add('TEXTCOLOR', (0, i), (-1, i), colors.HexColor('#064e3b'))
+            style.add('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold')
+        elif label == 'Expenses':
+            style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#fff1f2'))
+            style.add('TEXTCOLOR', (0, i), (-1, i), colors.HexColor('#7f1d1d'))
+            style.add('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold')
+        elif label.startswith('Total Revenue') or label.startswith('Total Expenses') or label == 'Income before tax' or label == 'Income tax expense':
+            style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#f3f4f6'))
+            style.add('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold')
+        elif label.startswith('Net Profit'):
+            style.add('BACKGROUND', (0, i), (-1, i), colors.HexColor('#fff8dc'))
+            style.add('FONTNAME', (0, i), (-1, i), 'Helvetica-Bold')
+            style.add('LINEABOVE', (0, i), (-1, i), 1, colors.HexColor('#d6d3a8'))
+
+    t.setStyle(style)
+    elements.append(t)
+
+    # Footer with generation info
+    elements.append(Spacer(1, 0.3*inch))
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#9ca3af'))
+    from datetime import datetime as dt
+    generated_str = dt.now().strftime('%B %d, %Y at %I:%M %p')
+    generated_by = request.user.get_full_name() or request.user.username
+    elements.append(Paragraph(f'Generated by: {generated_by} on {generated_str}', footer_style))
+
+    # Build and return PDF
+    doc.build(elements)
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="P&L_Report.pdf"'
+    return response
+
+
+# ===================== CASH FLOW REPORT =====================
+@login_required
+def report_cashflow_view(request):
+    """Cash Flow Statement - tracks inflows and outflows over time"""
+    from django.shortcuts import render
+    from app_core.models import Transaction
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+    from collections import defaultdict
+    import calendar as _cal
+
+    # Parse date range
+    start = request.GET.get('start')
+    end = request.GET.get('end')
+
+    try:
+        start_date = datetime.fromisoformat(start).date() if start else None
+    except Exception:
+        start_date = None
+
+    try:
+        end_date = datetime.fromisoformat(end).date() if end else None
+    except Exception:
+        end_date = None
+
+    today = date.today()
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+
+    # Default: last 12 months
+    if not start_date and not end_date:
+        m = today.month
+        y = today.year
+        m_back = m - 11
+        y_back = y
+        if m_back <= 0:
+            m_back += 12
+            y_back -= 1
+        start_date = date(y_back, m_back, 1)
+        end_date = today
+
+    # Get transactions in range
+    qs = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date).order_by('date')
+
+    # Group by month
+    monthly_data = defaultdict(lambda: {'inflow': 0, 'outflow': 0})
+
+    for tx in qs:
+        month_key = tx.date.strftime('%Y-%m')
+        if tx.direction == Transaction.INFLOW:
+            monthly_data[month_key]['inflow'] += tx.amount or 0
+        else:
+            monthly_data[month_key]['outflow'] += tx.amount or 0
+
+    # Build rows
+    rows = []
+    running_balance = 0
+    for month_key in sorted(monthly_data.keys()):
+        data = monthly_data[month_key]
+        net_flow = data['inflow'] - data['outflow']
+        running_balance += net_flow
+
+        # Format month label
+        year, month = month_key.split('-')
+        month_label = date(int(year), int(month), 1).strftime('%b %Y')
+
+        rows.append({
+            'month': month_label,
+            'inflow': data['inflow'],
+            'outflow': data['outflow'],
+            'net_flow': net_flow,
+            'balance': running_balance
+        })
+
+    # Summary
+    total_inflow = sum(r['inflow'] for r in rows)
+    total_outflow = sum(r['outflow'] for r in rows)
+    net_change = total_inflow - total_outflow
+
+    context = {
+        'title': 'Cash Flow Statement',
+        'rows': rows,
+        'total_inflow': total_inflow,
+        'total_outflow': total_outflow,
+        'net_change': net_change,
+        'start_date': start_date,
+        'end_date': end_date,
+    }
+
+    return render(request, 'app_web/report_cashflow.html', context)
+
+
+@login_required
+def report_cashflow_download(request):
+    """Generate Cash Flow PDF"""
+    from app_core.models import Transaction
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+    from collections import defaultdict
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_CENTER
+
+    # Parse dates
+    def _parse_date(s):
+        if not s:
+            return None
+        if isinstance(s, datetime):
+            return s.date()
+        if isinstance(s, date):
+            return s
+        try:
+            return datetime.fromisoformat(s).date()
+        except Exception:
+            pass
+        for fmt in ['%Y-%m-%d', '%b %d, %Y', '%b. %d, %Y', '%d/%m/%Y', '%m/%d/%Y']:
+            try:
+                return datetime.strptime(s.strip(), fmt).date()
+            except Exception:
+                pass
+        return None
+
+    start_date = _parse_date(request.GET.get('start'))
+    end_date = _parse_date(request.GET.get('end'))
+
+    today = date.today()
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+    if not start_date and not end_date:
+        m = today.month
+        y = today.year
+        m_back = m - 11
+        y_back = y
+        if m_back <= 0:
+            m_back += 12
+            y_back -= 1
+        start_date = date(y_back, m_back, 1)
+        end_date = today
+
+    # Get data
+    qs = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date).order_by('date')
+    monthly_data = defaultdict(lambda: {'inflow': 0, 'outflow': 0})
+
+    for tx in qs:
+        month_key = tx.date.strftime('%Y-%m')
+        if tx.direction == Transaction.INFLOW:
+            monthly_data[month_key]['inflow'] += tx.amount or 0
+        else:
+            monthly_data[month_key]['outflow'] += tx.amount or 0
+
+    rows = []
+    running_balance = 0
+    for month_key in sorted(monthly_data.keys()):
+        data = monthly_data[month_key]
+        net_flow = data['inflow'] - data['outflow']
+        running_balance += net_flow
+        year, month = month_key.split('-')
+        month_label = date(int(year), int(month), 1).strftime('%b %Y')
+        rows.append((month_label, data['inflow'], data['outflow'], net_flow, running_balance))
+
+    total_inflow = sum(r[1] for r in rows)
+    total_outflow = sum(r[2] for r in rows)
+    net_change = total_inflow - total_outflow
+
+    # Create PDF with modern styling
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=0.75*inch,
+        rightMargin=0.75*inch,
+        topMargin=0.5*inch,
+        bottomMargin=0.5*inch
+    )
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Modern style definitions
+    company_style = ParagraphStyle('CompanyHeader', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+    title_style = ParagraphStyle('ReportTitle', parent=styles['Heading1'], fontSize=20, fontName='Helvetica-Bold', textColor=colors.HexColor('#111827'), spaceAfter=6, spaceBefore=12)
+    subtitle_style = ParagraphStyle('ReportSubtitle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+
+    # Company Information at top
+    company_name = 'Finance Insights'  # TODO: Replace with user's company settings when multi-tenant is implemented
+    elements.append(Paragraph(company_name, company_style))
+
+    # Report Title
+    elements.append(Paragraph('Cash Flow Statement', title_style))
+
+    # Period
+    elements.append(Paragraph(f'Period: {start_date.strftime("%b %d, %Y")} – {end_date.strftime("%b %d, %Y")}', subtitle_style))
+
+    elements.append(Spacer(1, 0.2*inch))
+
+
+    # Build table
+    table_data = [['Month', 'Inflows', 'Outflows', 'Net Flow', 'Balance']]
+    for r in rows:
+        table_data.append([r[0], f'£{r[1]:,.2f}', f'£{r[2]:,.2f}', f'£{r[3]:,.2f}', f'£{r[4]:,.2f}'])
+
+    table_data.append(['Total', f'£{total_inflow:,.2f}', f'£{total_outflow:,.2f}', f'£{net_change:,.2f}', ''])
+
+    col_widths = [1.5*inch, 1.2*inch, 1.2*inch, 1.2*inch, 1.2*inch]
+    t = Table(table_data, colWidths=col_widths, repeatRows=1)
+
+    style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#111827')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e5e7eb')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f3f4f6')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ])
+    t.setStyle(style)
+    elements.append(t)
+
+    # Footer with generation info
+    elements.append(Spacer(1, 0.3*inch))
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#9ca3af'))
+    from datetime import datetime as dt
+    generated_str = dt.now().strftime('%B %d, %Y at %I:%M %p')
+    generated_by = request.user.get_full_name() or request.user.username
+    elements.append(Paragraph(f'Generated by: {generated_by} on {generated_str}', footer_style))
+
+    doc.build(elements)
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="CashFlow_Report.pdf"'
+    return response
+
+
+# ===================== EXPENSE REPORT BY CATEGORY =====================
+@login_required
+def report_expenses_view(request):
+    """Expense Report by Category - breakdown of all expenses"""
+    from django.shortcuts import render
+    from app_core.models import Transaction, Label
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+
+    # Parse date range
+    start = request.GET.get('start')
+    end = request.GET.get('end')
+
+    try:
+        start_date = datetime.fromisoformat(start).date() if start else None
+    except Exception:
+        start_date = None
+
+    try:
+        end_date = datetime.fromisoformat(end).date() if end else None
+    except Exception:
+        end_date = None
+
+    today = date.today()
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+
+    # Default: last 12 months
+    if not start_date and not end_date:
+        m = today.month
+        y = today.year
+        m_back = m - 11
+        y_back = y
+        if m_back <= 0:
+            m_back += 12
+            y_back -= 1
+        start_date = date(y_back, m_back, 1)
+        end_date = today
+
+    # Get outflow transactions
+    qs = Transaction.objects.filter(
+        user=request.user,
+        date__gte=start_date,
+        date__lte=end_date,
+        direction=Transaction.OUTFLOW
+    )
+
+    # Group by label
+    labels = Label.objects.filter(user=request.user).order_by('name')
+    rows = []
+    total = 0
+
+    for lbl in labels:
+        amount = qs.filter(label=lbl).aggregate(total=Sum('amount'))['total'] or 0
+        if amount > 0:
+            total += amount
+            rows.append({
+                'name': lbl.name,
+                'amount': amount,
+            })
+
+    # Uncategorized
+    unc_amount = qs.filter(label__isnull=True).aggregate(total=Sum('amount'))['total'] or 0
+    if unc_amount > 0:
+        total += unc_amount
+        rows.append({
+            'name': 'Uncategorized',
+            'amount': unc_amount,
+        })
+
+    # Calculate percentages
+    for r in rows:
+        r['percent'] = (r['amount'] / total * 100) if total > 0 else 0
+
+    # Sort by amount descending
+    rows.sort(key=lambda x: x['amount'], reverse=True)
+
+    context = {
+        'title': 'Expense Report by Category',
+        'rows': rows,
+        'total': total,
+        'start_date': start_date,
+        'end_date': end_date,
+    }
+
+    return render(request, 'app_web/report_expenses.html', context)
+
+
+@login_required
+def report_expenses_download(request):
+    """Generate Expense Report PDF"""
+    from app_core.models import Transaction, Label
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_CENTER
+
+    def _parse_date(s):
+        if not s:
+            return None
+        if isinstance(s, datetime):
+            return s.date()
+        if isinstance(s, date):
+            return s
+        try:
+            return datetime.fromisoformat(s).date()
+        except Exception:
+            pass
+        for fmt in ['%Y-%m-%d', '%b %d, %Y', '%b. %d, %Y', '%d/%m/%Y', '%m/%d/%Y']:
+            try:
+                return datetime.strptime(s.strip(), fmt).date()
+            except Exception:
+                pass
+        return None
+
+    start_date = _parse_date(request.GET.get('start'))
+    end_date = _parse_date(request.GET.get('end'))
+
+    today = date.today()
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+    if not start_date and not end_date:
+        m = today.month
+        y = today.year
+        m_back = m - 11
+        y_back = y
+        if m_back <= 0:
+            m_back += 12
+            y_back -= 1
+        start_date = date(y_back, m_back, 1)
+        end_date = today
+
+    # Get data
+    qs = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date, direction=Transaction.OUTFLOW)
+    labels = Label.objects.filter(user=request.user).order_by('name')
+    rows = []
+    total = 0
+
+    for lbl in labels:
+        amount = qs.filter(label=lbl).aggregate(total=Sum('amount'))['total'] or 0
+        if amount > 0:
+            total += amount
+            rows.append((lbl.name, amount))
+
+    unc_amount = qs.filter(label__isnull=True).aggregate(total=Sum('amount'))['total'] or 0
+    if unc_amount > 0:
+        total += unc_amount
+        rows.append(('Uncategorized', unc_amount))
+
+    rows.sort(key=lambda x: x[1], reverse=True)
+
+    # Create PDF with modern styling
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=0.75*inch, rightMargin=0.75*inch, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Modern style definitions
+    company_style = ParagraphStyle('CompanyHeader', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+    title_style = ParagraphStyle('ReportTitle', parent=styles['Heading1'], fontSize=20, fontName='Helvetica-Bold', textColor=colors.HexColor('#111827'), spaceAfter=6, spaceBefore=12)
+    subtitle_style = ParagraphStyle('ReportSubtitle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+
+    # Company Information at top
+    company_name = 'Finance Insights'  # TODO: Replace with user's company settings when multi-tenant is implemented
+    elements.append(Paragraph(company_name, company_style))
+
+    # Report Title
+    elements.append(Paragraph('Expense Report by Category', title_style))
+
+    # Period
+    elements.append(Paragraph(f'Period: {start_date.strftime("%b %d, %Y")} – {end_date.strftime("%b %d, %Y")}', subtitle_style))
+
+    elements.append(Spacer(1, 0.2*inch))
+
+
+    # Build table
+    table_data = [['Category', 'Amount', 'Percentage']]
+    for r in rows:
+        pct = (r[1] / total * 100) if total > 0 else 0
+        table_data.append([r[0], f'£{r[1]:,.2f}', f'{pct:.1f}%'])
+
+    table_data.append(['Total', f'£{total:,.2f}', '100%'])
+
+    col_widths = [3.5*inch, 1.5*inch, 1.2*inch]
+    t = Table(table_data, colWidths=col_widths, repeatRows=1)
+
+    style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#111827')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e5e7eb')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f3f4f6')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ])
+    t.setStyle(style)
+    elements.append(t)
+
+    # Footer with generation info
+    elements.append(Spacer(1, 0.3*inch))
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#9ca3af'))
+    from datetime import datetime as dt
+    generated_str = dt.now().strftime('%B %d, %Y at %I:%M %p')
+    generated_by = request.user.get_full_name() or request.user.username
+    elements.append(Paragraph(f'Generated by: {generated_by} on {generated_str}', footer_style))
+
+    doc.build(elements)
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Expense_Report.pdf"'
+    return response
+
+
+# ===================== INCOME REPORT BY SOURCE =====================
+@login_required
+def report_income_view(request):
+    """Income Report by Source - breakdown of all income"""
+    from django.shortcuts import render
+    from app_core.models import Transaction, Label
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+
+    # Parse date range
+    start = request.GET.get('start', '').strip()
+    end = request.GET.get('end', '').strip()
+
+    today = date.today()
+
+    def monday_of(d):
+        return d - timedelta(days=d.weekday())
+
+    def sunday_of(d):
+        return monday_of(d) + timedelta(days=6)
+
+    try:
+        start_date = datetime.fromisoformat(start).date() if start else None
+    except Exception:
+        start_date = None
+
+    try:
+        end_date = datetime.fromisoformat(end).date() if end else None
+    except Exception:
+        end_date = None
+
+    # Default: current week
+    if not start_date and not end_date:
+        start_date = monday_of(today)
+        end_date = sunday_of(today)
+    elif start_date and not end_date:
+        end_date = start_date
+    elif end_date and not start_date:
+        start_date = end_date
+
+
+    # Get inflow transactions
+    qs = Transaction.objects.filter(
+        user=request.user,
+        date__gte=start_date,
+        date__lte=end_date,
+        direction=Transaction.INFLOW
+    )
+
+    # Group by label
+    labels = Label.objects.filter(user=request.user).order_by('name')
+    rows = []
+    total = 0
+
+    for lbl in labels:
+        amount = qs.filter(label=lbl).aggregate(total=Sum('amount'))['total'] or 0
+        if amount > 0:
+            total += amount
+            rows.append({
+                'name': lbl.name,
+                'amount': amount,
+            })
+
+    # Uncategorized
+    unc_amount = qs.filter(label__isnull=True).aggregate(total=Sum('amount'))['total'] or 0
+    if unc_amount > 0:
+        total += unc_amount
+        rows.append({
+            'name': 'Uncategorized',
+            'amount': unc_amount,
+        })
+
+    # Calculate percentages
+    for r in rows:
+        r['percent'] = (r['amount'] / total * 100) if total > 0 else 0
+
+    # Sort by amount descending
+    rows.sort(key=lambda x: x['amount'], reverse=True)
+
+    context = {
+        'title': 'Income Report by Source',
+        'rows': rows,
+        'total': total,
+        'start_date': start_date,
+        'end_date': end_date,
+    }
+
+    return render(request, 'app_web/report_income.html', context)
+
+
+@login_required
+def report_income_download(request):
+    """Generate Income Report PDF"""
+    from app_core.models import Transaction, Label
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_CENTER
+
+    def _parse_date(s):
+        if not s:
+            return None
+        if isinstance(s, datetime):
+            return s.date()
+        if isinstance(s, date):
+            return s
+        try:
+            return datetime.fromisoformat(s).date()
+        except Exception:
+            pass
+        for fmt in ['%Y-%m-%d', '%b %d, %Y', '%b. %d, %Y', '%d/%m/%Y', '%m/%d/%Y']:
+            try:
+                return datetime.strptime(s.strip(), fmt).date()
+            except Exception:
+                pass
+        return None
+
+    start_date = _parse_date(request.GET.get('start'))
+    end_date = _parse_date(request.GET.get('end'))
+
+    today = date.today()
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+    if not start_date and not end_date:
+        m = today.month
+        y = today.year
+        m_back = m - 11
+        y_back = y
+        if m_back <= 0:
+            m_back += 12
+            y_back -= 1
+        start_date = date(y_back, m_back, 1)
+        end_date = today
+
+    # Get data
+    qs = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date, direction=Transaction.INFLOW)
+    labels = Label.objects.filter(user=request.user).order_by('name')
+    rows = []
+    total = 0
+
+    for lbl in labels:
+        amount = qs.filter(label=lbl).aggregate(total=Sum('amount'))['total'] or 0
+        if amount > 0:
+            total += amount
+            rows.append((lbl.name, amount))
+
+    unc_amount = qs.filter(label__isnull=True).aggregate(total=Sum('amount'))['total'] or 0
+    if unc_amount > 0:
+        total += unc_amount
+        rows.append(('Uncategorized', unc_amount))
+
+    rows.sort(key=lambda x: x[1], reverse=True)
+
+    # Create PDF with modern styling
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=0.75*inch, rightMargin=0.75*inch, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Modern style definitions
+    company_style = ParagraphStyle('CompanyHeader', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+    title_style = ParagraphStyle('ReportTitle', parent=styles['Heading1'], fontSize=20, fontName='Helvetica-Bold', textColor=colors.HexColor('#111827'), spaceAfter=6, spaceBefore=12)
+    subtitle_style = ParagraphStyle('ReportSubtitle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+
+    # Company Information at top
+    company_name = 'Finance Insights'  # TODO: Replace with user's company settings when multi-tenant is implemented
+    elements.append(Paragraph(company_name, company_style))
+
+    # Report Title
+    elements.append(Paragraph('Income Report by Source', title_style))
+
+    # Period
+    elements.append(Paragraph(f'Period: {start_date.strftime("%b %d, %Y")} – {end_date.strftime("%b %d, %Y")}', subtitle_style))
+
+    elements.append(Spacer(1, 0.2*inch))
+
+
+    # Build table
+    table_data = [['Source', 'Amount', 'Percentage']]
+    for r in rows:
+        pct = (r[1] / total * 100) if total > 0 else 0
+        table_data.append([r[0], f'£{r[1]:,.2f}', f'{pct:.1f}%'])
+
+    table_data.append(['Total', f'£{total:,.2f}', '100%'])
+
+    col_widths = [3.5*inch, 1.5*inch, 1.2*inch]
+    t = Table(table_data, colWidths=col_widths, repeatRows=1)
+
+    style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#111827')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e5e7eb')),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f3f4f6')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ])
+    t.setStyle(style)
+    elements.append(t)
+
+    # Footer with generation info
+    elements.append(Spacer(1, 0.3*inch))
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#9ca3af'))
+    from datetime import datetime as dt
+    generated_str = dt.now().strftime('%B %d, %Y at %I:%M %p')
+    generated_by = request.user.get_full_name() or request.user.username
+    elements.append(Paragraph(f'Generated by: {generated_by} on {generated_str}', footer_style))
+
+    doc.build(elements)
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Income_Report.pdf"'
+    return response
+
+
+# ===================== TAX SUMMARY REPORT =====================
+@login_required
+def report_tax_view(request):
+    """Tax Summary Report - VAT and income tax calculation"""
+    from django.shortcuts import render
+    from app_core.models import Transaction
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+
+    start = request.GET.get('start', '').strip()
+    end = request.GET.get('end', '').strip()
+
+    today = date.today()
+
+    def monday_of(d):
+        return d - timedelta(days=d.weekday())
+
+    def sunday_of(d):
+        return monday_of(d) + timedelta(days=6)
+
+    try:
+        start_date = datetime.fromisoformat(start).date() if start else None
+    except:
+        start_date = None
+    try:
+        end_date = datetime.fromisoformat(end).date() if end else None
+    except:
+        end_date = None
+
+    # Default: current week (users typically want weekly reports, can adjust to current tax year if needed)
+    if not start_date and not end_date:
+        start_date = monday_of(today)
+        end_date = sunday_of(today)
+    elif start_date and not end_date:
+        end_date = start_date
+    elif end_date and not start_date:
+        start_date = end_date
+
+    qs = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date)
+    total_income = qs.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    total_expenses = qs.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+
+    # Convert to float to avoid Decimal/float multiplication issues
+    total_income = float(total_income) if total_income else 0.0
+    total_expenses = float(total_expenses) if total_expenses else 0.0
+
+    taxable_income = total_income - total_expenses
+
+    personal_allowance = 12570
+    basic_rate_threshold = 50270
+    higher_rate_threshold = 125140
+
+    income_tax = 0
+    if taxable_income > personal_allowance:
+        taxable = taxable_income - personal_allowance
+        if taxable <= (basic_rate_threshold - personal_allowance):
+            income_tax = taxable * 0.20
+        elif taxable <= (higher_rate_threshold - personal_allowance):
+            income_tax = (basic_rate_threshold - personal_allowance) * 0.20
+            income_tax += (taxable - (basic_rate_threshold - personal_allowance)) * 0.40
+        else:
+            income_tax = (basic_rate_threshold - personal_allowance) * 0.20
+            income_tax += (higher_rate_threshold - basic_rate_threshold) * 0.40
+            income_tax += (taxable - (higher_rate_threshold - personal_allowance)) * 0.45
+
+    vat_on_expenses = total_expenses * 0.20 / 1.20
+    vat_on_income = total_income * 0.20 / 1.20
+    vat_payable = max(vat_on_income - vat_on_expenses, 0)
+
+    context = {
+        'title': 'Tax Summary Report',
+        'total_income': total_income,
+        'total_expenses': total_expenses,
+        'taxable_income': taxable_income,
+        'personal_allowance': personal_allowance,
+        'income_tax': income_tax,
+        'vat_on_income': vat_on_income,
+        'vat_on_expenses': vat_on_expenses,
+        'vat_payable': vat_payable,
+        'start_date': start_date,
+        'end_date': end_date,
+    }
+    return render(request, 'app_web/report_tax.html', context)
+
+
+@login_required
+def report_tax_download(request):
+    """Generate Tax Summary PDF"""
+    from app_core.models import Transaction
+    from django.db.models import Sum
+    from datetime import datetime, date
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_CENTER
+
+    def _parse_date(s):
+        if not s:
+            return None
+        if isinstance(s, (datetime, date)):
+            return s.date() if isinstance(s, datetime) else s
+        try:
+            return datetime.fromisoformat(s).date()
+        except:
+            for fmt in ['%Y-%m-%d', '%b %d, %Y', '%d/%m/%Y']:
+                try:
+                    return datetime.strptime(s.strip(), fmt).date()
+                except:
+                    pass
+        return None
+
+    start_date = _parse_date(request.GET.get('start'))
+    end_date = _parse_date(request.GET.get('end'))
+    today = date.today()
+
+    # Helper functions for current week
+    def monday_of(d):
+        return d - timedelta(days=d.weekday())
+
+    def sunday_of(d):
+        return monday_of(d) + timedelta(days=6)
+
+    # Default: current week
+    if not start_date and not end_date:
+        start_date = monday_of(today)
+        end_date = sunday_of(today)
+    elif start_date and not end_date:
+        end_date = start_date
+    elif end_date and not start_date:
+        start_date = end_date
+
+    qs = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date)
+    total_income = qs.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    total_expenses = qs.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+
+    # Convert to float to avoid Decimal/float multiplication issues
+    total_income = float(total_income) if total_income else 0.0
+    total_expenses = float(total_expenses) if total_expenses else 0.0
+
+    taxable_income = total_income - total_expenses
+    personal_allowance, basic_rate_threshold, higher_rate_threshold = 12570, 50270, 125140
+    income_tax = 0
+    if taxable_income > personal_allowance:
+        taxable = taxable_income - personal_allowance
+        if taxable <= (basic_rate_threshold - personal_allowance):
+            income_tax = taxable * 0.20
+        elif taxable <= (higher_rate_threshold - personal_allowance):
+            income_tax = (basic_rate_threshold - personal_allowance) * 0.20 + (taxable - (basic_rate_threshold - personal_allowance)) * 0.40
+        else:
+            income_tax = (basic_rate_threshold - personal_allowance) * 0.20 + (higher_rate_threshold - basic_rate_threshold) * 0.40 + (taxable - (higher_rate_threshold - personal_allowance)) * 0.45
+    vat_on_expenses, vat_on_income = total_expenses * 0.20 / 1.20, total_income * 0.20 / 1.20
+    vat_payable = max(vat_on_income - vat_on_expenses, 0)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=0.75*inch, rightMargin=0.75*inch, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Modern style definitions
+    company_style = ParagraphStyle('CompanyHeader', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+    title_style = ParagraphStyle('ReportTitle', parent=styles['Heading1'], fontSize=20, fontName='Helvetica-Bold', textColor=colors.HexColor('#111827'), spaceAfter=6, spaceBefore=12)
+    subtitle_style = ParagraphStyle('ReportSubtitle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+
+    # Company Information at top
+    company_name = 'Finance Insights'  # TODO: Replace with user's company settings when multi-tenant is implemented
+    elements.append(Paragraph(company_name, company_style))
+
+    # Report Title
+    elements.append(Paragraph('Tax Summary Report', title_style))
+
+    # Period
+    elements.append(Paragraph(f'Period: {start_date.strftime("%b %d, %Y")} – {end_date.strftime("%b %d, %Y")}', subtitle_style))
+
+    elements.append(Spacer(1, 0.2*inch))
+
+
+    elements.append(Paragraph('Income Tax', ParagraphStyle('sec', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#111827'), spaceAfter=8)))
+    tax_data = [['Item', 'Amount'], ['Total Income', f'£{total_income:,.2f}'], ['Total Expenses', f'£{total_expenses:,.2f}'], ['Taxable Income', f'£{taxable_income:,.2f}'], ['Personal Allowance', f'£{personal_allowance:,.2f}'], ['Income Tax Payable', f'£{income_tax:,.2f}']]
+    t1 = Table(tax_data, colWidths=[4*inch, 2*inch])
+    t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#111827')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('ALIGN', (1,0), (-1,-1), 'RIGHT'), ('INNERGRID', (0,0), (-1,-1), 0.25, colors.HexColor('#e5e7eb')), ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#e5e7eb')), ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#fff8dc')), ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold')]))
+    elements.append(t1)
+    elements.append(Spacer(1, 16))
+    elements.append(Paragraph('VAT (20%)', ParagraphStyle('sec', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#111827'), spaceAfter=8)))
+    vat_data = [['Item', 'Amount'], ['VAT on Income', f'£{vat_on_income:,.2f}'], ['VAT on Expenses', f'£{vat_on_expenses:,.2f}'], ['VAT Payable', f'£{vat_payable:,.2f}']]
+    t2 = Table(vat_data, colWidths=[4*inch, 2*inch])
+    t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#111827')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('ALIGN', (1,0), (-1,-1), 'RIGHT'), ('INNERGRID', (0,0), (-1,-1), 0.25, colors.HexColor('#e5e7eb')), ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#e5e7eb')), ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#fff8dc')), ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold')]))
+    elements.append(t2)
+
+    # Footer with generation info
+    elements.append(Spacer(1, 0.3*inch))
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#9ca3af'))
+    from datetime import datetime as dt
+    generated_str = dt.now().strftime('%B %d, %Y at %I:%M %p')
+    generated_by = request.user.get_full_name() or request.user.username
+    elements.append(Paragraph(f'Generated by: {generated_by} on {generated_str}', footer_style))
+
+    doc.build(elements)
+    pdf = buffer.getvalue()
+    buffer.close()
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Tax_Summary.pdf"'
+    return response
+
+
+# ===================== BUDGET & PROJECT PERFORMANCE REPORTS =====================
+@login_required
+def report_budget_performance_view(request):
+    """Budget Performance Report"""
+    from django.shortcuts import render
+    from app_core.models import Budget, Transaction
+    from django.db.models import Sum
+    from datetime import datetime, date, timedelta
+    import calendar
+
+    start = request.GET.get('start', '').strip()
+    end = request.GET.get('end', '').strip()
+
+    today = date.today()
+
+    def monday_of(d):
+        return d - timedelta(days=d.weekday())
+
+    def sunday_of(d):
+        return monday_of(d) + timedelta(days=6)
+
+    try:
+        start_date = datetime.fromisoformat(start).date() if start else None
+    except:
+        start_date = None
+    try:
+        end_date = datetime.fromisoformat(end).date() if end else None
+    except:
+        end_date = None
+
+    # Default: current week
+    if not start_date and not end_date:
+        start_date = monday_of(today)
+        end_date = sunday_of(today)
+    elif start_date and not end_date:
+        end_date = start_date
+    elif end_date and not start_date:
+        start_date = end_date
+
+    budgets = Budget.objects.filter(user=request.user, start_date__lte=end_date, end_date__gte=start_date).prefetch_related('labels')
+    rows = []
+    total_budget, total_actual = 0, 0
+
+    for budget in budgets:
+        label_ids = budget.labels.values_list('id', flat=True)
+        actual = Transaction.objects.filter(user=request.user, date__gte=max(budget.start_date, start_date), date__lte=min(budget.end_date, end_date), direction=Transaction.OUTFLOW, label_id__in=label_ids).aggregate(total=Sum('amount'))['total'] or 0
+        variance = budget.amount - actual
+        usage_pct = (actual / budget.amount * 100) if budget.amount > 0 else 0
+        total_budget += budget.amount
+        total_actual += actual
+        rows.append({'name': budget.name, 'budget': budget.amount, 'actual': actual, 'variance': variance, 'usage_pct': usage_pct, 'status': 'over' if usage_pct > 100 else 'warning' if usage_pct > 80 else 'good'})
+
+    rows.sort(key=lambda x: x['usage_pct'], reverse=True)
+    total_variance = total_budget - total_actual
+    total_usage_pct = (total_actual / total_budget * 100) if total_budget > 0 else 0
+
+    return render(request, 'app_web/report_budget_performance.html', {'title': 'Budget Performance', 'rows': rows, 'total_budget': total_budget, 'total_actual': total_actual, 'total_variance': total_variance, 'total_usage_pct': total_usage_pct, 'start_date': start_date, 'end_date': end_date})
+
+
+@login_required
+def report_budget_performance_download(request):
+    """Budget Performance PDF"""
+    from app_core.models import Budget, Transaction
+    from django.db.models import Sum
+    from datetime import datetime, date
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_CENTER
+    import calendar
+
+    def _parse_date(s):
+        if not s:
+            return None
+        if isinstance(s, (datetime, date)):
+            return s.date() if isinstance(s, datetime) else s
+        try:
+            return datetime.fromisoformat(s).date()
+        except:
+            return None
+
+    start_date, end_date = _parse_date(request.GET.get('start')), _parse_date(request.GET.get('end'))
+    today = date.today()
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+    if not start_date:
+        start_date = date(today.year, today.month, 1)
+        end_date = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+
+    budgets = Budget.objects.filter(user=request.user, start_date__lte=end_date, end_date__gte=start_date).prefetch_related('labels')
+    rows, total_budget, total_actual = [], 0, 0
+    for budget in budgets:
+        label_ids = budget.labels.values_list('id', flat=True)
+        actual = Transaction.objects.filter(user=request.user, date__gte=max(budget.start_date, start_date), date__lte=min(budget.end_date, end_date), direction=Transaction.OUTFLOW, label_id__in=label_ids).aggregate(total=Sum('amount'))['total'] or 0
+        variance, usage_pct = budget.amount - actual, (actual / budget.amount * 100) if budget.amount > 0 else 0
+        total_budget += budget.amount
+        total_actual += actual
+        rows.append((budget.name, budget.amount, actual, variance, usage_pct))
+    rows.sort(key=lambda x: x[4], reverse=True)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=0.75*inch, rightMargin=0.75*inch, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements, styles = [], getSampleStyleSheet()
+
+    # Modern style definitions
+    company_style = ParagraphStyle('CompanyHeader', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+    title_style = ParagraphStyle('ReportTitle', parent=styles['Heading1'], fontSize=20, fontName='Helvetica-Bold', textColor=colors.HexColor('#111827'), spaceAfter=6, spaceBefore=12)
+    subtitle_style = ParagraphStyle('ReportSubtitle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+
+    # Company Information at top
+    company_name = 'Finance Insights'  # TODO: Replace with user's company settings when multi-tenant is implemented
+    elements.append(Paragraph(company_name, company_style))
+
+    # Report Title
+    elements.append(Paragraph('Budget Performance Report', title_style))
+
+    # Period
+    elements.append(Paragraph(f'Period: {start_date.strftime("%b %d, %Y")} – {end_date.strftime("%b %d, %Y")}', subtitle_style))
+
+    elements.append(Spacer(1, 0.2*inch))
+
+
+    table_data = [['Budget', 'Budgeted', 'Actual', 'Variance', 'Usage %']]
+    for r in rows:
+        table_data.append([r[0], f'£{r[1]:,.2f}', f'£{r[2]:,.2f}', f'£{r[3]:,.2f}', f'{r[4]:.1f}%'])
+    table_data.append(['Total', f'£{total_budget:,.2f}', f'£{total_actual:,.2f}', f'£{total_budget - total_actual:,.2f}', f'{(total_actual/total_budget*100) if total_budget > 0 else 0:.1f}%'])
+    t = Table(table_data, colWidths=[2.2*inch, 1.2*inch, 1.2*inch, 1.2*inch, 0.9*inch], repeatRows=1)
+    t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#111827')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('ALIGN', (1,0), (-1,-1), 'RIGHT'), ('ALIGN', (0,0), (0,-1), 'LEFT'), ('INNERGRID', (0,0), (-1,-1), 0.25, colors.HexColor('#e5e7eb')), ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#e5e7eb')), ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#f3f4f6')), ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold')]))
+    elements.append(t)
+
+    # Footer with generation info
+    elements.append(Spacer(1, 0.3*inch))
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#9ca3af'))
+    from datetime import datetime as dt
+    generated_str = dt.now().strftime('%B %d, %Y at %I:%M %p')
+    generated_by = request.user.get_full_name() or request.user.username
+    elements.append(Paragraph(f'Generated by: {generated_by} on {generated_str}', footer_style))
+
+    doc.build(elements)
+    pdf = buffer.getvalue()
+    buffer.close()
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Budget_Performance.pdf"'
+    return response
+
+
+@login_required
+def report_project_performance_view(request):
+    """Project Performance Report"""
+    from django.shortcuts import render
+    from app_core.models import Project, ProjectTransaction
+    from datetime import datetime, date, timedelta
+
+    start = request.GET.get('start', '').strip()
+    end = request.GET.get('end', '').strip()
+
+    today = date.today()
+
+    def monday_of(d):
+        return d - timedelta(days=d.weekday())
+
+    def sunday_of(d):
+        return monday_of(d) + timedelta(days=6)
+
+    try:
+        start_date = datetime.fromisoformat(start).date() if start else None
+    except:
+        start_date = None
+    try:
+        end_date = datetime.fromisoformat(end).date() if end else None
+    except:
+        end_date = None
+
+    # Default: current week
+    if not start_date and not end_date:
+        start_date = monday_of(today)
+        end_date = sunday_of(today)
+    elif start_date and not end_date:
+        end_date = start_date
+    elif end_date and not start_date:
+        start_date = end_date
+
+    projects = Project.objects.filter(user=request.user).order_by('-created_at')
+    rows, total_budget, total_actual = [], 0, 0
+
+    for project in projects:
+        project_txs = ProjectTransaction.objects.filter(project=project, transaction__date__gte=start_date, transaction__date__lte=end_date).select_related('transaction')
+        actual = sum((pt.transaction.amount or 0) * pt.allocation_percentage / 100 for pt in project_txs if pt.transaction.direction == 'outflow')
+        variance, usage_pct = (project.budget or 0) - actual, (actual / project.budget * 100) if project.budget and project.budget > 0 else 0
+        total_budget += project.budget or 0
+        total_actual += actual
+        rows.append({'name': project.name, 'budget': project.budget or 0, 'actual': actual, 'variance': variance, 'usage_pct': usage_pct, 'status': project.status})
+
+    rows.sort(key=lambda x: x['usage_pct'], reverse=True)
+    total_variance = total_budget - total_actual
+    total_usage_pct = (total_actual / total_budget * 100) if total_budget > 0 else 0
+
+    return render(request, 'app_web/report_project_performance.html', {'title': 'Project Performance', 'rows': rows, 'total_budget': total_budget, 'total_actual': total_actual, 'total_variance': total_variance, 'total_usage_pct': total_usage_pct, 'start_date': start_date, 'end_date': end_date})
+
+
+@login_required
+def report_project_performance_download(request):
+    """Project Performance PDF"""
+    from app_core.models import Project, ProjectTransaction
+    from datetime import datetime, date
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_CENTER
+
+    def _parse_date(s):
+        if not s:
+            return None
+        if isinstance(s, (datetime, date)):
+            return s.date() if isinstance(s, datetime) else s
+        try:
+            return datetime.fromisoformat(s).date()
+        except:
+            return None
+
+    start_date, end_date = _parse_date(request.GET.get('start')), _parse_date(request.GET.get('end'))
+    today = date.today()
+    if start_date and not end_date:
+        end_date = start_date
+    if end_date and not start_date:
+        start_date = end_date
+    if not start_date:
+        start_date, end_date = date(today.year, 1, 1), today
+
+    projects = Project.objects.filter(user=request.user).order_by('-created_at')
+    rows, total_budget, total_actual = [], 0, 0
+    for project in projects:
+        project_txs = ProjectTransaction.objects.filter(project=project, transaction__date__gte=start_date, transaction__date__lte=end_date).select_related('transaction')
+        actual = sum((pt.transaction.amount or 0) * pt.allocation_percentage / 100 for pt in project_txs if pt.transaction.direction == 'outflow')
+        variance, usage_pct = (project.budget or 0) - actual, (actual / project.budget * 100) if project.budget and project.budget > 0 else 0
+        total_budget += project.budget or 0
+        total_actual += actual
+        rows.append((project.name, project.budget or 0, actual, variance, usage_pct, project.status))
+    rows.sort(key=lambda x: x[4], reverse=True)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=0.75*inch, rightMargin=0.75*inch, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    elements, styles = [], getSampleStyleSheet()
+
+    # Modern style definitions
+    company_style = ParagraphStyle('CompanyHeader', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+    title_style = ParagraphStyle('ReportTitle', parent=styles['Heading1'], fontSize=20, fontName='Helvetica-Bold', textColor=colors.HexColor('#111827'), spaceAfter=6, spaceBefore=12)
+    subtitle_style = ParagraphStyle('ReportSubtitle', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#6b7280'), spaceAfter=4)
+
+    # Company Information at top
+    company_name = 'Finance Insights'  # TODO: Replace with user's company settings when multi-tenant is implemented
+    elements.append(Paragraph(company_name, company_style))
+
+    # Report Title
+    elements.append(Paragraph('Project Performance Report', title_style))
+
+    # Period
+    elements.append(Paragraph(f'Period: {start_date.strftime("%b %d, %Y")} – {end_date.strftime("%b %d, %Y")}', subtitle_style))
+
+    elements.append(Spacer(1, 0.2*inch))
+
+
+    table_data = [['Project', 'Budget', 'Actual', 'Variance', 'Usage %', 'Status']]
+    for r in rows:
+        table_data.append([r[0], f'£{r[1]:,.2f}', f'£{r[2]:,.2f}', f'£{r[3]:,.2f}', f'{r[4]:.1f}%', r[5]])
+    table_data.append(['Total', f'£{total_budget:,.2f}', f'£{total_actual:,.2f}', f'£{total_budget - total_actual:,.2f}', f'{(total_actual/total_budget*100) if total_budget > 0 else 0:.1f}%', ''])
+    t = Table(table_data, colWidths=[1.8*inch, 1.1*inch, 1.1*inch, 1.1*inch, 0.9*inch, 0.9*inch], repeatRows=1)
+    t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#111827')), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('ALIGN', (1,0), (-1,-1), 'RIGHT'), ('ALIGN', (0,0), (0,-1), 'LEFT'), ('INNERGRID', (0,0), (-1,-1), 0.25, colors.HexColor('#e5e7eb')), ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#e5e7eb')), ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#f3f4f6')), ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold')]))
+    elements.append(t)
+
+    # Footer with generation info
+    elements.append(Spacer(1, 0.3*inch))
+    footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#9ca3af'))
+    from datetime import datetime as dt
+    generated_str = dt.now().strftime('%B %d, %Y at %I:%M %p')
+    generated_by = request.user.get_full_name() or request.user.username
+    elements.append(Paragraph(f'Generated by: {generated_by} on {generated_str}', footer_style))
+
+    doc.build(elements)
+    pdf = buffer.getvalue()
+    buffer.close()
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Project_Performance.pdf"'
+    return response
 
 

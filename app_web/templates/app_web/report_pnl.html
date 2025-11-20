@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Profit & Loss (P&L) - Finance Insights{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{% static 'app_web/reports.css' %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+
+<!-- Controls (plain, no background) -->
+<div id="pnl-controls" style="display:flex; gap:.5rem; align-items:center; margin-bottom:.75rem; justify-content:flex-end;">
+  <form id="pnl-filter-form" method="get" style="display:inline-flex; gap:.5rem; align-items:center;">
+    <input type="text" id="pnl-start" name="start" placeholder="Start date" value="{{ start_date|date:'Y-m-d' }}" class="form-input">
+    <input type="text" id="pnl-end" name="end" placeholder="End date" value="{{ end_date|date:'Y-m-d' }}" class="form-input">
+    <button class="btn btn-secondary" type="submit">Apply</button>
+  </form>
+
+  {% url 'app_web:report_pnl_download' as base %}
+  <a class="btn btn-primary" id="pnl-download" href="{% if start_date and end_date %}{{ base }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ base }}{% endif %}">Download PDF</a>
+  <button class="btn btn-secondary" id="printBtn">Print</button>
+</div>
+
+<!-- Blue header with title -->
+<div class="pl-header">
+  <div class="pl-title" style="font-size:1.15rem;">Profit & Loss Statement</div>
+<!--  <div id="pnl-periods" class="pl-periods">-->
+<!--    <div class="period-col"><div class="period-label">Current</div><div class="period-value"><strong>{{ curr_label }}</strong></div></div>-->
+<!--    <div class="period-col"><div class="period-label">Prior</div><div class="period-value"><strong>{{ prev_label }}</strong></div></div>-->
+<!--  </div>-->
+</div>
+
+<div class="card" id="pnl-card">
+    <table class="pl-table">
+      <colgroup>
+        <col style="width:52%;">
+        <col style="width:16%;">
+        <col style="width:16%;">
+        <col style="width:16%;">
+      </colgroup>
+    <thead>
+      <!-- Date row above column titles aligned with columns -->
+      <tr class="date-row">
+        <td></td>
+        <td class="date-cell"><strong>{{ curr_label }}</strong></td>
+        <td class="date-cell"><strong>{{ prev_label }}</strong></td>
+        <td></td>
+      </tr>
+      <tr>
+        <th>Category</th>
+        <th class="num">Current</th>
+        <th class="num">Prior</th>
+        <th class="num">Change</th>
+      </tr>
+    </thead>
+     <tbody>
+       <!-- Revenue section -->
+      <tr class="section-title revenue-title"><td colspan="4">Revenue</td></tr>
+      {% for r in revenue_rows %}
+      <tr class="revenue-row">
+        <td>{{ r.label }}</td>
+        <td class="num">£{{ r.cur|floatformat:2|intcomma }}</td>
+        <td class="num">£{{ r.prev|floatformat:2|intcomma }}</td>
+        {% comment %}Colour rules: for revenue, increase = green, decrease = red{% endcomment %}
+        {% if r.change > 0 %}
+          <td class="num change change-up">£{{ r.change|floatformat:2|intcomma }} <span class="pct">({{ r.pct|floatformat:1 }}%)</span></td>
+        {% elif r.change < 0 %}
+          <td class="num change change-down">£{{ r.change|floatformat:2|intcomma }} <span class="pct">({{ r.pct|floatformat:1 }}%)</span></td>
+        {% else %}
+          <td class="num">£{{ r.change|floatformat:2|intcomma }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+
+       <!-- Total Revenue -->
+      <tr class="total-row" style="font-weight:700; border-top:2px solid #e6e9ef;">
+        <td>Total Revenue &amp; Gains</td>
+        <td class="num">£{{ total_revenue_cur|floatformat:2|intcomma }}</td>
+        <td class="num">£{{ total_revenue_prev|floatformat:2|intcomma }}</td>
+        {% if total_revenue_change > 0 %}
+          <td class="num change change-up">£{{ total_revenue_change|floatformat:2|intcomma }} {% if total_revenue_pct is not None %}<span class="pct">({{ total_revenue_pct|floatformat:1 }}%)</span>{% endif %}</td>
+        {% elif total_revenue_change < 0 %}
+          <td class="num change change-down">£{{ total_revenue_change|floatformat:2|intcomma }} {% if total_revenue_pct is not None %}<span class="pct">({{ total_revenue_pct|floatformat:1 }}%)</span>{% endif %}</td>
+        {% else %}
+          <td class="num">£{{ total_revenue_change|floatformat:2|intcomma }}</td>
+        {% endif %}
+      </tr>
+      <!-- spacer row to separate revenue and expenses -->
+      <tr class="spacer-row"><td colspan="4"></td></tr>
+
+       <!-- Expenses section -->
+      <tr class="section-title expense-title"><td colspan="4">Expenses</td></tr>
+      {% for e in expense_rows %}
+      <tr class="expense-row">
+        <td>{{ e.label }}</td>
+        <td class="num">£{{ e.cur|floatformat:2|intcomma }}</td>
+        <td class="num">£{{ e.prev|floatformat:2|intcomma }}</td>
+        {% comment %}For expenses, increase (more spent) should be red, decrease should be green{% endcomment %}
+        {% if e.change > 0 %}
+          <td class="num change change-down">£{{ e.change|floatformat:2|intcomma }} <span class="pct">({{ e.pct|floatformat:1 }}%)</span></td>
+        {% elif e.change < 0 %}
+          <td class="num change change-up">£{{ e.change|floatformat:2|intcomma }} <span class="pct">({{ e.pct|floatformat:1 }}%)</span></td>
+        {% else %}
+          <td class="num">£{{ e.change|floatformat:2|intcomma }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+
+       <!-- Total Expenses -->
+      <tr class="total-row" style="font-weight:700; border-top:2px solid #e6e9ef;">
+        <td>Total Expenses</td>
+        <td class="num">£{{ total_expense_cur|floatformat:2|intcomma }}</td>
+        <td class="num">£{{ total_expense_prev|floatformat:2|intcomma }}</td>
+        {% if total_expense_change > 0 %}
+          <td class="num change change-down">£{{ total_expense_change|floatformat:2|intcomma }} {% if total_expense_pct is not None %}<span class="pct">({{ total_expense_pct|floatformat:1 }}%)</span>{% endif %}</td>
+        {% elif total_expense_change < 0 %}
+          <td class="num change change-up">£{{ total_expense_change|floatformat:2|intcomma }} {% if total_expense_pct is not None %}<span class="pct">({{ total_expense_pct|floatformat:1 }}%)</span>{% endif %}</td>
+        {% else %}
+          <td class="num">£{{ total_expense_change|floatformat:2|intcomma }}</td>
+        {% endif %}
+      </tr>
+
+       <!-- Income before tax, tax, net profit -->
+      <tr class="total-row" style="font-weight:700;">
+        <td>Income before tax</td>
+        <td class="num">£{{ income_before_tax|floatformat:2|intcomma }}</td>
+        <td class="num">£{{ income_before_tax_prev|floatformat:2|intcomma }}</td>
+        <td class="num">£{{ net_change|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="total-row tax-row">
+        <td>Income tax expense</td>
+        <td class="num">£{{ tax_amount|floatformat:2|intcomma }}</td>
+        <td class="num">&ndash;</td>
+        <td class="num">&ndash;</td>
+      </tr>
+      <tr class="net-row" style="font-weight:800;">
+        <td>Net Profit (Loss)</td>
+        <td class="num">£{{ net_profit|floatformat:2|intcomma }}</td>
+        <td class="num">£{{ net_profit_prev|floatformat:2|intcomma }}</td>
+        <td class="num">£{{ net_change|floatformat:2|intcomma }}</td>
+      </tr>
+
+     </tbody>
+   </table>
+ </div>
+
+ {% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="{% static 'app_web/report_pnl.js' %}"></script>
+{% endblock %}

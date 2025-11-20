@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Tax Summary - Finance Insights{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{% static 'app_web/reports.css' %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+
+<!-- Controls -->
+<div id="pnl-controls" style="display:flex; gap:.5rem; align-items:center; margin-bottom:.75rem; justify-content:flex-end;">
+  <form id="pnl-filter-form" method="get" style="display:inline-flex; gap:.5rem; align-items:center;">
+    <input type="text" id="pnl-start" name="start" placeholder="Start date" value="{{ start_date|date:'Y-m-d' }}" class="form-input">
+    <input type="text" id="pnl-end" name="end" placeholder="End date" value="{{ end_date|date:'Y-m-d' }}" class="form-input">
+    <button class="btn btn-secondary" type="submit">Apply</button>
+  </form>
+
+  {% url 'app_web:report_tax_download' as base %}
+  <a class="btn btn-primary" id="pnl-download" href="{% if start_date and end_date %}{{ base }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ base }}{% endif %}">Download PDF</a>
+  <button class="btn btn-secondary" id="printBtn">Print</button>
+</div>
+
+<!-- Blue header with title -->
+<div class="pl-header">
+  <div class="pl-title" style="font-size:1.15rem;">Tax Summary Report</div>
+</div>
+
+<div class="card" id="pnl-card">
+  <!-- Income Tax Section -->
+  <h3 style="margin:1rem 0 0.5rem 0; color:#111827;">Income Tax Calculation</h3>
+  <table class="pl-table">
+    <colgroup>
+      <col style="width:70%;">
+      <col style="width:30%;">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th class="num">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Total Income</td>
+        <td class="num change-up">£{{ total_income|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr>
+        <td>Total Expenses</td>
+        <td class="num change-down">£{{ total_expenses|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="total-row" style="font-weight:700; border-top:2px solid #e6e9ef;">
+        <td>Taxable Income</td>
+        <td class="num">£{{ taxable_income|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr>
+        <td>Personal Allowance</td>
+        <td class="num">£{{ personal_allowance|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="net-row" style="font-weight:800; background:#fff8dc;">
+        <td>Income Tax Payable</td>
+        <td class="num">£{{ income_tax|floatformat:2|intcomma }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- VAT Section -->
+  <h3 style="margin:2rem 0 0.5rem 0; color:#111827;">VAT Calculation (20% Standard Rate)</h3>
+  <table class="pl-table">
+    <colgroup>
+      <col style="width:70%;">
+      <col style="width:30%;">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th class="num">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>VAT on Income</td>
+        <td class="num change-up">£{{ vat_on_income|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr>
+        <td>VAT on Expenses</td>
+        <td class="num change-down">£{{ vat_on_expenses|floatformat:2|intcomma }}</td>
+      </tr>
+      <tr class="net-row" style="font-weight:800; background:#fff8dc;">
+        <td>VAT Payable</td>
+        <td class="num">£{{ vat_payable|floatformat:2|intcomma }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="margin-top:1.5rem; font-size:0.875rem; color:#6b7280; font-style:italic; text-align:center;">
+    Note: This is a simplified tax calculation. Please consult a tax professional for accurate tax advice.
+  </p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+  flatpickr('#pnl-start', { dateFormat: 'Y-m-d' });
+  flatpickr('#pnl-end', { dateFormat: 'Y-m-d' });
+
+  document.getElementById('printBtn').addEventListener('click', () => {
+    window.print();
+  });
+</script>
+
+{% endblock %}
+

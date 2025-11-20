@@ -36,6 +36,12 @@
         <a class="nav-link" href="/invoices/">Invoices</a>
       {% endif %}
 
+      {% if path|slice:":9" == '/reports/' %}
+        <a class="nav-link" href="/reports/" aria-current="page">Reports</a>
+      {% else %}
+        <a class="nav-link" href="/reports/">Reports</a>
+      {% endif %}
+
       {% if path|slice:":9" == '/clients/' %}
         <a class="nav-link" href="/clients/" aria-current="page">Clients</a>
       {% else %}
