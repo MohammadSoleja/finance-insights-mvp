@@ -57,6 +57,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Team collaboration middleware
+    "app_core.middleware.OrganizationMiddleware",
+    "app_core.middleware.ActivityLoggingMiddleware",
 ]
 
 ROOT_URLCONF = "financeinsights.urls"
@@ -72,6 +75,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                # Team collaboration context
+                "app_core.context_processors.organization_context",
             ],
         },
     },

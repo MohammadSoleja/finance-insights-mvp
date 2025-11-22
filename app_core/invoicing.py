@@ -9,7 +9,7 @@ from .models import Invoice, InvoiceItem, InvoicePayment, Client, InvoiceTemplat
 import uuid
 
 
-def generate_invoice_number(user):
+def generate_invoice_number(organization):
     """
     Generate a unique invoice number in format INV-YYYY-NNNN
     """
@@ -18,7 +18,7 @@ def generate_invoice_number(user):
 
     # Find the last invoice number for this year
     last_invoice = Invoice.objects.filter(
-        user=user,
+        organization=organization,
         invoice_number__startswith=f"INV-{year}-"
     ).order_by('-invoice_number').first()
 
@@ -76,7 +76,7 @@ def update_invoice_status(invoice):
     return invoice
 
 
-def create_invoice_from_template(template, client, user, invoice_date=None, due_date=None):
+def create_invoice_from_template(template, client, organization, invoice_date=None, due_date=None):
     """
     Create a new invoice from a template
     """
@@ -88,9 +88,9 @@ def create_invoice_from_template(template, client, user, invoice_date=None, due_
         due_date = invoice_date + timedelta(days=30)
 
     invoice = Invoice.objects.create(
-        user=user,
+        organization=organization,
         client=client,
-        invoice_number=generate_invoice_number(user),
+        invoice_number=generate_invoice_number(organization),
         invoice_date=invoice_date,
         due_date=due_date,
         status=Invoice.STATUS_DRAFT,
@@ -137,11 +137,11 @@ def record_payment(invoice, amount, payment_date, payment_method, reference="", 
     return payment
 
 
-def get_invoice_statistics(user):
+def get_invoice_statistics(organization):
     """
-    Get invoice statistics for a user
+    Get invoice statistics for an organization
     """
-    invoices = Invoice.objects.filter(user=user)
+    invoices = Invoice.objects.filter(organization=organization)
 
     total = invoices.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
     paid = invoices.filter(status=Invoice.STATUS_PAID).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
@@ -167,7 +167,7 @@ def get_invoice_statistics(user):
     }
 
 
-def create_recurring_invoices(user, check_date=None):
+def create_recurring_invoices(organization, check_date=None):
     """
     Generate recurring invoices that are due
     This should be called periodically (e.g., daily cron job)
@@ -177,7 +177,7 @@ def create_recurring_invoices(user, check_date=None):
 
     # Find recurring invoices that need to be generated
     recurring_invoices = Invoice.objects.filter(
-        user=user,
+        organization=organization,
         is_recurring=True,
         status=Invoice.STATUS_PAID,  # Only generate from fully paid invoices
     ).exclude(recurring_group_id__isnull=True)
@@ -210,9 +210,9 @@ def create_recurring_invoices(user, check_date=None):
             if not existing:
                 # Create new invoice
                 new_invoice = Invoice.objects.create(
-                    user=original_invoice.user,
+                    organization=original_invoice.organization,
                     client=original_invoice.client,
-                    invoice_number=generate_invoice_number(user),
+                    invoice_number=generate_invoice_number(organization),
                     invoice_date=next_date,
                     due_date=next_date + timedelta(days=30),
                     status=Invoice.STATUS_DRAFT,
@@ -546,7 +546,7 @@ def save_invoice_as_template(invoice, template_name, description=""):
     """
     # Create template
     template = InvoiceTemplate.objects.create(
-        user=invoice.user,
+        organization=invoice.organization,
         name=template_name,
         description=description,
         default_tax_rate=invoice.tax_rate,
@@ -568,14 +568,14 @@ def save_invoice_as_template(invoice, template_name, description=""):
     return template
 
 
-def get_user_templates(user):
+def get_user_templates(organization):
     """
-    Get all invoice templates for a user with item counts
+    Get all invoice templates for an organization with item counts
 
     Returns:
         List of template dicts with metadata
     """
-    templates = InvoiceTemplate.objects.filter(user=user).prefetch_related('items')
+    templates = InvoiceTemplate.objects.filter(organization=organization).prefetch_related('items')
 
     result = []
     for template in templates:

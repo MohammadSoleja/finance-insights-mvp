@@ -16,6 +16,17 @@ from .views import report_income_view, report_income_download
 from .views import report_tax_view, report_tax_download
 from .views import report_budget_performance_view, report_budget_performance_download
 from .views import report_project_performance_view, report_project_performance_download
+from .views import debug_org_view
+
+# Team collaboration views
+from app_core.team_views import (
+    switch_organization, team_overview, team_members,
+    invite_member, remove_member, change_member_role,
+    activity_log,
+    approvals_view, approve_request, reject_request,
+    approval_workflows_view, create_workflow, delete_workflow
+)
+
 from .forms import LoginForm
 from django.contrib.auth import views as auth_views
 
@@ -83,6 +94,24 @@ urlpatterns = [
     path("reports/budget-performance/download/", report_budget_performance_download, name="report_budget_performance_download"),
     path("reports/project-performance/", report_project_performance_view, name="report_project_performance"),
     path("reports/project-performance/download/", report_project_performance_download, name="report_project_performance_download"),
+
+    # Team collaboration
+    path("switch-organization/<int:org_id>/", switch_organization, name="switch_organization"),
+    path("team/", team_overview, name="team_overview"),
+    path("team/members/", team_members, name="team_members"),
+    path("team/members/invite/", invite_member, name="invite_member"),
+    path("team/members/<int:member_id>/remove/", remove_member, name="remove_member"),
+    path("team/members/<int:member_id>/change-role/", change_member_role, name="change_member_role"),
+    path("team/activity/", activity_log, name="activity_log"),
+    path("team/approvals/", approvals_view, name="approvals"),
+    path("team/approvals/<int:approval_id>/approve/", approve_request, name="approve_request"),
+    path("team/approvals/<int:approval_id>/reject/", reject_request, name="reject_request"),
+    path("team/workflows/", approval_workflows_view, name="approval_workflows"),
+    path("team/workflows/create/", create_workflow, name="create_workflow"),
+    path("team/workflows/<int:workflow_id>/delete/", delete_workflow, name="delete_workflow"),
+
+    # Debug
+    path("debug/org/", debug_org_view, name="debug_org"),
 
     path("health/", health_view, name="health"),
     path("", home_view, name="home"),

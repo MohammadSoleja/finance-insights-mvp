@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - Finance Insights{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'app_web/styles.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="team-layout">
+    <!-- Sidebar -->
+    <aside class="team-sidebar">
+      <h2 class="team-sidebar-title">Team</h2>
+      <nav>
+        <ul class="team-nav">
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:team_overview' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+              </svg>
+              Overview
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:team_members' %}" class="team-nav-link active">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+              </svg>
+              Members
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:approvals' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Approvals
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:activity_log' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+              </svg>
+              Activity Log
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="team-main">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+          <h1>Team Members</h1>
+          <p style="color: var(--muted); margin: 0;">{{ current_organization.name }}</p>
+        </div>
+        {% if can_manage_members %}
+          <button class="btn btn-primary" onclick="openInviteMemberModal()">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 0.5rem;">
+              <path d="M8 4a.5.5 0 01.5.5v3h3a.5.5 0 010 1h-3v3a.5.5 0 01-1 0v-3h-3a.5.5 0 010-1h3v-3A.5.5 0 018 4z"/>
+            </svg>
+            Invite Member
+          </button>
+        {% endif %}
+      </div>
+
+      <!-- Members Table -->
+      <table class="members-table">
+        <thead>
+          <tr>
+            <th>Member</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Joined</th>
+            {% if can_manage_members %}<th>Actions</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for member in members %}
+            <tr>
+              <td>
+                <div class="member-info">
+                  <div class="member-avatar">{{ member.user.username|slice:":2"|upper }}</div>
+                  <div class="member-details">
+                    <div class="member-name">{{ member.user.get_full_name|default:member.user.username }}</div>
+                    <div class="member-email">{{ member.user.email }}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                {% if can_manage_members and not member.role.is_owner %}
+                  <select class="form-select" onchange="changeMemberRole({{ member.id }}, this.value)" style="width: auto; padding: 0.25rem 0.5rem; font-size: 0.875rem;">
+                    {% for role in roles %}
+                      <option value="{{ role.id }}" {% if role.id == member.role.id %}selected{% endif %}>{{ role.name }}</option>
+                    {% endfor %}
+                  </select>
+                {% else %}
+                  <span class="role-badge {% if member.role.is_owner %}owner{% elif member.role.name == 'Admin' %}admin{% else %}viewer{% endif %}">
+                    {{ member.role.name }}
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="status-badge {% if member.is_active %}active{% else %}inactive{% endif %}">
+                  {% if member.is_active %}Active{% else %}Inactive{% endif %}
+                </span>
+              </td>
+              <td style="color: var(--muted); font-size: 0.875rem;">
+                {% if member.accepted_at %}{{ member.accepted_at|date:"M d, Y" }}{% else %}Pending{% endif %}
+              </td>
+              {% if can_manage_members %}
+                <td>
+                  {% if not member.role.is_owner %}
+                    <button class="btn btn-sm btn-danger" onclick="confirmRemoveMember({{ member.id }}, '{{ member.user.username }}')">
+                      Remove
+                    </button>
+                  {% endif %}
+                </td>
+              {% endif %}
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="{% if can_manage_members %}5{% else %}4{% endif %}" style="text-align: center; color: var(--muted); padding: 2rem;">
+                No team members found
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </main>
+  </div>
+</div>
+
+<!-- Invite Member Modal -->
+<div class="modal-backdrop" id="inviteMemberModal" style="display: none;">
+  <div class="modal">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <h2 style="margin: 0;">Invite Team Member</h2>
+      <button class="modal-close" onclick="closeInviteMemberModal()">&times;</button>
+    </div>
+
+    <form id="inviteMemberForm" onsubmit="inviteMember(event)">
+      {% csrf_token %}
+      <div class="field">
+        <label for="inviteEmail">Email Address</label>
+        <input type="email" id="inviteEmail" name="email" class="form-input" required placeholder="user@example.com">
+        <small style="color: var(--muted);">User must already have an account</small>
+      </div>
+
+      <div class="field">
+        <label for="inviteRole">Role</label>
+        <select id="inviteRole" name="role_id" class="form-input" required>
+          <option value="">Select a role...</option>
+          {% for role in roles %}
+            {% if not role.is_owner %}
+              <option value="{{ role.id }}">{{ role.name }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+        <button type="submit" class="btn btn-primary" style="flex: 1;">Send Invitation</button>
+        <button type="button" class="btn btn-secondary" onclick="closeInviteMemberModal()" style="flex: 1;">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// Invite Member Modal
+function openInviteMemberModal() {
+  document.getElementById('inviteMemberModal').style.display = 'flex';
+  document.getElementById('inviteEmail').focus();
+}
+
+function closeInviteMemberModal() {
+  document.getElementById('inviteMemberModal').style.display = 'none';
+  document.getElementById('inviteMemberForm').reset();
+}
+
+// Invite Member
+function inviteMember(event) {
+  event.preventDefault();
+
+  const form = event.target;
+  const formData = new FormData(form);
+
+  fetch('{% url "app_web:invite_member" %}', {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.ok) {
+      alert(data.message);
+      closeInviteMemberModal();
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  })
+  .catch(error => {
+    alert('Error inviting member: ' + error);
+  });
+}
+
+// Change Member Role
+function changeMemberRole(memberId, roleId) {
+  if (!confirm('Change this member\'s role?')) {
+    location.reload();
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('role_id', roleId);
+  formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+  fetch(`/team/members/${memberId}/change-role/`, {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.ok) {
+      alert(data.message);
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+      location.reload();
+    }
+  })
+  .catch(error => {
+    alert('Error changing role: ' + error);
+    location.reload();
+  });
+}
+
+// Remove Member
+function confirmRemoveMember(memberId, username) {
+  if (!confirm(`Remove ${username} from the organization?`)) {
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+  fetch(`/team/members/${memberId}/remove/`, {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.ok) {
+      alert(data.message);
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  })
+  .catch(error => {
+    alert('Error removing member: ' + error);
+  });
+}
+
+// Close modal on escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeInviteMemberModal();
+  }
+});
+</script>
+{% endblock %}
+

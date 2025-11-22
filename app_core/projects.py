@@ -7,12 +7,12 @@ from django.utils import timezone
 from datetime import date, timedelta
 
 
-def get_project_summary(user, Transaction, include_sub_projects=True):
+def get_project_summary(organization, Transaction, include_sub_projects=True):
     """
-    Calculate summary data for all user's projects with hierarchy support.
+    Calculate summary data for all organization's projects with hierarchy support.
 
     Args:
-        user: Django User instance
+        organization: Organization instance
         Transaction: Transaction model class
         include_sub_projects: If True, include all sub-projects in calculations
 
@@ -24,11 +24,11 @@ def get_project_summary(user, Transaction, include_sub_projects=True):
     # Get only parent projects (level=0) if we want hierarchy view
     # Or get all projects if we want flat view
     if include_sub_projects:
-        projects = Project.objects.filter(user=user, parent_project=None).prefetch_related(
+        projects = Project.objects.filter(organization=organization, parent_project=None).prefetch_related(
             'labels', 'project_transactions', 'milestones', 'budget_categories', 'sub_projects'
         )
     else:
-        projects = Project.objects.filter(user=user).prefetch_related(
+        projects = Project.objects.filter(organization=organization).prefetch_related(
             'labels', 'project_transactions', 'milestones', 'budget_categories'
         )
 

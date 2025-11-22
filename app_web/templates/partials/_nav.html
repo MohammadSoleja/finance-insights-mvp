@@ -65,9 +65,39 @@
         <button class="avatar-btn" id="avatarBtn" aria-expanded="false" aria-haspopup="true">{{ request.user.username|slice:":2"|upper }}</button>
 
         <div class="dropdown-menu" id="avatarMenu" role="menu" aria-labelledby="avatarBtn">
-          <a href="{% url 'app_web:profile' %}">Profile</a>
-          <a href="{% url 'app_web:settings' %}">Settings</a>
+          <div class="dropdown-header">{{ request.user.username }}</div>
+          <a href="{% url 'app_web:profile' %}">My Profile</a>
+
+          {% if current_organization %}
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-header">Organization</div>
+
+            <!-- Organization Switcher -->
+            <div class="org-switcher">
+              <button class="org-switcher-btn" id="orgSwitcherBtn">
+                <span class="org-name">{{ current_organization.name }}</span>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                  <path d="M3 5L6 8L9 5H3Z"/>
+                </svg>
+              </button>
+
+              <div class="org-switcher-menu" id="orgSwitcherMenu" style="display:none;">
+                {% for membership in user_organizations %}
+                  <a href="{% url 'app_web:switch_organization' membership.organization.id %}"
+                     class="org-option {% if membership.organization.id == current_organization.id %}active{% endif %}">
+                    <div class="org-option-name">{{ membership.organization.name }}</div>
+                    <div class="org-option-role">{{ membership.role.name }}</div>
+                  </a>
+                {% endfor %}
+              </div>
+            </div>
+
+            <!-- Team Links -->
+            <a href="{% url 'app_web:team_overview' %}">Team Dashboard</a>
+          {% endif %}
+
           <div class="dropdown-divider"></div>
+          <a href="{% url 'app_web:settings' %}">Settings</a>
           <form method="post" action="{% url 'logout' %}">{% csrf_token %}
             <button type="submit" class="nav-link">Log out</button>
           </form>
