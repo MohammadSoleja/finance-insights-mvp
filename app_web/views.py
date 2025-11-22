@@ -224,14 +224,21 @@ def dashboard_view(request):
     """
     Simple dashboard for user_id=1 (MVP). Supports optional ?freq=D|W|M
     """
-    user= request.user
+    user = request.user
     freq = request.GET.get("freq", "D").upper()
     if freq not in {"D", "W", "M", "Y"}:
         freq = "D"
 
+    # Filter by organization instead of user for multi-tenant support
+    org = request.organization
+    if not org:
+        # Fallback to user if no organization (shouldn't happen)
+        q = Q(user=user)
+    else:
+        q = Q(organization=org)
+
     # Optional quick date filters (?days=30) + new start/end and category filters
     days = request.GET.get("days")
-    q = Q(user=user)
     if days and str(days).isdigit():
         since = timezone.now().date() - datetime.timedelta(days=int(days))
         q &= Q(date__gte=since)
@@ -330,7 +337,11 @@ def dashboard_view(request):
     #  - M: month-to-date
     #  - Y: last 365 days
     explicit_range = bool(start_raw or end_raw)
-    kpi_q = Q(user=user)
+    # Use organization filter for KPIs
+    if not org:
+        kpi_q = Q(user=user)
+    else:
+        kpi_q = Q(organization=org)
     if explicit_range:
         # reuse sd/ed parsed above
         if sd:
@@ -429,7 +440,11 @@ def dashboard_view(request):
                 prev_end = ksd - datetime.timedelta(days=1)
                 prev_start = prev_end - datetime.timedelta(days=period_len - 1)
 
-        prev_q = Q(user=user)
+        # Use organization filter for prior period (same as current period)
+        if not org:
+            prev_q = Q(user=user)
+        else:
+            prev_q = Q(organization=org)
         # Apply same category filter to prior period so KPIs compare apples-to-apples
         if category:
             prev_q &= Q(category=category)
@@ -463,7 +478,11 @@ def dashboard_view(request):
     top_outflows = []
     top_inflows = []
     try:
-        cat_q = Q(user=user)
+        # Use organization filter for categories
+        if not org:
+            cat_q = Q(user=user)
+        else:
+            cat_q = Q(organization=org)
         if ksd:
             cat_q &= Q(date__gte=ksd)
         if ked:
@@ -483,7 +502,11 @@ def dashboard_view(request):
             period_len = (ked - ksd).days + 1
             prev_end = ksd - datetime.timedelta(days=1)
             prev_start = prev_end - datetime.timedelta(days=period_len - 1)
-            prev_q = Q(user=user, date__gte=prev_start, date__lte=prev_end)
+            # Use organization filter for previous period
+            if not org:
+                prev_q = Q(user=user, date__gte=prev_start, date__lte=prev_end)
+            else:
+                prev_q = Q(organization=org, date__gte=prev_start, date__lte=prev_end)
             if category:
                 prev_q &= Q(category=category)
             prev_out_qs = Transaction.objects.filter(prev_q & Q(direction=Transaction.OUTFLOW))
@@ -517,7 +540,11 @@ def dashboard_view(request):
             period_len = (ked - ksd).days + 1
             prev_end = ksd - datetime.timedelta(days=1)
             prev_start = prev_end - datetime.timedelta(days=period_len - 1)
-            prev_q = Q(user=user, date__gte=prev_start, date__lte=prev_end)
+            # Use organization filter for previous period inflows
+            if not org:
+                prev_q = Q(user=user, date__gte=prev_start, date__lte=prev_end)
+            else:
+                prev_q = Q(organization=org, date__gte=prev_start, date__lte=prev_end)
             if category:
                 prev_q &= Q(category=category)
             prev_in_qs = Transaction.objects.filter(prev_q & Q(direction=Transaction.INFLOW))
@@ -664,9 +691,129 @@ def signup_view(request):
     if request.method == "POST":
         form = UserCreationForm(request.POST)
         if form.is_valid():
-            user = form.save()                     # creates the new user
+            user = form.save()  # creates the new user
+
+            # Create personal organization for new user
+            from app_core.models import Organization, OrganizationRole, OrganizationMember
+            from django.utils.text import slugify
+            from django.utils import timezone
+
+            # Create organization
+            org_name = f"{user.username}'s Organization"
+            base_slug = slugify(user.username)
+            slug = base_slug
+            counter = 1
+
+            # Ensure unique slug
+            while Organization.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+
+            org = Organization.objects.create(
+                name=org_name,
+                slug=slug,
+                owner=user,
+                currency='GBP',
+                fiscal_year_start=4,
+                timezone='Europe/London',
+                plan='free',
+                max_users=1,
+                is_active=True
+            )
+
+            # Create Owner role
+            owner_role = OrganizationRole.objects.create(
+                organization=org,
+                name='Owner',
+                description='Organization owner with full access',
+                is_owner=True,
+                is_system=True,
+                can_manage_organization=True,
+                can_manage_members=True,
+                can_manage_roles=True,
+                can_view_transactions=True,
+                can_create_transactions=True,
+                can_edit_transactions=True,
+                can_delete_transactions=True,
+                can_export_transactions=True,
+                can_view_budgets=True,
+                can_create_budgets=True,
+                can_edit_budgets=True,
+                can_delete_budgets=True,
+                can_view_projects=True,
+                can_create_projects=True,
+                can_edit_projects=True,
+                can_delete_projects=True,
+                can_view_invoices=True,
+                can_create_invoices=True,
+                can_edit_invoices=True,
+                can_delete_invoices=True,
+                can_send_invoices=True,
+                can_view_reports=True,
+                can_export_reports=True,
+                can_approve_transactions=True,
+                can_approve_budgets=True,
+                can_approve_expenses=True,
+                can_approve_invoices=True,
+            )
+
+            # Create default roles
+            OrganizationRole.objects.create(
+                organization=org,
+                name='Admin',
+                description='Administrator with most permissions',
+                is_system=True,
+                can_manage_members=True,
+                can_manage_roles=True,
+                can_view_transactions=True,
+                can_create_transactions=True,
+                can_edit_transactions=True,
+                can_delete_transactions=True,
+                can_export_transactions=True,
+                can_view_budgets=True,
+                can_create_budgets=True,
+                can_edit_budgets=True,
+                can_delete_budgets=True,
+                can_view_projects=True,
+                can_create_projects=True,
+                can_edit_projects=True,
+                can_delete_projects=True,
+                can_view_invoices=True,
+                can_create_invoices=True,
+                can_edit_invoices=True,
+                can_delete_invoices=True,
+                can_send_invoices=True,
+                can_view_reports=True,
+                can_export_reports=True,
+                can_approve_transactions=True,
+                can_approve_budgets=True,
+                can_approve_expenses=True,
+            )
+
+            OrganizationRole.objects.create(
+                organization=org,
+                name='Viewer',
+                description='Read-only access to all data',
+                is_system=True,
+                can_view_transactions=True,
+                can_view_budgets=True,
+                can_view_projects=True,
+                can_view_invoices=True,
+                can_view_reports=True,
+            )
+
+            # Create organization membership
+            OrganizationMember.objects.create(
+                organization=org,
+                user=user,
+                role=owner_role,
+                invited_by=user,
+                accepted_at=timezone.now(),
+                is_active=True
+            )
+
             login(request, user)
-            return redirect("app_web:dashboard")        # built-in auth route
+            return redirect("app_web:dashboard")
     else:
         form = UserCreationForm()
     return render(request, "registration/signup.html", {"form": form})
@@ -793,6 +940,7 @@ def transactions_view(request):
             try:
                 tx = Transaction.objects.create(
                     user=request.user,
+                    organization=request.organization,  # Add organization
                     date=tx_date,
                     description=description[:512],
                     amount=abs(tx_amount),
@@ -811,7 +959,7 @@ def transactions_view(request):
                     return JsonResponse({'ok': False, 'errors': [f'Failed to save transaction: {e}']}, status=500)
                 messages.error(request, 'Failed to save transaction: %s' % e)
 
-    qs = Transaction.objects.filter(user=request.user).order_by('-date')
+    qs = Transaction.objects.filter(organization=request.organization).order_by('-date') if request.organization else Transaction.objects.filter(user=request.user).order_by('-date')
 
     q = request.GET.get('q', '').strip()
     if q:
@@ -1088,7 +1236,7 @@ def budgets_view(request):
     from .forms import BudgetForm
 
     # Get budget summary with usage
-    budget_summary = get_budget_summary(request.user, Transaction)
+    budget_summary = get_budget_summary(request.organization, Transaction)
 
     # Handle form submission for creating/editing budget
     form = BudgetForm(user=request.user)
@@ -1102,6 +1250,7 @@ def budgets_view(request):
             if form.is_valid():
                 budget = form.save(commit=False)
                 budget.user = request.user
+                budget.organization = request.organization
                 try:
                     # Convert all non-custom period budgets to custom with specific dates for consistent display
                     if budget.period != Budget.PERIOD_CUSTOM:
@@ -1178,7 +1327,7 @@ def budgets_view(request):
             recurring_group_id = request.POST.get('recurring_group_id', '')
 
             try:
-                edit_budget = Budget.objects.get(id=budget_id, user=request.user)
+                edit_budget = Budget.objects.get(id=budget_id, organization=request.organization)
                 form = BudgetForm(request.POST, instance=edit_budget, user=request.user)
                 if form.is_valid():
                     budget = form.save()
@@ -1186,7 +1335,7 @@ def budgets_view(request):
                     # If this budget is part of a recurring group and scope is not 'this'
                     if recurring_group_id and edit_scope in ['future', 'all']:
                         budgets_to_update = Budget.objects.filter(
-                            user=request.user,
+                            organization=request.organization,
                             recurring_group_id=recurring_group_id
                         ).exclude(id=budget_id)
 
@@ -1227,7 +1376,7 @@ def budgets_view(request):
         elif action == 'delete':
             budget_id = request.POST.get('budget_id')
             try:
-                budget = Budget.objects.get(id=budget_id, user=request.user)
+                budget = Budget.objects.get(id=budget_id, organization=request.organization)
                 budget.delete()
                 # Silent delete - no success message
                 return redirect('app_web:budgets')
@@ -1238,7 +1387,7 @@ def budgets_view(request):
             budget_ids_str = request.POST.get('budget_ids', '')
             if budget_ids_str:
                 budget_ids = [int(id.strip()) for id in budget_ids_str.split(',') if id.strip().isdigit()]
-                deleted_count = Budget.objects.filter(id__in=budget_ids, user=request.user).delete()[0]
+                deleted_count = Budget.objects.filter(id__in=budget_ids, organization=request.organization).delete()[0]
                 if deleted_count > 0:
                     messages.success(request, f'{deleted_count} budget(s) deleted')
                 return redirect('app_web:budgets')
@@ -1249,7 +1398,7 @@ def budgets_view(request):
     if request.method == 'GET' and 'edit' in request.GET:
         budget_id = request.GET.get('edit')
         try:
-            edit_budget = Budget.objects.get(id=budget_id, user=request.user)
+            edit_budget = Budget.objects.get(id=budget_id, organization=request.organization)
             form = BudgetForm(instance=edit_budget, user=request.user)
         except Budget.DoesNotExist:
             messages.error(request, 'Budget not found')
@@ -1342,7 +1491,7 @@ def projects_view(request):
                 level = 0
 
                 if parent_id:
-                    parent_project = get_object_or_404(Project, id=parent_id, user=request.user)
+                    parent_project = get_object_or_404(Project, id=parent_id, organization=request.organization)
                     level = parent_project.level + 1
 
                     # Enforce max 3 levels (0, 1, 2)
@@ -1352,6 +1501,7 @@ def projects_view(request):
                 # Create new project
                 project = Project.objects.create(
                     user=request.user,
+                    organization=request.organization,
                     name=request.POST.get('name'),
                     description=request.POST.get('description', ''),
                     budget=request.POST.get('budget') if request.POST.get('budget') else None,
@@ -1391,7 +1541,7 @@ def projects_view(request):
         elif action == 'edit':
             try:
                 project_id = request.POST.get('project_id')
-                project = get_object_or_404(Project, id=project_id, user=request.user)
+                project = get_object_or_404(Project, id=project_id, organization=request.organization)
 
                 # Update fields
                 old_budget = project.budget
@@ -1435,7 +1585,7 @@ def projects_view(request):
         elif action == 'delete':
             try:
                 project_id = request.POST.get('project_id')
-                project = get_object_or_404(Project, id=project_id, user=request.user)
+                project = get_object_or_404(Project, id=project_id, organization=request.organization)
                 project_name = project.name
                 project.delete()
                 return JsonResponse({'ok': True, 'message': f'Project "{project_name}" deleted successfully'})
@@ -1445,7 +1595,7 @@ def projects_view(request):
         elif action == 'bulk_delete':
             try:
                 project_ids = request.POST.getlist('project_ids[]')
-                count = Project.objects.filter(id__in=project_ids, user=request.user).delete()[0]
+                count = Project.objects.filter(id__in=project_ids, organization=request.organization).delete()[0]
                 return JsonResponse({'ok': True, 'message': f'{count} project(s) deleted successfully'})
             except Exception as e:
                 return JsonResponse({'ok': False, 'error': str(e)}, status=400)
@@ -1453,7 +1603,7 @@ def projects_view(request):
         elif action == 'add_milestone':
             try:
                 project_id = request.POST.get('project_id')
-                project = get_object_or_404(Project, id=project_id, user=request.user)
+                project = get_object_or_404(Project, id=project_id, organization=request.organization)
 
                 milestone = ProjectMilestone.objects.create(
                     project=project,
@@ -1480,7 +1630,7 @@ def projects_view(request):
         elif action == 'add_budget_category':
             try:
                 project_id = request.POST.get('project_id')
-                project = get_object_or_404(Project, id=project_id, user=request.user)
+                project = get_object_or_404(Project, id=project_id, organization=request.organization)
 
                 category = ProjectBudgetCategory.objects.create(
                     project=project,
@@ -1500,13 +1650,13 @@ def projects_view(request):
 
     # GET request - render page
     # Get all user labels for the label selector
-    labels = Label.objects.filter(user=request.user).order_by('name')
+    labels = Label.objects.filter(organization=request.organization).order_by('name')
 
     # Get all parent projects (for sub-project creation)
-    parent_projects = Project.objects.filter(user=request.user, level__lt=2).order_by('name')
+    parent_projects = Project.objects.filter(organization=request.organization, level__lt=2).order_by('name')
 
     # Get project summary with hierarchy
-    projects_summary = get_project_summary(request.user, Transaction, include_sub_projects=True)
+    projects_summary = get_project_summary(request.organization, Transaction, include_sub_projects=True)
 
     # Convert projects to JSON for JavaScript
     import json
@@ -1586,7 +1736,7 @@ def project_detail_data(request, project_id):
     from app_core.models import Project
     from app_core.projects import get_project_transactions, calculate_project_pl
 
-    project = get_object_or_404(Project, id=project_id, user=request.user)
+    project = get_object_or_404(Project, id=project_id, organization=request.organization)
 
     # Get P&L calculation
     pl_data = calculate_project_pl(project, Transaction)
@@ -1710,7 +1860,7 @@ def invoices_view(request):
     search_query = request.GET.get('q', '')
 
     # Base queryset
-    invoices = Invoice.objects.filter(user=request.user).select_related('client', 'project')
+    invoices = Invoice.objects.filter(organization=request.organization).select_related('client', 'project')
 
     # Apply filters
     if status_filter:
@@ -1743,10 +1893,10 @@ def invoices_view(request):
     overdue_invoices.update(status=Invoice.STATUS_OVERDUE)
 
     # Get stats
-    stats = get_invoice_statistics(request.user)
+    stats = get_invoice_statistics(request.organization)
 
     # Get all clients for filter dropdown
-    clients = Client.objects.filter(user=request.user, active=True).order_by('name')
+    clients = Client.objects.filter(organization=request.organization, active=True).order_by('name')
 
     # Serialize invoices
     invoices_list = []
@@ -1791,7 +1941,7 @@ def clients_view(request):
     from app_core.models import Client
     from app_core.invoicing import get_client_statistics
 
-    clients = Client.objects.filter(user=request.user).order_by('name')
+    clients = Client.objects.filter(organization=request.organization).order_by('name')
 
     clients_list = []
     for client in clients:
@@ -1846,7 +1996,7 @@ def invoice_create_view(request):
     try:
         data = json.loads(request.body)
 
-        client = Client.objects.get(id=data['client_id'], user=request.user)
+        client = Client.objects.get(id=data['client_id'], organization=request.organization)
 
         # Parse dates
         invoice_date = date.fromisoformat(data.get('invoice_date', date.today().isoformat()))
@@ -1855,8 +2005,9 @@ def invoice_create_view(request):
         # Create invoice
         invoice = Invoice.objects.create(
             user=request.user,
+            organization=request.organization,
             client=client,
-            invoice_number=generate_invoice_number(request.user),
+            invoice_number=generate_invoice_number(request.organization),
             invoice_date=invoice_date,
             due_date=due_date,
             status=data.get('status', Invoice.STATUS_DRAFT),
@@ -1903,7 +2054,7 @@ def invoice_edit_view(request, invoice_id):
     import json
 
     try:
-        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+        invoice = Invoice.objects.get(id=invoice_id, organization=request.organization)
         data = json.loads(request.body)
 
         # Update invoice fields
@@ -1958,7 +2109,7 @@ def invoice_delete_view(request, invoice_id):
     from app_core.models import Invoice
 
     try:
-        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+        invoice = Invoice.objects.get(id=invoice_id, organization=request.organization)
         invoice.delete()
         return JsonResponse({'success': True})
     except Invoice.DoesNotExist:
@@ -1976,7 +2127,7 @@ def invoice_send_view(request, invoice_id):
     import json
 
     try:
-        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+        invoice = Invoice.objects.get(id=invoice_id, organization=request.organization)
 
         # Get optional parameters from request body
         try:
@@ -2022,7 +2173,7 @@ def invoice_reminder_view(request, invoice_id):
     import json
 
     try:
-        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+        invoice = Invoice.objects.get(id=invoice_id, organization=request.organization)
 
         # Get optional custom message from request body
         try:
@@ -2065,7 +2216,7 @@ def invoice_payment_view(request, invoice_id):
     import json
 
     try:
-        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+        invoice = Invoice.objects.get(id=invoice_id, organization=request.organization)
         data = json.loads(request.body)
 
         payment_date = date.fromisoformat(data.get('payment_date', date.today().isoformat()))
@@ -2107,6 +2258,7 @@ def client_create_view(request):
 
         client = Client.objects.create(
             user=request.user,
+            organization=request.organization,
             name=data['name'],
             email=data['email'],
             company=data.get('company', ''),
@@ -2136,7 +2288,7 @@ def client_edit_view(request, client_id):
     import json
 
     try:
-        client = Client.objects.get(id=client_id, user=request.user)
+        client = Client.objects.get(id=client_id, organization=request.organization)
         data = json.loads(request.body)
 
         client.name = data.get('name', client.name)
@@ -2167,7 +2319,7 @@ def client_delete_view(request, client_id):
     from app_core.models import Client
 
     try:
-        client = Client.objects.get(id=client_id, user=request.user)
+        client = Client.objects.get(id=client_id, organization=request.organization)
         # Check if client has invoices
         if client.invoices.exists():
             return JsonResponse({
@@ -2189,7 +2341,7 @@ def invoice_detail_view(request, invoice_id):
     from app_core.models import Invoice
 
     try:
-        invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+        invoice = Invoice.objects.get(id=invoice_id, organization=request.organization)
 
         items = []
         for item in invoice.items.all():
@@ -2263,7 +2415,7 @@ def invoice_pdf_view(request, invoice_id):
     from app_core.models import Invoice
 
     try:
-        invoice = get_object_or_404(Invoice, id=invoice_id, user=request.user)
+        invoice = get_object_or_404(Invoice, id=invoice_id, organization=request.organization)
 
         context = {
             'invoice': invoice,
@@ -2290,7 +2442,7 @@ def invoice_pdf_download(request, invoice_id):
     from datetime import date
 
     try:
-        invoice = get_object_or_404(Invoice, id=invoice_id, user=request.user)
+        invoice = get_object_or_404(Invoice, id=invoice_id, organization=request.organization)
 
         # Create PDF buffer
         buffer = BytesIO()
@@ -2490,7 +2642,7 @@ def invoice_templates_view(request):
     """Invoice templates management page"""
     from app_core.invoicing import get_user_templates
 
-    templates = get_user_templates(request.user)
+    templates = get_user_templates(request.organization)
 
     return render(request, 'app_web/invoice_templates.html', {
         'title': 'Invoice Templates',
@@ -2512,7 +2664,7 @@ def template_create_view(request):
         # Check if creating from existing invoice
         invoice_id = data.get('invoice_id')
         if invoice_id:
-            invoice = Invoice.objects.get(id=invoice_id, user=request.user)
+            invoice = Invoice.objects.get(id=invoice_id, organization=request.organization)
             template = save_invoice_as_template(
                 invoice=invoice,
                 template_name=data['name'],
@@ -2522,6 +2674,7 @@ def template_create_view(request):
             # Create template from scratch
             template = InvoiceTemplate.objects.create(
                 user=request.user,
+                organization=request.organization,
                 name=data['name'],
                 description=data.get('description', ''),
                 default_tax_rate=Decimal(str(data.get('tax_rate', 0))),
@@ -2560,7 +2713,7 @@ def template_edit_view(request, template_id):
     import json
 
     try:
-        template = InvoiceTemplate.objects.get(id=template_id, user=request.user)
+        template = InvoiceTemplate.objects.get(id=template_id, organization=request.organization)
         data = json.loads(request.body)
 
         # Update template
@@ -2599,7 +2752,7 @@ def template_delete_view(request, template_id):
     from app_core.models import InvoiceTemplate
 
     try:
-        template = InvoiceTemplate.objects.get(id=template_id, user=request.user)
+        template = InvoiceTemplate.objects.get(id=template_id, organization=request.organization)
         template_name = template.name
         template.delete()
 
@@ -2624,10 +2777,10 @@ def template_use_view(request, template_id):
     import json
 
     try:
-        template = InvoiceTemplate.objects.get(id=template_id, user=request.user)
+        template = InvoiceTemplate.objects.get(id=template_id, organization=request.organization)
         data = json.loads(request.body)
 
-        client = Client.objects.get(id=data['client_id'], user=request.user)
+        client = Client.objects.get(id=data['client_id'], organization=request.organization)
 
         invoice_date = date.fromisoformat(data.get('invoice_date', date.today().isoformat()))
         due_date = date.fromisoformat(data.get('due_date', (date.today() + timedelta(days=30)).isoformat()))
@@ -2635,7 +2788,7 @@ def template_use_view(request, template_id):
         invoice = create_invoice_from_template(
             template=template,
             client=client,
-            user=request.user,
+            organization=request.organization,
             invoice_date=invoice_date,
             due_date=due_date
         )
@@ -4428,3 +4581,24 @@ def report_project_performance_download(request):
     return response
 
 
+@login_required
+def debug_org_view(request):
+    """Debug page to check organization status"""
+    from app_core.models import OrganizationMember
+
+    # Get current organization (set by middleware)
+    current_organization = getattr(request, 'organization', None)
+
+    # Get all user's organizations
+    user_organizations = OrganizationMember.objects.filter(
+        user=request.user,
+        is_active=True
+    ).select_related('organization', 'role').order_by('-accepted_at')
+
+    context = {
+        "title": "Debug - Organization Info",
+        "current_organization": current_organization,
+        "user_organizations": user_organizations,
+    }
+
+    return render(request, "app_web/debug_org.html", context)

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - Finance Insights{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'app_web/styles.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="team-layout">
+    <!-- Sidebar -->
+    <aside class="team-sidebar">
+      <h2 class="team-sidebar-title">Team</h2>
+      <nav>
+        <ul class="team-nav">
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:team_overview' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+              </svg>
+              Overview
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:team_members' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+              </svg>
+              Members
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:approvals' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Approvals
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:activity_log' %}" class="team-nav-link active">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+              </svg>
+              Activity Log
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="team-main">
+      <h1>Activity Log</h1>
+      <p style="color: var(--muted); margin-bottom: 2rem;">{{ current_organization.name }}</p>
+
+      <!-- Filters -->
+      <form method="get" style="background: var(--bg-secondary); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 2rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+          <div class="field" style="margin: 0;">
+            <label for="action">Action</label>
+            <select name="action" id="action" class="form-input">
+              <option value="">All Actions</option>
+              {% for value, label in action_choices %}
+                <option value="{{ value }}" {% if value == current_action %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field" style="margin: 0;">
+            <label for="entity">Entity Type</label>
+            <select name="entity" id="entity" class="form-input">
+              <option value="">All Entities</option>
+              {% for value, label in entity_choices %}
+                <option value="{{ value }}" {% if value == current_entity %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field" style="margin: 0;">
+            <label for="user">User</label>
+            <select name="user" id="user" class="form-input">
+              <option value="">All Users</option>
+              {% for member in team_members %}
+                <option value="{{ member.user__id }}" {% if member.user__id|stringformat:"s" == current_user %}selected{% endif %}>
+                  {{ member.user__username }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+          <button type="submit" class="btn btn-primary">Apply Filters</button>
+          <a href="{% url 'app_web:activity_log' %}" class="btn btn-secondary">Clear</a>
+        </div>
+      </form>
+
+      <!-- Activity List -->
+      <div style="background: var(--bg-secondary); border-radius: var(--radius-md); padding: 1.5rem;">
+        {% if page_obj %}
+          <div style="display: grid; gap: 0.5rem;">
+            {% for activity in page_obj %}
+              <div class="activity-item" style="border-radius: var(--radius-sm); background: white;">
+                <div class="activity-icon {{ activity.action }}">
+                  {% if activity.action == 'create' %}
+                    +
+                  {% elif activity.action == 'update' %}
+                    ✎
+                  {% elif activity.action == 'delete' %}
+                    ×
+                  {% elif activity.action == 'view' %}
+                    👁
+                  {% elif activity.action == 'export' %}
+                    ↓
+                  {% elif activity.action == 'invite' %}
+                    ✉
+                  {% elif activity.action == 'approve' %}
+                    ✓
+                  {% elif activity.action == 'reject' %}
+                    ✗
+                  {% else %}
+                    •
+                  {% endif %}
+                </div>
+                <div class="activity-content">
+                  <div class="activity-description">{{ activity.description }}</div>
+                  <div class="activity-meta">
+                    <span>{% if activity.user %}{{ activity.user.username }}{% else %}System{% endif %}</span>
+                    <span> • </span>
+                    <span>{{ activity.get_action_display }}</span>
+                    {% if activity.entity_type %}
+                      <span> • </span>
+                      <span>{{ activity.get_entity_type_display }}</span>
+                    {% endif %}
+                    {% if activity.ip_address %}
+                      <span> • </span>
+                      <span>IP: {{ activity.ip_address }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+                <div class="activity-time">
+                  {{ activity.created_at|date:"M d, Y" }}<br>
+                  {{ activity.created_at|time:"g:i A" }}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <!-- Pagination -->
+          {% if page_obj.has_other_pages %}
+            <div style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 2rem;">
+              {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if current_action %}&action={{ current_action }}{% endif %}{% if current_entity %}&entity={{ current_entity }}{% endif %}{% if current_user %}&user={{ current_user }}{% endif %}"
+                   class="btn btn-secondary">Previous</a>
+              {% endif %}
+
+              <span style="color: var(--muted);">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+              </span>
+
+              {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if current_action %}&action={{ current_action }}{% endif %}{% if current_entity %}&entity={{ current_entity }}{% endif %}{% if current_user %}&user={{ current_user }}{% endif %}"
+                   class="btn btn-secondary">Next</a>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% else %}
+          <p style="text-align: center; color: var(--muted); padding: 2rem;">No activity found</p>
+        {% endif %}
+      </div>
+    </main>
+  </div>
+</div>
+{% endblock %}
+

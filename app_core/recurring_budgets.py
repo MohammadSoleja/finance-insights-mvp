@@ -47,14 +47,23 @@ def generate_recurring_budgets(user=None):
     - Updates last_generated_period to track progress
 
     Args:
-        user: Optional user to limit generation to specific user
+        user: Optional user to limit generation to specific user (will use their organization)
 
     Returns:
         Number of budgets created
     """
     query = Budget.objects.filter(is_recurring=True, active=True)
     if user:
-        query = query.filter(user=user)
+        # Get user's organization
+        from app_core.models import OrganizationMember
+        try:
+            member = OrganizationMember.objects.filter(user=user, is_active=True).first()
+            if member:
+                query = query.filter(organization=member.organization)
+            else:
+                query = query.filter(user=user)
+        except:
+            query = query.filter(user=user)
 
     # Only process budgets that have a recurrence count and aren't custom period
     query = query.exclude(period=Budget.PERIOD_CUSTOM).filter(recurrence_count__isnull=False, recurrence_count__gt=0)
@@ -99,7 +108,7 @@ def generate_recurring_budgets(user=None):
 
             # Check if a budget already exists for this period
             existing = Budget.objects.filter(
-                user=template_budget.user,
+                organization=template_budget.organization,
                 name=template_budget.name,
                 period=template_budget.period,
                 start_date=period_start,
@@ -110,6 +119,7 @@ def generate_recurring_budgets(user=None):
                 # Create the new budget period
                 new_budget = Budget.objects.create(
                     user=template_budget.user,
+                    organization=template_budget.organization,
                     name=template_budget.name,
                     amount=template_budget.amount,
                     period=Budget.PERIOD_CUSTOM,  # Generated budgets are custom with specific dates

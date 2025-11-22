@@ -57,7 +57,7 @@ def calculate_budget_usage(budget, transaction_model):
     if budget_labels.exists():
         # Track spending for transactions with ANY of the budget's labels
         spent_qs = transaction_model.objects.filter(
-            user=budget.user,
+            organization=budget.organization,
             label__in=budget_labels,
             direction='outflow',
             date__gte=start_date,
@@ -67,7 +67,7 @@ def calculate_budget_usage(budget, transaction_model):
         # Fallback: use old category field for backward compatibility
         if budget.category:
             spent_qs = transaction_model.objects.filter(
-                user=budget.user,
+                organization=budget.organization,
                 category=budget.category,
                 direction='outflow',
                 date__gte=start_date,
@@ -98,14 +98,14 @@ def calculate_budget_usage(budget, transaction_model):
     }
 
 
-def get_budget_summary(user, transaction_model):
+def get_budget_summary(organization, transaction_model):
     """
-    Get summary of all active budgets for a user.
+    Get summary of all active budgets for an organization.
     Returns list of budget info dicts sorted by percent used (descending).
     """
     from app_core.models import Budget
 
-    budgets = Budget.objects.filter(user=user, active=True).prefetch_related('labels').order_by('name')
+    budgets = Budget.objects.filter(organization=organization, active=True).prefetch_related('labels').order_by('name')
     summary = []
 
     for budget in budgets:

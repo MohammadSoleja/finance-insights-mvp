@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Debug - Organization Info{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="card">
+    <h1>Organization Debug Info</h1>
+    <p style="color: var(--muted);">This page shows your organization status for debugging</p>
+
+    <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border);">
+
+    <h2>User Information</h2>
+    <table style="width: 100%; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 0.75rem; font-weight: 600;">Username:</td>
+        <td style="padding: 0.75rem;">{{ request.user.username }}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 0.75rem; font-weight: 600;">Email:</td>
+        <td style="padding: 0.75rem;">{{ request.user.email }}</td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 0.75rem; font-weight: 600;">Authenticated:</td>
+        <td style="padding: 0.75rem;">✅ Yes</td>
+      </tr>
+    </table>
+
+    <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border);">
+
+    <h2>Current Organization (from Middleware)</h2>
+    {% if current_organization %}
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.75rem; font-weight: 600;">Organization Name:</td>
+          <td style="padding: 0.75rem;">{{ current_organization.name }}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.75rem; font-weight: 600;">Organization Slug:</td>
+          <td style="padding: 0.75rem;">{{ current_organization.slug }}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.75rem; font-weight: 600;">Plan:</td>
+          <td style="padding: 0.75rem;">{{ current_organization.plan }}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.75rem; font-weight: 600;">Max Users:</td>
+          <td style="padding: 0.75rem;">{{ current_organization.max_users }}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border);">
+          <td style="padding: 0.75rem; font-weight: 600;">Is Active:</td>
+          <td style="padding: 0.75rem;">{% if current_organization.is_active %}✅ Yes{% else %}❌ No{% endif %}</td>
+        </tr>
+      </table>
+    {% else %}
+      <p style="color: var(--danger); padding: 1rem; background: #fee2e2; border-radius: 8px;">
+        ❌ No current organization! This is a problem.
+      </p>
+    {% endif %}
+
+    <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border);">
+
+    <h2>Your Organization Memberships</h2>
+    {% if user_organizations %}
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: var(--bg-secondary); border-bottom: 2px solid var(--border);">
+            <th style="padding: 0.75rem; text-align: left;">Organization</th>
+            <th style="padding: 0.75rem; text-align: left;">Role</th>
+            <th style="padding: 0.75rem; text-align: left;">Status</th>
+            <th style="padding: 0.75rem; text-align: left;">Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for membership in user_organizations %}
+            <tr style="border-bottom: 1px solid var(--border);">
+              <td style="padding: 0.75rem;">
+                {{ membership.organization.name }}
+                {% if membership.organization.id == current_organization.id %}
+                  <span style="color: var(--accent); font-weight: 600;">(Current)</span>
+                {% endif %}
+              </td>
+              <td style="padding: 0.75rem;">{{ membership.role.name }}</td>
+              <td style="padding: 0.75rem;">
+                {% if membership.is_active %}
+                  <span style="color: var(--success);">✅ Active</span>
+                {% else %}
+                  <span style="color: var(--danger);">❌ Inactive</span>
+                {% endif %}
+              </td>
+              <td style="padding: 0.75rem;">{{ membership.accepted_at|date:"M d, Y" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="color: var(--danger); padding: 1rem; background: #fee2e2; border-radius: 8px;">
+        ❌ You are not a member of any organizations! This is a problem.
+      </p>
+      <p style="margin-top: 1rem;">
+        <strong>Solution:</strong> Run the migration again or create an organization manually via Django shell.
+      </p>
+    {% endif %}
+
+    <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border);">
+
+    <h2>Request Object Info</h2>
+    <table style="width: 100%; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 0.75rem; font-weight: 600;">request.organization:</td>
+        <td style="padding: 0.75rem;">
+          {% if request.organization %}
+            ✅ {{ request.organization.name }}
+          {% else %}
+            ❌ None
+          {% endif %}
+        </td>
+      </tr>
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 0.75rem; font-weight: 600;">request.organization_member:</td>
+        <td style="padding: 0.75rem;">
+          {% if request.organization_member %}
+            ✅ {{ request.organization_member.role.name }}
+          {% else %}
+            ❌ None
+          {% endif %}
+        </td>
+      </tr>
+    </table>
+
+    <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border);">
+
+    <h2>Session Info</h2>
+    <table style="width: 100%; border-collapse: collapse;">
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 0.75rem; font-weight: 600;">Session Org ID:</td>
+        <td style="padding: 0.75rem;">{{ request.session.current_organization_id|default:"Not set" }}</td>
+      </tr>
+    </table>
+
+    <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border);">
+
+    <div style="display: flex; gap: 1rem;">
+      <a href="{% url 'app_web:team_overview' %}" class="btn btn-primary">Go to Team Dashboard</a>
+      <a href="{% url 'app_web:dashboard' %}" class="btn btn-secondary">Go to Dashboard</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

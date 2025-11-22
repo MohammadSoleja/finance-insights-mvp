@@ -1,0 +1,480 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'app_web/styles.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="team-layout">
+    <!-- Sidebar -->
+    <aside class="team-sidebar">
+      <h2 class="team-sidebar-title">Team</h2>
+      <nav>
+        <ul class="team-nav">
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:team_overview' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+              </svg>
+              Overview
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:team_members' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+              </svg>
+              Members
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:approvals' %}" class="team-nav-link active">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Approvals
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:activity_log' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+              </svg>
+              Activity Log
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="team-main">
+<div class="page-header">
+  <div>
+    <h1>{{ title }}</h1>
+    <p class="text-muted">Review and manage approval requests</p>
+  </div>
+  <div>
+    {% if perms.can_manage_organization %}
+    <a href="{% url 'app_web:approval_workflows' %}" class="btn btn-secondary">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+      </svg>
+      Manage Workflows
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Filter Tabs -->
+<div class="filter-tabs">
+  <a href="?status=pending" class="tab {% if status_filter == 'pending' %}active{% endif %}">
+    Pending
+    {% if pending_approvals_count > 0 %}
+    <span class="badge">{{ pending_approvals_count }}</span>
+    {% endif %}
+  </a>
+  <a href="?status=approved" class="tab {% if status_filter == 'approved' %}active{% endif %}">Approved</a>
+  <a href="?status=rejected" class="tab {% if status_filter == 'rejected' %}active{% endif %}">Rejected</a>
+  <a href="?status=all" class="tab {% if status_filter == 'all' %}active{% endif %}">All</a>
+</div>
+
+<!-- Approvals to Review -->
+<div class="card" style="margin-bottom: 2rem;">
+  <div class="card-header">
+    <h3>Pending Your Approval</h3>
+  </div>
+  <div class="card-body">
+    {% if approvals_page_obj.object_list %}
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Request</th>
+            <th>Requested By</th>
+            <th>Workflow</th>
+            <th>Status</th>
+            <th>Approvals</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for approval in approvals_page_obj %}
+          <tr data-approval-id="{{ approval.id }}">
+            <td>
+              <div class="approval-description">
+                <strong>{{ approval.get_entity_type_display }}</strong>
+                <div class="text-muted">{{ approval.entity_description }}</div>
+              </div>
+            </td>
+            <td>{{ approval.requested_by.username }}</td>
+            <td>{{ approval.workflow.name }}</td>
+            <td>
+              <span class="badge badge-{% if approval.status == 'pending' %}warning{% elif approval.status == 'approved' %}success{% else %}danger{% endif %}">
+                {{ approval.get_status_display }}
+              </span>
+            </td>
+            <td>
+              <span class="approval-count">
+                {{ approval.approved_by.count }} / {{ approval.workflow.approvals_required }}
+              </span>
+            </td>
+            <td>{{ approval.created_at|date:"M d, Y" }}</td>
+            <td>
+              {% if approval.status == 'pending' %}
+              <button class="btn btn-sm btn-success approve-btn" data-approval-id="{{ approval.id }}">
+                Approve
+              </button>
+              <button class="btn btn-sm btn-danger reject-btn" data-approval-id="{{ approval.id }}">
+                Reject
+              </button>
+              {% else %}
+              <span class="text-muted">{{ approval.get_status_display }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if approvals_page_obj.has_other_pages %}
+    <div class="pagination">
+      {% if approvals_page_obj.has_previous %}
+      <a href="?approvals_page={{ approvals_page_obj.previous_page_number }}&status={{ status_filter }}" class="page-link">&laquo; Previous</a>
+      {% endif %}
+      <span class="page-info">
+        Page {{ approvals_page_obj.number }} of {{ approvals_page_obj.paginator.num_pages }}
+      </span>
+      {% if approvals_page_obj.has_next %}
+      <a href="?approvals_page={{ approvals_page_obj.next_page_number }}&status={{ status_filter }}" class="page-link">Next &raquo;</a>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state">
+      <p>No approval requests requiring your review.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- My Requests -->
+<div class="card">
+  <div class="card-header">
+    <h3>My Requests</h3>
+  </div>
+  <div class="card-body">
+    {% if requests_page_obj.object_list %}
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Request</th>
+            <th>Workflow</th>
+            <th>Status</th>
+            <th>Approvals</th>
+            <th>Date</th>
+            <th>Resolved</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for request in requests_page_obj %}
+          <tr>
+            <td>
+              <div class="approval-description">
+                <strong>{{ request.get_entity_type_display }}</strong>
+                <div class="text-muted">{{ request.entity_description }}</div>
+              </div>
+            </td>
+            <td>{{ request.workflow.name }}</td>
+            <td>
+              <span class="badge badge-{% if request.status == 'pending' %}warning{% elif request.status == 'approved' %}success{% else %}danger{% endif %}">
+                {{ request.get_status_display }}
+              </span>
+            </td>
+            <td>
+              <span class="approval-count">
+                {{ request.approved_by.count }} / {{ request.workflow.approvals_required }}
+              </span>
+            </td>
+            <td>{{ request.created_at|date:"M d, Y H:i" }}</td>
+            <td>
+              {% if request.resolved_at %}
+              {{ request.resolved_at|date:"M d, Y H:i" }}
+              {% else %}
+              <span class="text-muted">Pending</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if requests_page_obj.has_other_pages %}
+    <div class="pagination">
+      {% if requests_page_obj.has_previous %}
+      <a href="?requests_page={{ requests_page_obj.previous_page_number }}&status={{ status_filter }}" class="page-link">&laquo; Previous</a>
+      {% endif %}
+      <span class="page-info">
+        Page {{ requests_page_obj.number }} of {{ requests_page_obj.paginator.num_pages }}
+      </span>
+      {% if requests_page_obj.has_next %}
+      <a href="?requests_page={{ requests_page_obj.next_page_number }}&status={{ status_filter }}" class="page-link">Next &raquo;</a>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state">
+      <p>You haven't made any approval requests yet.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal-backdrop" id="rejectModal" style="display: none;">
+  <div class="modal" style="max-width: 500px;">
+    <div class="modal-header">
+      <h3>Reject Request</h3>
+      <button class="modal-close" onclick="closeRejectModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>Please provide a reason for rejecting this request:</p>
+      <textarea id="rejectionReason" class="form-input" rows="4" placeholder="Reason for rejection..." style="width: 100%;"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeRejectModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmReject()">Reject Request</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.filter-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.filter-tabs .tab {
+  padding: 0.75rem 1.5rem;
+  text-decoration: none;
+  color: var(--text-secondary);
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filter-tabs .tab:hover {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.filter-tabs .tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+.filter-tabs .badge {
+  background: var(--danger);
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.approval-description {
+  max-width: 300px;
+}
+
+.approval-description strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.approval-count {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.badge-warning {
+  background: #fbbf24;
+  color: #78350f;
+}
+
+.badge-success {
+  background: #34d399;
+  color: #065f46;
+}
+
+.badge-danger {
+  background: #f87171;
+  color: #7f1d1d;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  border-radius: 8px;
+  padding: 0;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.modal-close:hover {
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  padding: 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+</style>
+
+<script>
+let currentApprovalId = null;
+
+// Approve request
+document.querySelectorAll('.approve-btn').forEach(btn => {
+  btn.addEventListener('click', async function() {
+    const approvalId = this.dataset.approvalId;
+
+    if (!confirm('Are you sure you want to approve this request?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/team/approvals/${approvalId}/approve/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': '{{ csrf_token }}',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        alert(data.message);
+        location.reload();
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (error) {
+      alert('An error occurred. Please try again.');
+      console.error(error);
+    }
+  });
+});
+
+// Reject request - show modal
+document.querySelectorAll('.reject-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    currentApprovalId = this.dataset.approvalId;
+    document.getElementById('rejectModal').style.display = 'flex';
+    document.getElementById('rejectionReason').value = '';
+  });
+});
+
+function closeRejectModal() {
+  document.getElementById('rejectModal').style.display = 'none';
+  currentApprovalId = null;
+}
+
+async function confirmReject() {
+  const reason = document.getElementById('rejectionReason').value.trim();
+
+  if (!reason) {
+    alert('Please provide a reason for rejection.');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/team/approvals/${currentApprovalId}/reject/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': '{{ csrf_token }}',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ reason })
+    });
+
+    const data = await response.json();
+
+    if (data.ok) {
+      alert(data.message);
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  } catch (error) {
+    alert('An error occurred. Please try again.');
+    console.error(error);
+  }
+}
+
+// Close modal on escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeRejectModal();
+  }
+});
+</script>
+    </main>
+  </div>
+</div>
+{% endblock %}
+

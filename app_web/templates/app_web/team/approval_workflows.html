@@ -1,0 +1,529 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'app_web/styles.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="team-layout">
+    <!-- Sidebar -->
+    <aside class="team-sidebar">
+      <h2 class="team-sidebar-title">Team</h2>
+      <nav>
+        <ul class="team-nav">
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:team_overview' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+              </svg>
+              Overview
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:team_members' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+              </svg>
+              Members
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:approvals' %}" class="team-nav-link active">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Approvals
+            </a>
+          </li>
+          <li class="team-nav-item">
+            <a href="{% url 'app_web:activity_log' %}" class="team-nav-link">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+              </svg>
+              Activity Log
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="team-main">
+<div class="page-header">
+  <div>
+    <h1>{{ title }}</h1>
+    <p class="text-muted">Configure approval rules for transactions, budgets, and invoices</p>
+  </div>
+  <div>
+    <button class="btn btn-primary" onclick="openCreateModal()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+      Create Workflow
+    </button>
+  </div>
+</div>
+
+{% if workflows %}
+<div class="workflows-grid">
+  {% for workflow in workflows %}
+  <div class="workflow-card">
+    <div class="workflow-header">
+      <div>
+        <h3>{{ workflow.name }}</h3>
+        <span class="badge badge-{{ workflow.entity_type }}">{{ workflow.get_entity_type_display }}</span>
+      </div>
+      <div class="workflow-actions">
+        {% if workflow.is_active %}
+        <span class="status-badge active">Active</span>
+        {% else %}
+        <span class="status-badge inactive">Inactive</span>
+        {% endif %}
+        <button class="btn-icon" onclick="deleteWorkflow({{ workflow.id }}, '{{ workflow.name }}')">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="workflow-body">
+      <!-- Trigger Conditions -->
+      <div class="workflow-section">
+        <h4>Trigger Conditions</h4>
+        {% if workflow.min_amount %}
+        <div class="condition">
+          <strong>Minimum Amount:</strong> £{{ workflow.min_amount|floatformat:2|intcomma }}
+        </div>
+        {% endif %}
+        {% if workflow.max_amount %}
+        <div class="condition">
+          <strong>Maximum Amount:</strong> £{{ workflow.max_amount|floatformat:2|intcomma }}
+        </div>
+        {% endif %}
+        {% if workflow.labels.all %}
+        <div class="condition">
+          <strong>Labels:</strong>
+          <div class="labels-list">
+            {% for label in workflow.labels.all %}
+            <span class="label-tag">{{ label.name }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {% if not workflow.min_amount and not workflow.max_amount and not workflow.labels.all %}
+        <div class="text-muted">All {{ workflow.get_entity_type_display }}s</div>
+        {% endif %}
+      </div>
+
+      <!-- Approvers -->
+      <div class="workflow-section">
+        <h4>Approval Rules</h4>
+        <div class="condition">
+          <strong>Approvals Required:</strong> {{ workflow.approvals_required }}
+        </div>
+        <div class="condition">
+          <strong>Approver Roles:</strong>
+          <div class="roles-list">
+            {% for role in workflow.approver_roles.all %}
+            <span class="role-tag">{{ role.name }}</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="workflow-stats">
+        <div class="stat">
+          <div class="stat-value">{{ workflow.approvals.count }}</div>
+          <div class="stat-label">Total Requests</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">{{ workflow.approvals.filter.count }}</div>
+          <div class="stat-label">Pending</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+    <path d="M9 11l3 3L22 4"></path>
+    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+  </svg>
+  <h3>No Approval Workflows</h3>
+  <p>Create workflows to require approvals for transactions, budgets, and invoices based on amount or category.</p>
+  <button class="btn btn-primary" onclick="openCreateModal()">Create First Workflow</button>
+</div>
+{% endif %}
+
+<!-- Create Workflow Modal -->
+<div class="modal-backdrop" id="createModal" style="display: none;">
+  <div class="modal" style="max-width: 600px;">
+    <div class="modal-header">
+      <h3>Create Approval Workflow</h3>
+      <button class="modal-close" onclick="closeCreateModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="createWorkflowForm">
+        <div class="field">
+          <label>Workflow Name *</label>
+          <input type="text" name="name" class="form-input" placeholder="e.g., Large Expenses" required>
+        </div>
+
+        <div class="field">
+          <label>Entity Type *</label>
+          <select name="entity_type" class="form-input" required>
+            <option value="">Select type...</option>
+            {% for value, label in entity_types %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Minimum Amount</label>
+            <input type="number" name="min_amount" class="form-input" placeholder="e.g., 1000" step="0.01">
+          </div>
+          <div class="field">
+            <label>Maximum Amount</label>
+            <input type="number" name="max_amount" class="form-input" placeholder="e.g., 10000" step="0.01">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Trigger for Specific Labels (optional)</label>
+          <div class="checkbox-group" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem;">
+            {% for label in labels %}
+            <label class="checkbox-label">
+              <input type="checkbox" name="label_ids" value="{{ label.id }}">
+              <span>{{ label.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <small class="text-muted">Leave unchecked to apply to all labels</small>
+        </div>
+
+        <div class="field">
+          <label>Approvals Required *</label>
+          <input type="number" name="approvals_required" class="form-input" value="1" min="1" required>
+        </div>
+
+        <div class="field">
+          <label>Approver Roles *</label>
+          <div class="checkbox-group">
+            {% for role in roles %}
+            <label class="checkbox-label">
+              <input type="checkbox" name="approver_role_ids" value="{{ role.id }}">
+              <span>{{ role.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="checkbox-label">
+            <input type="checkbox" name="is_active" checked>
+            <span>Active</span>
+          </label>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="createWorkflow()">Create Workflow</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.workflows-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1.5rem;
+}
+
+.workflow-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.workflow-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.workflow-header h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+}
+
+.workflow-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-badge.active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.inactive {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.workflow-body {
+  padding: 1.5rem;
+}
+
+.workflow-section {
+  margin-bottom: 1.5rem;
+}
+
+.workflow-section:last-child {
+  margin-bottom: 0;
+}
+
+.workflow-section h4 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.75rem 0;
+}
+
+.condition {
+  margin-bottom: 0.75rem;
+}
+
+.condition strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--text);
+}
+
+.labels-list, .roles-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.label-tag, .role-tag {
+  padding: 0.25rem 0.75rem;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.workflow-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.stat {
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.badge-transaction {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.badge-budget {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge-expense_claim {
+  background: #fce7f3;
+  color: #9f1239;
+}
+
+.badge-invoice {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+}
+</style>
+
+<script>
+function openCreateModal() {
+  document.getElementById('createModal').style.display = 'flex';
+}
+
+function closeCreateModal() {
+  document.getElementById('createModal').style.display = 'none';
+  document.getElementById('createWorkflowForm').reset();
+}
+
+async function createWorkflow() {
+  const form = document.getElementById('createWorkflowForm');
+  const formData = new FormData(form);
+
+  // Build data object
+  const data = {
+    name: formData.get('name'),
+    entity_type: formData.get('entity_type'),
+    min_amount: formData.get('min_amount') || null,
+    max_amount: formData.get('max_amount') || null,
+    approvals_required: formData.get('approvals_required'),
+    is_active: formData.get('is_active') === 'on',
+    approver_role_ids: formData.getAll('approver_role_ids').map(Number),
+    label_ids: formData.getAll('label_ids').map(Number)
+  };
+
+  // Validation
+  if (!data.name || !data.entity_type) {
+    alert('Please fill in all required fields.');
+    return;
+  }
+
+  if (data.approver_role_ids.length === 0) {
+    alert('Please select at least one approver role.');
+    return;
+  }
+
+  try {
+    const response = await fetch('/team/workflows/create/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': '{{ csrf_token }}',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (result.ok) {
+      alert(result.message);
+      location.reload();
+    } else {
+      alert('Error: ' + result.error);
+    }
+  } catch (error) {
+    alert('An error occurred. Please try again.');
+    console.error(error);
+  }
+}
+
+async function deleteWorkflow(workflowId, workflowName) {
+  if (!confirm(`Are you sure you want to delete the workflow "${workflowName}"?`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/team/workflows/${workflowId}/delete/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': '{{ csrf_token }}',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    if (data.ok) {
+      alert(data.message);
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  } catch (error) {
+    alert('An error occurred. Please try again.');
+    console.error(error);
+  }
+}
+
+// Close modal on escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeCreateModal();
+  }
+});
+</script>
+    </main>
+  </div>
+</div>
+{% endblock %}
+

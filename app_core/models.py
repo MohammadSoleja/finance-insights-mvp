@@ -3,12 +3,30 @@ from django.db import models
 from django.contrib.auth import get_user_model
 User = get_user_model()
 
+# Import team collaboration models
+from .team_models import (
+    Organization,
+    OrganizationRole,
+    OrganizationMember,
+    PermissionRequest,
+    ApprovalWorkflow,
+    Approval,
+    ActivityLog,
+)
+
 class Label(models.Model):
     """
     Labels (tags) for categorizing transactions.
     Users create and manage their own labels.
     """
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="labels")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="labels", help_text="User who created this label")
+    organization = models.ForeignKey(
+        'Organization',
+        on_delete=models.CASCADE,
+        related_name="labels",
+        null=True,  # Temporarily nullable for migration
+        blank=True
+    )
     name = models.CharField(max_length=64, help_text="Label name (e.g., 'Office Supplies', 'Client A')")
     color = models.CharField(max_length=7, default="#2563eb", help_text="Hex color code for UI display")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -16,6 +34,7 @@ class Label(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=["user", "name"]),
+            models.Index(fields=["organization", "name"]),
         ]
         ordering = ["name"]
         unique_together = [["user", "name"]]  # Each user's label names must be unique
@@ -29,7 +48,14 @@ class Transaction(models.Model):
     OUTFLOW = "outflow"
     DIRECTION_CHOICES = [(INFLOW, "Inflow"), (OUTFLOW, "Outflow")]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="transactions")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions", help_text="User who created this transaction")
+    organization = models.ForeignKey(
+        'Organization',
+        on_delete=models.CASCADE,
+        related_name="transactions",
+        null=True,  # Temporarily nullable for migration
+        blank=True
+    )
     date = models.DateField(db_index=True)
     description = models.CharField(max_length=512)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
@@ -51,6 +77,7 @@ class Transaction(models.Model):
         indexes = [
             models.Index(fields=["user", "date"]),
             models.Index(fields=["user", "label"]),
+            models.Index(fields=["organization", "date"]),
         ]
         ordering = ["-date", "-id"]
 
@@ -62,7 +89,7 @@ class Transaction(models.Model):
 class Rule(models.Model):
     # very simple MVP rules: substring/regex → category/subcategory
     #user_id = models.IntegerField()
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rules")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="rules", help_text="User who created this rule")
     pattern = models.CharField(max_length=256, help_text="Substring or regex to match in description.")
     is_regex = models.BooleanField(default=False)
     category = models.CharField(max_length=128)
@@ -96,7 +123,14 @@ class Budget(models.Model):
         (PERIOD_CUSTOM, "Custom Date Range"),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="budgets")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="budgets", help_text="User who created this budget")
+    organization = models.ForeignKey(
+        'Organization',
+        on_delete=models.CASCADE,
+        related_name="budgets",
+        null=True,  # Temporarily nullable for migration
+        blank=True
+    )
     name = models.CharField(max_length=128, help_text="Budget name (e.g., 'Q4 Marketing', 'Office Renovation')")
     amount = models.DecimalField(max_digits=12, decimal_places=2, help_text="Budget limit")
 
@@ -124,6 +158,7 @@ class Budget(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=["user", "active"]),
+            models.Index(fields=["organization", "active"]),
             models.Index(fields=["start_date", "end_date"]),
         ]
         ordering = ["name"]
@@ -151,7 +186,7 @@ class RecurringTransaction(models.Model):
         (FREQUENCY_YEARLY, "Yearly"),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="recurring_transactions")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="recurring_transactions", help_text="User who created this recurring transaction")
     description = models.CharField(max_length=512, help_text="Transaction description")
     amount = models.DecimalField(max_digits=12, decimal_places=2, help_text="Transaction amount")
     direction = models.CharField(max_length=10, choices=Transaction.DIRECTION_CHOICES, help_text="Inflow or Outflow")
@@ -201,7 +236,14 @@ class Project(models.Model):
         (STATUS_ON_HOLD, "On Hold"),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="projects")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="projects", help_text="User who created this project (for audit trail)")
+    organization = models.ForeignKey(
+        'Organization',
+        on_delete=models.CASCADE,
+        related_name="projects",
+        null=True,  # Temporarily nullable for migration
+        blank=True
+    )
     name = models.CharField(max_length=128, help_text="Project name (e.g., 'Q4 Marketing Campaign', 'Client XYZ')")
     description = models.TextField(blank=True, default="", help_text="Project description and notes")
     budget = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text="Project budget")
@@ -377,7 +419,7 @@ class ProjectActivity(models.Model):
     ]
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='activities')
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, help_text="User who performed this action (null if deleted)")
     action = models.CharField(max_length=30, choices=ACTION_CHOICES)
     description = models.TextField(help_text="Human-readable description of the action")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -398,7 +440,14 @@ class Client(models.Model):
     """
     Client/Customer management for invoicing.
     """
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="clients")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="clients", help_text="User who created this client")
+    organization = models.ForeignKey(
+        'Organization',
+        on_delete=models.CASCADE,
+        related_name="clients",
+        null=True,  # Temporarily nullable for migration
+        blank=True
+    )
     name = models.CharField(max_length=128, help_text="Client name")
     email = models.EmailField(help_text="Client email address")
     company = models.CharField(max_length=128, blank=True, default="", help_text="Company name (optional)")
@@ -428,6 +477,7 @@ class Client(models.Model):
             models.Index(fields=["user", "name"]),
             models.Index(fields=["user", "email"]),
             models.Index(fields=["user", "active"]),
+            models.Index(fields=["organization", "name"]),
         ]
         ordering = ["name"]
         unique_together = [["user", "email"]]  # Each user's client emails must be unique
@@ -456,7 +506,14 @@ class Invoice(models.Model):
         (STATUS_CANCELLED, "Cancelled"),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="invoices")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoices", help_text="User who created this invoice")
+    organization = models.ForeignKey(
+        'Organization',
+        on_delete=models.CASCADE,
+        related_name="invoices",
+        null=True,  # Temporarily nullable for migration
+        blank=True
+    )
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name="invoices")
 
     # Invoice identification
@@ -627,7 +684,7 @@ class InvoiceTemplate(models.Model):
     """
     Reusable invoice templates for common services/products.
     """
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="invoice_templates")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="invoice_templates", help_text="User who created this template")
     name = models.CharField(max_length=128, help_text="Template name")
     description = models.TextField(blank=True, default="", help_text="Template description")
 
