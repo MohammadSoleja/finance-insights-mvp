@@ -1,27 +1,23 @@
-{% extends "base.html" %}
-{% load static %}
+{% extends "app_web/reports_base.html" %}
 {% load humanize %}
 
-{% block title %}Project Performance - Finance Insights{% endblock %}
+{% block report_title %}Project Performance{% endblock %}
 
-{% block head_extra %}
-<link rel="stylesheet" href="{% static 'app_web/reports.css' %}">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-{% endblock %}
+{% block report_content %}
 
-{% block content %}
+<!-- Controls in a card for consistency -->
+<div class="card" style="margin-bottom: 1rem;">
+  <div id="pnl-controls" style="display:flex; gap:.5rem; align-items:center; justify-content:flex-end;">
+    <form id="pnl-filter-form" method="get" style="display:inline-flex; gap:.5rem; align-items:center;">
+      <input type="text" id="pnl-start" name="start" placeholder="Start date" value="{{ start_date|date:'Y-m-d' }}" class="form-input">
+      <input type="text" id="pnl-end" name="end" placeholder="End date" value="{{ end_date|date:'Y-m-d' }}" class="form-input">
+      <button class="btn btn-secondary" type="submit">Apply</button>
+    </form>
 
-<!-- Controls -->
-<div id="pnl-controls" style="display:flex; gap:.5rem; align-items:center; margin-bottom:.75rem; justify-content:flex-end;">
-  <form id="pnl-filter-form" method="get" style="display:inline-flex; gap:.5rem; align-items:center;">
-    <input type="text" id="pnl-start" name="start" placeholder="Start date" value="{{ start_date|date:'Y-m-d' }}" class="form-input">
-    <input type="text" id="pnl-end" name="end" placeholder="End date" value="{{ end_date|date:'Y-m-d' }}" class="form-input">
-    <button class="btn btn-secondary" type="submit">Apply</button>
-  </form>
-
-  {% url 'app_web:report_project_performance_download' as base %}
-  <a class="btn btn-primary" id="pnl-download" href="{% if start_date and end_date %}{{ base }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ base }}{% endif %}">Download PDF</a>
-  <button class="btn btn-secondary" id="printBtn">Print</button>
+    {% url 'app_web:report_project_performance_download' as base %}
+    <a class="btn btn-primary" id="pnl-download" href="{% if start_date and end_date %}{{ base }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ base }}{% endif %}">Download PDF</a>
+    <button class="btn btn-secondary" id="printBtn">Print</button>
+  </div>
 </div>
 
 <!-- Blue header with title -->
@@ -74,15 +70,6 @@
   </table>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script>
-  flatpickr('#pnl-start', { dateFormat: 'Y-m-d' });
-  flatpickr('#pnl-end', { dateFormat: 'Y-m-d' });
+{% endblock report_content %}
 
-  document.getElementById('printBtn').addEventListener('click', () => {
-    window.print();
-  });
-</script>
-
-{% endblock %}
 

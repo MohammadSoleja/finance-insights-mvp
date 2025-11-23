@@ -12,9 +12,8 @@
 {% endblock %}
 
 {% block content %}
-  <h1 class="title">Dashboard</h1>
-
   <!-- Combined toolbar: frequency buttons to the left, filters to the right (dashboard-scoped form) -->
+  <div class="card" style="margin-bottom: 1rem;">
   <div class="dashboard-toolbar">
     <div class="freq-group" role="tablist" aria-label="Frequency">
       {% with base=base_qs %}
@@ -55,8 +54,7 @@
       </div>
     </form>
   </div>
-
-  <div class="spacer"></div>
+  </div><!-- End toolbar card -->
 
   <div class="kpi-grid">
     <!-- Total Outflow (first as requested) -->

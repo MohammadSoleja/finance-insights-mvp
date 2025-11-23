@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% block report_title %}Reports{% endblock %} - Finance Insights{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{% static 'app_web/reports.css' %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% block extra_head %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="reports-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="reports-sidebar">
+      <h2 class="reports-sidebar-title">Reports</h2>
+      <nav>
+        <ul class="reports-nav">
+          <li class="reports-nav-item">
+            <a href="{% url 'app_web:reports' %}" class="reports-nav-link {% if active_report == 'overview' %}active{% endif %}">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+              </svg>
+              Overview
+            </a>
+          </li>
+          <li class="reports-nav-item">
+            <a href="{% url 'app_web:report_pnl' %}" class="reports-nav-link {% if active_report == 'pnl' %}active{% endif %}">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+              </svg>
+              P&L Statement
+            </a>
+          </li>
+          <li class="reports-nav-item">
+            <a href="{% url 'app_web:report_cashflow' %}" class="reports-nav-link {% if active_report == 'cashflow' %}active{% endif %}">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+              </svg>
+              Cash Flow
+            </a>
+          </li>
+          <li class="reports-nav-item">
+            <a href="{% url 'app_web:report_expenses' %}" class="reports-nav-link {% if active_report == 'expenses' %}active{% endif %}">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Expenses
+            </a>
+          </li>
+          <li class="reports-nav-item">
+            <a href="{% url 'app_web:report_income' %}" class="reports-nav-link {% if active_report == 'income' %}active{% endif %}">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8zM8 9a1 1 0 00-2 0v2a1 1 0 102 0V9z" clip-rule="evenodd"/>
+              </svg>
+              Income
+            </a>
+          </li>
+          <li class="reports-nav-item">
+            <a href="{% url 'app_web:report_tax' %}" class="reports-nav-link {% if active_report == 'tax' %}active{% endif %}">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+              </svg>
+              Tax Summary
+            </a>
+          </li>
+          <li class="reports-nav-item">
+            <a href="{% url 'app_web:report_budget_performance' %}" class="reports-nav-link {% if active_report == 'budget_performance' %}active{% endif %}">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+              </svg>
+              Budget Performance
+            </a>
+          </li>
+          <li class="reports-nav-item">
+            <a href="{% url 'app_web:report_project_performance' %}" class="reports-nav-link {% if active_report == 'project_performance' %}active{% endif %}">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              Project Performance
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="reports-main">
+      {% block report_content %}
+      <!-- Report content goes here -->
+      {% endblock %}
+    </main>
+  </div>
+</div>
+
+{% block report_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+  // Initialize flatpickr on all date inputs
+  document.addEventListener('DOMContentLoaded', function() {
+    const dateInputs = document.querySelectorAll('#pnl-start, #pnl-end');
+    dateInputs.forEach(input => {
+      flatpickr(input, {
+        dateFormat: 'Y-m-d',
+        allowInput: true
+      });
+    });
+
+    // Print functionality
+    const printBtn = document.getElementById('printBtn');
+    if (printBtn) {
+      printBtn.addEventListener('click', function() {
+        window.print();
+      });
+    }
+  });
+</script>
+{% endblock %}
+{% endblock %}
+

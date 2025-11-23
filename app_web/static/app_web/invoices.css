@@ -30,24 +30,24 @@
   background: white;
   border: 1px solid rgba(16, 24, 40, 0.06);
   border-radius: 12px;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1rem;
   box-shadow: 0 6px 22px rgba(16, 24, 40, 0.06);
 }
 
 .stat-label {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: #6b7280;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
 }
 
 .stat-value {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: #111827;
 }
 
 .stat-meta {
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: #6b7280;
   margin-top: 0.25rem;
 }

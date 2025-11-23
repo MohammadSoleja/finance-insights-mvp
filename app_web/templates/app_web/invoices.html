@@ -10,12 +10,6 @@
 
 {% block content %}
 <div class="invoices-page">
-  <div class="page-header">
-    <h1>Invoices</h1>
-    <button class="btn btn-primary" onclick="openCreateInvoiceModal()">
-      <span>+</span> Create Invoice
-    </button>
-  </div>
 
   <!-- Statistics Cards -->
   <div class="stats-grid">
@@ -67,6 +61,9 @@
 
       <button class="btn btn-secondary btn-filter" onclick="applyFilters()">Apply</button>
       <button class="btn btn-secondary btn-filter" onclick="clearFilters()">Clear</button>
+      <button class="btn btn-primary" onclick="openCreateInvoiceModal()" style="margin-left: auto;">
+        + Create Invoice
+      </button>
     </div>
   </div>
 

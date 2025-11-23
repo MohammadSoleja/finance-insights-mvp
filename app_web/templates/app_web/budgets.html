@@ -11,17 +11,6 @@
 
 {% block content %}
 <div class="budgets-container">
-  <div class="budget-header">
-    <h1>Budget Management</h1>
-    <div style="display: flex; gap: 0.5rem; align-items: center;">
-      <button id="bulk-delete-btn" class="btn" style="background: #ef4444; color: white; display: none;" onclick="confirmBulkDelete()">
-        Delete Selected (<span id="selected-count">0</span>)
-      </button>
-      <button class="btn btn-primary" onclick="openAddBudgetModal()">+ Add Budget</button>
-      <a href="{% url 'app_web:dashboard' %}" class="btn">← Back to Dashboard</a>
-    </div>
-  </div>
-
   {% if messages %}
     {% for message in messages %}
       <div class="alert alert-{{ message.tags }}">{{ message }}</div>
@@ -67,6 +56,13 @@
         <option value="name">Name (A-Z)</option>
         <option value="amount">Amount (High to Low)</option>
       </select>
+    </div>
+
+    <div style="display: flex; gap: 0.5rem; align-items: flex-end; margin-left: auto;">
+      <button id="bulk-delete-btn" class="btn" style="background: #ef4444; color: white; display: none;" onclick="confirmBulkDelete()">
+        Delete Selected (<span id="selected-count">0</span>)
+      </button>
+      <button class="btn btn-primary" onclick="openAddBudgetModal()">+ Add Budget</button>
     </div>
   </div>
 
