@@ -1,5 +1,38 @@
 /* Dashboard Page Styles */
 
+/* Modern Chart.js Tooltip Styling */
+.chartjs-tooltip {
+  opacity: 1;
+  position: absolute;
+  background: rgba(255, 255, 255, 0.98) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(229, 231, 235, 0.8) !important;
+  border-radius: 12px !important;
+  color: #111827;
+  padding: 12px !important;
+  pointer-events: none;
+  transform: translate(-50%, 0);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06),
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+.chartjs-tooltip:before {
+  border: solid;
+  border-color: rgba(255, 255, 255, 0.98) transparent;
+  border-width: 6px 6px 0 6px;
+  bottom: -6px;
+  content: "";
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
 /* Dashboard Toolbar - Override global styles */
 .dashboard-toolbar {
   display: flex !important;
@@ -442,4 +475,3 @@ body .kpi-grid .kpi::before,
     width: 100%;
   }
 }
-

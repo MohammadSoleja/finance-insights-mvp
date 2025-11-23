@@ -25,6 +25,46 @@
       } catch (e) { return '£' + String(v); }
     }
 
+    // Modern tooltip configuration with glassmorphism
+    const modernTooltipConfig = {
+      enabled: true,
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      titleColor: '#111827',
+      bodyColor: '#374151',
+      borderColor: 'rgba(229, 231, 235, 0.8)',
+      borderWidth: 1,
+      padding: 12,
+      cornerRadius: 12,
+      displayColors: true,
+      boxWidth: 8,
+      boxHeight: 8,
+      boxPadding: 6,
+      usePointStyle: true,
+      titleFont: {
+        size: 13,
+        weight: '600',
+        family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      },
+      bodyFont: {
+        size: 13,
+        weight: '500',
+        family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      },
+      titleMarginBottom: 8,
+      bodySpacing: 6,
+      shadowOffsetX: 0,
+      shadowOffsetY: 4,
+      shadowBlur: 12,
+      shadowColor: 'rgba(0, 0, 0, 0.1)',
+      animation: {
+        duration: 200,
+        easing: 'easeOutCubic'
+      },
+      callbacks: {
+        // Custom label formatter will be set per chart
+      }
+    };
+
     // --- Time series line chart ---
     const tsEl = document.getElementById('tsChart');
     if (tsEl && Array.isArray(data.ts_labels)) {
@@ -58,11 +98,17 @@
           plugins: {
             legend: { position: smallScreen ? 'bottom' : 'top', labels: { boxWidth: 12, padding: 10 } },
             tooltip: {
+              ...modernTooltipConfig,
               callbacks: {
-                label: function(ctx) { return ctx.dataset.label + ': ' + fmtCurrency(ctx.parsed.y); }
-              },
-              padding: 8,
-              cornerRadius: 6
+                title: function(context) {
+                  // Clean date formatting
+                  return context[0].label;
+                },
+                label: function(ctx) {
+                  const value = fmtCurrency(ctx.parsed.y);
+                  return ctx.dataset.label + ': ' + value;
+                }
+              }
             }
           },
           scales: {
@@ -92,7 +138,22 @@
           indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx){ return fmtCurrency(ctx.parsed.x); } }, cornerRadius: 6 } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...modernTooltipConfig,
+              callbacks: {
+                title: function(context) {
+                  return context[0].label;
+                },
+                label: function(ctx){
+                  const total = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                  const percentage = ((ctx.parsed.x / total) * 100).toFixed(1);
+                  return fmtCurrency(ctx.parsed.x) + ' (' + percentage + '%)';
+                }
+              }
+            }
+          },
           scales: {
             x: { grid: { color: 'rgba(15,23,42,0.04)' }, ticks: { callback: function(v){ return '£' + Number(v).toLocaleString(); } } },
             y: { ticks: { autoSkip: false, maxRotation: 0, font: { size: smallScreen ? 11 : 12 } }, grid: { display: false } }
@@ -171,11 +232,17 @@
                 }
               },
               tooltip: {
+                ...modernTooltipConfig,
                 callbacks: {
+                  title: function(context) {
+                    return context[0].label;
+                  },
                   label: function(ctx) {
                     const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
                     const pct = ((ctx.parsed / total) * 100).toFixed(1);
-                    return ctx.label + ': £' + ctx.parsed.toLocaleString() + ' (' + pct + '%)';
+                    const value = fmtCurrency(ctx.parsed);
+
+                    return ctx.label + ': ' + value + ' (' + pct + '%)';
                   }
                 }
               }

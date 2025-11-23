@@ -27,7 +27,7 @@ from django.utils.safestring import mark_safe
 
 from app_core.insights import generate_insights
 
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseNotFound
 
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
@@ -680,6 +680,74 @@ def dashboard_view(request):
         context['budget_summary'] = budget_summary
     except Exception:
         context['budget_summary'] = []
+
+    # Generate sparkline data (last 7 days) for KPI cards
+    try:
+        import logging
+        from collections import defaultdict
+        logger = logging.getLogger(__name__)
+
+        sparkline_days = 7
+        sparkline_end = today
+        sparkline_start = sparkline_end - datetime.timedelta(days=sparkline_days - 1)
+
+        logger.info(f"Generating sparklines from {sparkline_start} to {sparkline_end}")
+
+        # Use organization filter for sparklines
+        if not org:
+            sparkline_q = Q(user=user)
+        else:
+            sparkline_q = Q(organization=org)
+        sparkline_q &= Q(date__gte=sparkline_start, date__lte=sparkline_end)
+
+        # Apply same category filter if present
+        if category:
+            sparkline_q &= Q(category=category)
+
+        sparkline_qs = Transaction.objects.filter(sparkline_q).order_by('date')
+        logger.info(f"Found {sparkline_qs.count()} transactions for sparklines")
+
+        # Use dictionaries to aggregate by date (simpler than pandas)
+        daily_outflow = defaultdict(float)
+        daily_inflow = defaultdict(float)
+        daily_net = defaultdict(float)
+
+        for tx in sparkline_qs:
+            date_key = tx.date
+            if tx.direction == Transaction.OUTFLOW:
+                daily_outflow[date_key] += float(tx.amount or 0)
+                daily_net[date_key] -= float(tx.amount or 0)
+            else:  # INFLOW
+                daily_inflow[date_key] += float(tx.amount or 0)
+                daily_net[date_key] += float(tx.amount or 0)
+
+        # Generate arrays for all 7 days (fill missing days with 0)
+        sparkline_outflow = []
+        sparkline_inflow = []
+        sparkline_net = []
+
+        current_date = sparkline_start
+        for i in range(sparkline_days):
+            sparkline_outflow.append(round(daily_outflow.get(current_date, 0.0), 2))
+            sparkline_inflow.append(round(daily_inflow.get(current_date, 0.0), 2))
+            sparkline_net.append(round(daily_net.get(current_date, 0.0), 2))
+            current_date += datetime.timedelta(days=1)
+
+        logger.info(f"Sparkline data generated: outflow={sparkline_outflow}, inflow={sparkline_inflow}, net={sparkline_net}")
+
+        context['sparkline_outflow'] = json.dumps(sparkline_outflow)
+        context['sparkline_inflow'] = json.dumps(sparkline_inflow)
+        context['sparkline_net'] = json.dumps(sparkline_net)
+    except Exception as e:
+        # Log the error and fallback to empty arrays
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error generating sparklines: {str(e)}", exc_info=True)
+
+        # Still provide empty arrays so the frontend doesn't break
+        context['sparkline_outflow'] = '[]'
+        context['sparkline_inflow'] = '[]'
+        context['sparkline_net'] = '[]'
 
     return render(request, "app_web/dashboard.html", context)
 
@@ -1714,6 +1782,30 @@ def projects_view(request):
     }
 
     return render(request, 'app_web/projects.html', context)
+
+
+@login_required
+def project_detail_view(request, project_id):
+    """Individual project detail page with sidebar navigation (like reports page)."""
+    from app_core.models import Project
+
+    # Get the project
+    try:
+        project = Project.objects.get(id=project_id, organization=request.organization)
+    except Project.DoesNotExist:
+        return HttpResponseNotFound("Project not found")
+
+    # Determine which tab to show (default to overview)
+    active_tab = request.GET.get('tab', 'overview')
+
+    context = {
+        'title': f'{project.name} - Project Details',
+        'project': project,
+        'project_id': project_id,
+        'active_tab': active_tab,
+    }
+
+    return render(request, 'app_web/project_detail.html', context)
 
 
 @login_required

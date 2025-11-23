@@ -94,11 +94,11 @@ function renderTreeView(container, projects) {
   function renderProjectNode(project, level = 0) {
     const hasChildren = project.sub_projects && project.sub_projects.length > 0;
     const expandedClass = hasChildren ? 'has-children' : '';
-    const levelIcon = level === 0 ? '📁' : (level === 1 ? '📄' : '📝');
+    const levelClass = level === 0 ? 'level-parent' : (level === 1 ? 'level-sub' : 'level-task');
 
     html += `
-      <div class="tree-node ${expandedClass}" data-project-id="${project.id}" data-level="${level}">
-        <div class="tree-node-header">
+      <div class="tree-node ${expandedClass} ${levelClass}" data-project-id="${project.id}" data-level="${level}">
+        <div class="tree-node-header" onclick="navigateToProject(${project.id}, event)" style="cursor: pointer;">
           ${hasChildren ? '<button class="expand-btn" onclick="toggleNode(this)">▼</button>' : '<span class="no-children"></span>'}
           <span class="level-icon">${levelIcon}</span>
           ${createProjectCardCompact(project)}
@@ -126,18 +126,15 @@ function createProjectCard(project, indentClass = '') {
   const budgetProgress = project.budget_usage_pct || 0;
   const milestoneProgress = project.milestone_progress || 0;
   const hasSubProjects = project.sub_projects && project.sub_projects.length > 0;
-  const levelIcon = project.level === 0 ? '📁' : (project.level === 1 ? '📄' : '📝');
+  const levelClass = project.level === 0 ? 'level-parent' : (project.level === 1 ? 'level-sub' : 'level-task');
 
   return `
-    <div class="project-card ${indentClass}" data-project-id="${project.id}" data-status="${project.status}" data-level="${project.level}">
+    <div class="project-card ${indentClass} ${levelClass}" data-project-id="${project.id}" data-status="${project.status}" data-level="${project.level}" onclick="navigateToProject(${project.id}, event)" style="cursor: pointer;">
       <div class="project-card-header">
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <input type="checkbox" class="project-checkbox" value="${project.id}" onchange="updateBulkDeleteButton()">
-          <span class="level-icon">${levelIcon}</span>
-          <div class="project-color" style="background: ${project.color};"></div>
-          <h3 class="project-name">${project.name}</h3>
-          ${hasSubProjects ? `<span class="sub-count">${project.sub_projects.length} sub-project${project.sub_projects.length > 1 ? 's' : ''}</span>` : ''}
-        </div>
+        <input type="checkbox" class="project-checkbox" value="${project.id}" onchange="updateBulkDeleteButton()" onclick="event.stopPropagation()">
+        <div class="project-color-indicator" style="background: ${project.color};"></div>
+        <h3 class="project-name">${project.name}</h3>
+        ${hasSubProjects ? `<span class="sub-count">${project.sub_projects.length} sub</span>` : ''}
         <span class="project-status status-${project.status}">${project.status_display}</span>
       </div>
 
@@ -211,10 +208,9 @@ function createProjectCard(project, indentClass = '') {
       ` : ''}
 
       <div class="project-actions">
-        ${project.level < 2 ? `<button class="btn btn-sm" onclick="openAddSubProjectModal(${project.id})">+ Sub-Project</button>` : ''}
-        <button class="btn btn-sm" onclick="viewProjectDetails(${project.id})">View Details</button>
-        <button class="btn btn-sm" onclick="openEditModal(${project.id})">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete(${project.id}, '${project.name.replace(/'/g, "\\'")}')">Delete</button>
+        ${project.level < 2 ? `<button class="btn btn-sm btn-secondary" onclick="openAddSubProjectModal(${project.id}); event.stopPropagation();">+ Sub-Project</button>` : ''}
+        <button class="btn btn-sm btn-secondary" onclick="openEditModal(${project.id}); event.stopPropagation();">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete(${project.id}, '${project.name.replace(/'/g, "\\'")}'); event.stopPropagation();">Delete</button>
       </div>
     </div>
   `;
@@ -238,9 +234,15 @@ function createProjectCardCompact(project) {
         <span class="metric ${project.net_amount >= 0 ? 'text-success' : 'text-danger'}">Net: £${project.net_amount.toLocaleString()}</span>
       </div>
       <div class="compact-actions">
-        <button class="btn-icon" onclick="viewProjectDetails(${project.id})" title="View Details">👁️</button>
-        <button class="btn-icon" onclick="openEditModal(${project.id})" title="Edit">✏️</button>
-        ${project.level < 2 ? `<button class="btn-icon" onclick="openAddSubProjectModal(${project.id})" title="Add Sub-Project">➕</button>` : ''}
+        <button class="btn-icon btn-view" onclick="navigateToProject(${project.id}, event)" title="View Details">
+          <svg width="16" height="16" fill="currentColor"><use href="#icon-eye"/></svg>
+        </button>
+        <button class="btn-icon btn-edit" onclick="openEditModal(${project.id}); event.stopPropagation();" title="Edit">
+          <svg width="16" height="16" fill="currentColor"><use href="#icon-edit"/></svg>
+        </button>
+        ${project.level < 2 ? `<button class="btn-icon btn-add" onclick="openAddSubProjectModal(${project.id}); event.stopPropagation();" title="Add Sub-Project">
+          <svg width="16" height="16" fill="currentColor"><use href="#icon-plus"/></svg>
+        </button>` : ''}
       </div>
     </div>
   `;
@@ -248,19 +250,23 @@ function createProjectCardCompact(project) {
 
 // Toggle between grid and tree view
 function toggleView() {
+  console.log('toggleView called, currentView before:', currentView);
   currentView = currentView === 'grid' ? 'tree' : 'grid';
-  const viewBtn = document.getElementById('view-text');
-  const viewIcon = document.getElementById('view-icon');
+  console.log('currentView after:', currentView);
+
+  const viewBtn = document.getElementById('toggle-view-btn');
+
+  console.log('viewBtn:', viewBtn);
 
   if (currentView === 'tree') {
-    viewBtn.textContent = 'Grid View';
-    viewIcon.textContent = '📊';
+    if (viewBtn) viewBtn.textContent = 'Grid View';
   } else {
-    viewBtn.textContent = 'Tree View';
-    viewIcon.textContent = '🌳';
+    if (viewBtn) viewBtn.textContent = 'Tree View';
   }
 
+  console.log('About to call renderProjects');
   renderProjects();
+  console.log('renderProjects completed');
 }
 
 // Toggle tree node expansion
@@ -343,7 +349,22 @@ function findProjectById(id, projects = projectsData) {
 }
 
 // View project details with tabs
+// Navigate to project detail page
+function navigateToProject(projectId, event) {
+  // Prevent navigation if clicking on buttons or checkboxes
+  if (event && (event.target.tagName === 'BUTTON' || event.target.tagName === 'INPUT' || event.target.closest('button') || event.target.closest('.project-checkbox'))) {
+    return;
+  }
+  window.location.href = `/projects/${projectId}/`;
+}
+
+// View project details (legacy - keeping for backward compatibility)
 function viewProjectDetails(projectId) {
+  navigateToProject(projectId);
+}
+
+// Old modal-based view function (replaced by navigation)
+function viewProjectDetailsModal(projectId) {
   const modal = document.getElementById('details-modal');
   const content = document.getElementById('details-content');
   const projectName = document.getElementById('details-project-name');
@@ -429,34 +450,34 @@ function renderOverviewTab(data) {
     <div class="overview-grid">
       <div class="overview-card">
         <h3>Project Information</h3>
-        <div class="info-grid">
-          <div class="info-item">
+        <div class="info-grid" style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center;">
+          <div class="info-item" style="display: flex; gap: 0.5rem; align-items: center;">
             <span class="info-label">Status:</span>
             <span class="project-status status-${project.status}">${project.status}</span>
           </div>
-          <div class="info-item">
+          <div class="info-item" style="display: flex; gap: 0.5rem; align-items: center;">
             <span class="info-label">Level:</span>
             <span>${project.level === 0 ? 'Parent Project' : project.level === 1 ? 'Sub-Project' : 'Task'}</span>
           </div>
           ${project.start_date ? `
-            <div class="info-item">
+            <div class="info-item" style="display: flex; gap: 0.5rem; align-items: center;">
               <span class="info-label">Start Date:</span>
               <span>${new Date(project.start_date).toLocaleDateString()}</span>
             </div>
           ` : ''}
           ${project.end_date ? `
-            <div class="info-item">
+            <div class="info-item" style="display: flex; gap: 0.5rem; align-items: center;">
               <span class="info-label">End Date:</span>
               <span>${new Date(project.end_date).toLocaleDateString()}</span>
             </div>
           ` : ''}
         </div>
-        ${project.description ? `<p class="project-description">${project.description}</p>` : ''}
+        ${project.description ? `<p class="project-description" style="margin-top: 1rem;">${project.description}</p>` : ''}
       </div>
       
       <div class="overview-card">
         <h3>Financial Summary</h3>
-        <div class="metrics-grid">
+        <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
           <div class="metric-card">
             <span class="metric-label">Total Inflow</span>
             <span class="metric-value text-success">£${pl.total_inflow.toLocaleString()}</span>
@@ -706,17 +727,17 @@ function renderActivityTab(data) {
 // Get icon for activity type
 function getActivityIcon(action) {
   const icons = {
-    'created': '✨',
-    'updated': '✏️',
-    'deleted': '🗑️',
-    'status_changed': '🔄',
-    'budget_changed': '💰',
-    'milestone_added': '🎯',
-    'milestone_completed': '✅',
-    'sub_project_added': '📁',
-    'transaction_added': '💵'
+    'created': 'Created',
+    'updated': 'Updated',
+    'deleted': 'Deleted',
+    'status_changed': 'Status',
+    'budget_changed': 'Budget',
+    'milestone_added': 'Milestone',
+    'milestone_completed': 'Complete',
+    'sub_project_added': 'Sub-Project',
+    'transaction_added': 'Transaction'
   };
-  return icons[action] || '📝';
+  return icons[action] || 'Activity';
 }
 
 // Format relative time

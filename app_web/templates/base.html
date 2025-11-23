@@ -8,6 +8,7 @@
   {# Preload critical CSS for faster rendering and immediate shadow display #}
   <link rel="preload" href="{% static 'app_web/styles.css' %}?v=3" as="style">
   <link rel="stylesheet" href="{% static 'app_web/styles.css' %}?v=3">
+  <link rel="stylesheet" href="{% static 'app_web/ui-components.css' %}">
 
   <!-- Development override (ensures our app brand rules take precedence) -->
   <style>
@@ -81,5 +82,6 @@
 
   {# Always include the nav dropdown script so it works even if a child template overrides scripts #}
   <script src="{% static 'app_web/nav.js' %}"></script>
+  <script src="{% static 'app_web/ui-utilities.js' %}"></script>
 </body>
 </html>
