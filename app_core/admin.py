@@ -5,6 +5,7 @@ from .models import (
     Project, ProjectTransaction, ProjectMilestone, ProjectBudgetCategory, ProjectActivity,
     Client, Invoice, InvoiceItem, InvoicePayment, InvoiceTemplate, InvoiceTemplateItem
 )
+from .task_models import Task, TaskComment, TaskTimeEntry, TaskActivity
 
 @admin.register(Label)
 class LabelAdmin(admin.ModelAdmin):
@@ -161,3 +162,77 @@ class InvoiceTemplateItemAdmin(admin.ModelAdmin):
     ordering = ("template", "order")
 
 
+# ========== TASK/TICKET ADMIN ==========
+
+class TaskCommentInline(admin.TabularInline):
+    model = TaskComment
+    extra = 0
+    fields = ("user", "content", "created_at")
+    readonly_fields = ("created_at",)
+
+
+class TaskTimeEntryInline(admin.TabularInline):
+    model = TaskTimeEntry
+    extra = 0
+    fields = ("user", "hours", "description", "date")
+
+
+@admin.register(Task)
+class TaskAdmin(admin.ModelAdmin):
+    list_display = ("task_number", "title", "project", "status", "priority", "assignee", "due_date", "created_at")
+    list_filter = ("status", "priority", "project", "assignee", "organization")
+    search_fields = ("title", "description", "task_number", "project__name")
+    ordering = ("-created_at",)
+    inlines = [TaskCommentInline, TaskTimeEntryInline]
+    readonly_fields = ("task_number", "created_at", "updated_at", "completed_at")
+    filter_horizontal = ("labels",)
+
+    fieldsets = (
+        ("Basic Information", {
+            "fields": ("title", "description", "project", "organization", "task_number")
+        }),
+        ("Status & Priority", {
+            "fields": ("status", "priority", "assignee")
+        }),
+        ("Hierarchy", {
+            "fields": ("parent_task", "milestone")
+        }),
+        ("Time Tracking", {
+            "fields": ("estimated_hours", "actual_hours", "start_date", "due_date")
+        }),
+        ("Labels & Classification", {
+            "fields": ("labels",)
+        }),
+        ("Metadata", {
+            "fields": ("created_by", "created_at", "updated_at", "completed_at"),
+            "classes": ("collapse",)
+        }),
+    )
+
+
+@admin.register(TaskComment)
+class TaskCommentAdmin(admin.ModelAdmin):
+    list_display = ("task", "user", "content_preview", "created_at")
+    list_filter = ("user", "created_at")
+    search_fields = ("content", "task__title", "user__username")
+    ordering = ("-created_at",)
+
+    def content_preview(self, obj):
+        return obj.content[:50] + "..." if len(obj.content) > 50 else obj.content
+    content_preview.short_description = "Content"
+
+
+@admin.register(TaskTimeEntry)
+class TaskTimeEntryAdmin(admin.ModelAdmin):
+    list_display = ("task", "user", "hours", "date", "created_at")
+    list_filter = ("user", "date")
+    search_fields = ("task__title", "description", "user__username")
+    ordering = ("-date", "-created_at")
+
+
+@admin.register(TaskActivity)
+class TaskActivityAdmin(admin.ModelAdmin):
+    list_display = ("task", "activity_type", "user", "description", "created_at")
+    list_filter = ("activity_type", "user", "created_at")
+    search_fields = ("task__title", "description", "user__username")
+    ordering = ("-created_at",)

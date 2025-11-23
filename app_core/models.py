@@ -727,3 +727,5 @@ class InvoiceTemplateItem(models.Model):
         return f"{self.description} - {self.quantity} × {self.unit_price}"
 
 
+# Import Task models to register them with Django
+from .task_models import Task, TaskComment, TaskTimeEntry, TaskActivity

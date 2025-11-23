@@ -10,13 +10,11 @@ from .views import invoice_pdf_view, invoice_pdf_download
 from .views import invoice_templates_view, template_create_view, template_edit_view, template_delete_view, template_use_view, template_detail_view
 from .views import client_create_view, client_edit_view, client_delete_view
 from .views import reports_view, report_pnl_view, report_pnl_download
-from .views import report_cashflow_view, report_cashflow_download
-from .views import report_expenses_view, report_expenses_download
-from .views import report_income_view, report_income_download
-from .views import report_tax_view, report_tax_download
-from .views import report_budget_performance_view, report_budget_performance_download
-from .views import report_project_performance_view, report_project_performance_download
-from .views import debug_org_view
+from .views import debug_organization_view
+from .views import (
+    project_tasks, task_create, task_update, task_delete, task_details,
+    task_update_status, task_bulk_delete, task_comment_create, task_time_entry_create
+)
 
 # Team collaboration views
 from app_core.team_views import (
@@ -83,18 +81,19 @@ urlpatterns = [
     path("reports/", reports_view, name="reports"),
     path("reports/pnl/", report_pnl_view, name="report_pnl"),
     path("reports/pnl/download/", report_pnl_download, name="report_pnl_download"),
-    path("reports/cashflow/", report_cashflow_view, name="report_cashflow"),
-    path("reports/cashflow/download/", report_cashflow_download, name="report_cashflow_download"),
-    path("reports/expenses/", report_expenses_view, name="report_expenses"),
-    path("reports/expenses/download/", report_expenses_download, name="report_expenses_download"),
-    path("reports/income/", report_income_view, name="report_income"),
-    path("reports/income/download/", report_income_download, name="report_income_download"),
-    path("reports/tax/", report_tax_view, name="report_tax"),
-    path("reports/tax/download/", report_tax_download, name="report_tax_download"),
-    path("reports/budget-performance/", report_budget_performance_view, name="report_budget_performance"),
-    path("reports/budget-performance/download/", report_budget_performance_download, name="report_budget_performance_download"),
-    path("reports/project-performance/", report_project_performance_view, name="report_project_performance"),
-    path("reports/project-performance/download/", report_project_performance_download, name="report_project_performance_download"),
+    # TODO: Implement these report views
+    # path("reports/cashflow/", report_cashflow_view, name="report_cashflow"),
+    # path("reports/cashflow/download/", report_cashflow_download, name="report_cashflow_download"),
+    # path("reports/expenses/", report_expenses_view, name="report_expenses"),
+    # path("reports/expenses/download/", report_expenses_download, name="report_expenses_download"),
+    # path("reports/income/", report_income_view, name="report_income"),
+    # path("reports/income/download/", report_income_download, name="report_income_download"),
+    # path("reports/tax/", report_tax_view, name="report_tax"),
+    # path("reports/tax/download/", report_tax_download, name="report_tax_download"),
+    # path("reports/budget-performance/", report_budget_performance_view, name="report_budget_performance"),
+    # path("reports/budget-performance/download/", report_budget_performance_download, name="report_budget_performance_download"),
+    # path("reports/project-performance/", report_project_performance_view, name="report_project_performance"),
+    # path("reports/project-performance/download/", report_project_performance_download, name="report_project_performance_download"),
 
     # Team collaboration
     path("switch-organization/<int:org_id>/", switch_organization, name="switch_organization"),
@@ -111,8 +110,19 @@ urlpatterns = [
     path("team/workflows/create/", create_workflow, name="create_workflow"),
     path("team/workflows/<int:workflow_id>/delete/", delete_workflow, name="delete_workflow"),
 
+    # Task/Progress Management
+    path("projects/<int:project_id>/tasks/", project_tasks, name="project_tasks"),
+    path("tasks/create/<int:project_id>/", task_create, name="task_create"),
+    path("tasks/<int:task_id>/update/", task_update, name="task_update"),
+    path("tasks/<int:task_id>/delete/", task_delete, name="task_delete"),
+    path("tasks/<int:task_id>/details/", task_details, name="task_details"),
+    path("tasks/<int:task_id>/status/", task_update_status, name="task_update_status"),
+    path("tasks/bulk-delete/", task_bulk_delete, name="task_bulk_delete"),
+    path("tasks/<int:task_id>/comments/create/", task_comment_create, name="task_comment_create"),
+    path("tasks/<int:task_id>/time/create/", task_time_entry_create, name="task_time_entry_create"),
+
     # Debug
-    path("debug/org/", debug_org_view, name="debug_org"),
+    path("debug/org/", debug_organization_view, name="debug_org"),
 
     path("health/", health_view, name="health"),
     path("", home_view, name="home"),

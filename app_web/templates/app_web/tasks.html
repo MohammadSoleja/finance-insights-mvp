@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ project.name }} - Progress{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{% static 'app_web/projects.css' %}">
+<link rel="stylesheet" href="{% static 'app_web/project_detail.css' %}">
+<link rel="stylesheet" href="{% static 'app_web/tasks.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="wrap tasks-page">
+  <div class="project-detail-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="project-sidebar">
+      <div class="project-sidebar-header">
+        <a href="{% url 'app_web:projects' %}" class="back-link">
+          <svg width="20" height="20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L4.414 9H17a1 1 0 110 2H4.414l5.293 5.293a1 1 0 010 1.414z" clip-rule="evenodd"/>
+          </svg>
+          <span>Back to Projects</span>
+        </a>
+
+        <div class="project-header-info">
+          <div class="project-color-large" style="background: {{ project.color }};"></div>
+          <div>
+            <h2 class="project-title">{{ project.name }}</h2>
+            <span class="project-status status-{{ project.status }}">{{ project.get_status_display }}</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="project-nav">
+        <ul>
+          <li>
+            <a href="{% url 'app_web:project_detail' project.id %}?tab=overview" class="project-nav-link">
+              <svg width="20" height="20" fill="currentColor">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+              </svg>
+              <span>Overview</span>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'app_web:project_detail' project.id %}?tab=financials" class="project-nav-link">
+              <svg width="20" height="20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+              </svg>
+              <span>Financials</span>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'app_web:project_detail' project.id %}?tab=milestones" class="project-nav-link">
+              <svg width="20" height="20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clip-rule="evenodd"/>
+              </svg>
+              <span>Milestones</span>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'app_web:project_detail' project.id %}?tab=categories" class="project-nav-link">
+              <svg width="20" height="20" fill="currentColor">
+                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+              </svg>
+              <span>Budget Categories</span>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'app_web:project_tasks' project.id %}" class="project-nav-link active">
+              <svg width="20" height="20" fill="currentColor">
+                <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+              </svg>
+              <span>Progress</span>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'app_web:project_detail' project.id %}?tab=sub-projects" class="project-nav-link">
+              <svg width="20" height="20" fill="currentColor">
+                <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1H8a3 3 0 00-3 3v1.5a1.5 1.5 0 01-3 0V6z" clip-rule="evenodd"/>
+                <path d="M6 12a2 2 0 012-2h8a2 2 0 012 2v2a2 2 0 01-2 2H2h2a2 2 0 002-2v-2z"/>
+              </svg>
+              <span>Sub-Projects</span>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'app_web:project_detail' project.id %}?tab=activity" class="project-nav-link">
+              <svg width="20" height="20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+              </svg>
+              <span>Activity Log</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="project-content">
+      <div class="tasks-container">
+
+  <!-- Toolbar -->
+  <div class="tasks-toolbar">
+    <button class="btn btn-primary" onclick="openTaskModal()">+ New Task</button>
+
+    <div class="view-switcher">
+      <button class="view-btn {% if view == 'table' %}active{% endif %}" onclick="switchView('table')" title="Table View">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 3h7v7H3V3zM14 3h7v7h-7V3zM14 14h7v7h-7v-7zM3 14h7v7H3v-7z" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        Table
+      </button>
+      <button class="view-btn {% if view == 'kanban' %}active{% endif %}" onclick="switchView('kanban')" title="Kanban Board">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="3" width="7" height="18" stroke="currentColor" stroke-width="2"/>
+          <rect x="14" y="3" width="7" height="10" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        Kanban
+      </button>
+      <button class="view-btn {% if view == 'roadmap' %}active{% endif %}" onclick="switchView('roadmap')" title="Timeline View">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 12h18M12 3v18" stroke="currentColor" stroke-width="2"/>
+          <circle cx="6" cy="6" r="2" fill="currentColor"/>
+          <circle cx="18" cy="12" r="2" fill="currentColor"/>
+          <circle cx="12" cy="18" r="2" fill="currentColor"/>
+        </svg>
+        Roadmap
+      </button>
+    </div>
+
+    <input type="text" class="form-input search-input" placeholder="Search tasks..." id="task-search">
+
+    <div class="filters">
+      <select class="form-select" id="status-filter">
+        <option value="">All Status</option>
+        <option value="backlog">Backlog</option>
+        <option value="todo">To Do</option>
+        <option value="in_progress">In Progress</option>
+        <option value="review">Review</option>
+        <option value="done">Done</option>
+        <option value="blocked">Blocked</option>
+      </select>
+
+      <select class="form-select" id="priority-filter">
+        <option value="">All Priority</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+        <option value="critical">Critical</option>
+      </select>
+
+      <select class="form-select" id="assignee-filter">
+        <option value="">All Assignees</option>
+        {% for member in team_members %}
+        <option value="{{ member.user.id }}">{{ member.user.get_full_name|default:member.user.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <!-- View Container -->
+  <div id="tasks-view-container">
+    {% if view == 'table' %}
+      {% include 'app_web/tasks_table.html' %}
+    {% elif view == 'kanban' %}
+      {% include 'app_web/tasks_kanban.html' %}
+    {% elif view == 'roadmap' %}
+      {% include 'app_web/tasks_roadmap.html' %}
+    {% endif %}
+  </div>
+
+  <!-- Empty State -->
+  {% if not tasks %}
+  <div class="empty-state">
+    <h3>No tasks yet</h3>
+    <p>Create your first task to start tracking progress</p>
+    <button class="btn btn-primary" onclick="openTaskModal()">+ Create Task</button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Task Modal -->
+<div class="modal-backdrop" id="task-modal-backdrop">
+  <div class="modal modal-large">
+    <div class="modal-header">
+      <h2 id="task-modal-title">New Task</h2>
+      <button class="modal-close" onclick="closeTaskModal()">&times;</button>
+    </div>
+    <form id="task-form" method="POST">
+      {% csrf_token %}
+      <input type="hidden" name="task_id" id="task-id">
+
+      <div class="modal-body">
+        <div class="field">
+          <label for="task-title">Title *</label>
+          <input type="text" id="task-title" name="title" class="form-input" required>
+        </div>
+
+        <div class="field">
+          <label for="task-description">Description</label>
+          <textarea id="task-description" name="description" class="form-textarea" rows="4"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="task-status">Status</label>
+            <select id="task-status" name="status" class="form-select">
+              <option value="backlog">Backlog</option>
+              <option value="todo" selected>To Do</option>
+              <option value="in_progress">In Progress</option>
+              <option value="review">Review</option>
+              <option value="done">Done</option>
+              <option value="blocked">Blocked</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="task-priority">Priority</label>
+            <select id="task-priority" name="priority" class="form-select">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="task-assignee">Assignee</label>
+            <select id="task-assignee" name="assignee" class="form-select">
+              <option value="">Unassigned</option>
+              {% for member in team_members %}
+              <option value="{{ member.user.id }}">{{ member.user.get_full_name|default:member.user.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="task-milestone">Milestone</label>
+            <select id="task-milestone" name="milestone" class="form-select">
+              <option value="">None</option>
+              {% for milestone in milestones %}
+              <option value="{{ milestone.id }}">{{ milestone.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="task-start-date">Start Date</label>
+            <input type="date" id="task-start-date" name="start_date" class="form-input">
+          </div>
+
+          <div class="field">
+            <label for="task-due-date">Due Date</label>
+            <input type="date" id="task-due-date" name="due_date" class="form-input">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="task-estimated-hours">Estimated Hours</label>
+            <input type="number" id="task-estimated-hours" name="estimated_hours" class="form-input" step="0.5" min="0">
+          </div>
+
+          <div class="field">
+            <label for="task-parent">Parent Task</label>
+            <select id="task-parent" name="parent_task" class="form-select">
+              <option value="">None (Top-level task)</option>
+              {% for task in tasks %}
+              <option value="{{ task.id }}">#{{ task.task_number }} {{ task.title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Labels</label>
+          <div class="labels-container">
+            {% for label in labels %}
+            <label class="label-checkbox">
+              <input type="checkbox" name="labels" value="{{ label.id }}">
+              <span class="label-tag" style="background: {{ label.color }}20; color: {{ label.color }}; border: 1px solid {{ label.color }}40;">
+                {{ label.name }}
+              </span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeTaskModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Task</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Task Details Modal (for viewing/editing existing tasks with comments) -->
+<div class="modal-backdrop" id="task-details-modal-backdrop">
+  <div class="modal modal-large">
+    <div class="modal-header">
+      <h2 id="task-details-title"></h2>
+      <button class="modal-close" onclick="closeTaskDetailsModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="task-details-content">
+      <!-- Loaded via AJAX -->
+    </div>
+  </div>
+</div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+window.projectId = {{ project.id }};
+window.currentView = '{{ view|default:"table" }}';
+window.csrfToken = '{{ csrf_token }}';
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'app_web/tasks.js' %}"></script>
+{% if view == 'kanban' %}
+<script src="{% static 'app_web/tasks-kanban.js' %}"></script>
+{% elif view == 'roadmap' %}
+<script src="{% static 'app_web/tasks-roadmap.js' %}"></script>
+{% endif %}
+{% endblock %}
+

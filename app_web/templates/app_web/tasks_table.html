@@ -1,0 +1,149 @@
+<!-- Table View for Tasks -->
+<div class="tasks-table-view">
+  <table class="tasks-table">
+    <thead>
+      <tr>
+        <th style="width: 40px;">
+          <input type="checkbox" id="select-all-tasks" onchange="toggleSelectAll(this)">
+        </th>
+        <th style="width: 80px;">Task</th>
+        <th>Title</th>
+        <th style="width: 120px;">Status</th>
+        <th style="width: 100px;">Priority</th>
+        <th style="width: 150px;">Assignee</th>
+        <th style="width: 120px;">Due Date</th>
+        <th style="width: 100px;">Progress</th>
+        <th style="width: 150px;">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="tasks-table-body">
+      {% for task in tasks %}
+      <tr class="task-row" data-task-id="{{ task.id }}" data-status="{{ task.status }}" data-priority="{{ task.priority }}">
+        <td>
+          <input type="checkbox" class="task-checkbox" value="{{ task.id }}">
+        </td>
+        <td>
+          <span class="task-number">#{{ task.task_number }}</span>
+        </td>
+        <td class="task-title-cell">
+          <div class="task-title-wrapper">
+            {% if task.parent_task %}
+              <span class="sub-task-indicator">└─</span>
+            {% endif %}
+            <a href="#" onclick="openTaskDetails({{ task.id }}); return false;" class="task-title">
+              {{ task.title }}
+            </a>
+            {% if task.sub_tasks.count > 0 %}
+              <span class="sub-tasks-count" title="{{ task.sub_tasks.count }} sub-tasks">
+                {{ task.sub_tasks.count }} sub
+              </span>
+            {% endif %}
+          </div>
+          {% if task.labels.count > 0 %}
+          <div class="task-labels-inline">
+            {% for label in task.labels.all|slice:":3" %}
+            <span class="label-tag-mini" style="background: {{ label.color }}20; color: {{ label.color }}; border: 1px solid {{ label.color }}40;">
+              {{ label.name }}
+            </span>
+            {% endfor %}
+            {% if task.labels.count > 3 %}
+            <span class="label-more">+{{ task.labels.count|add:"-3" }}</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </td>
+        <td>
+          <select class="status-select status-{{ task.status }}" onchange="updateTaskStatus({{ task.id }}, this.value)">
+            <option value="backlog" {% if task.status == 'backlog' %}selected{% endif %}>📝 Backlog</option>
+            <option value="todo" {% if task.status == 'todo' %}selected{% endif %}>📋 To Do</option>
+            <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>⚡ In Progress</option>
+            <option value="review" {% if task.status == 'review' %}selected{% endif %}>👀 Review</option>
+            <option value="done" {% if task.status == 'done' %}selected{% endif %}>✅ Done</option>
+            <option value="blocked" {% if task.status == 'blocked' %}selected{% endif %}>🚫 Blocked</option>
+          </select>
+        </td>
+        <td>
+          <span class="priority-badge priority-{{ task.priority }}">
+            {% if task.priority == 'critical' %}🔴
+            {% elif task.priority == 'high' %}🟠
+            {% elif task.priority == 'medium' %}🟡
+            {% else %}🟢{% endif %}
+            {{ task.get_priority_display }}
+          </span>
+        </td>
+        <td>
+          {% if task.assignee %}
+          <div class="assignee-info">
+            <div class="assignee-avatar">{{ task.assignee.username.0|upper }}</div>
+            <span>{{ task.assignee.get_full_name|default:task.assignee.username }}</span>
+          </div>
+          {% else %}
+          <span class="text-muted">Unassigned</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if task.due_date %}
+            <span class="due-date {% if task.is_overdue %}overdue{% endif %}">
+              {{ task.due_date|date:"M d, Y" }}
+              {% if task.is_overdue %}<span class="overdue-icon">⚠️</span>{% endif %}
+            </span>
+          {% else %}
+            <span class="text-muted">No due date</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="progress-cell">
+            <div class="progress-bar-mini">
+              <div class="progress-fill-mini" style="width: {{ task.progress_percentage }}%"></div>
+            </div>
+            <span class="progress-text">{{ task.progress_percentage }}%</span>
+          </div>
+        </td>
+        <td>
+          <div class="task-actions">
+            <button class="btn-icon btn-icon-view" onclick="openTaskDetails({{ task.id }})" title="View Details">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2"/>
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+            <button class="btn-icon btn-icon-edit" onclick="editTask({{ task.id }})" title="Edit">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+            <button class="btn-icon btn-icon-delete" onclick="deleteTask({{ task.id }}, '{{ task.title|escapejs }}')" title="Delete">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" stroke-width="2"/>
+                <path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if tasks %}
+  <div class="table-footer">
+    <div class="bulk-actions">
+      <button class="btn btn-secondary" id="bulk-assign-btn" onclick="showBulkAssign()" style="display: none;">
+        Assign Selected
+      </button>
+      <button class="btn btn-secondary" id="bulk-status-btn" onclick="showBulkStatus()" style="display: none;">
+        Change Status
+      </button>
+      <button class="btn btn-danger" id="bulk-delete-btn" onclick="bulkDelete()" style="display: none;">
+        Delete Selected
+      </button>
+    </div>
+    <div class="table-info">
+      Showing {{ tasks|length }} task{{ tasks|length|pluralize }}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
