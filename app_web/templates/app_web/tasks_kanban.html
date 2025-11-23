@@ -1,0 +1,89 @@
+<!-- Kanban Board View for Tasks -->
+<div class="kanban-board">
+  <div class="kanban-columns">
+    <!-- Backlog Column -->
+    <div class="kanban-column" data-status="backlog">
+      <div class="kanban-column-header">
+        <h3>Backlog</h3>
+        <span class="task-count">{{ tasks_by_status.backlog|length }}</span>
+      </div>
+      <div class="kanban-cards" id="kanban-backlog" data-status="backlog">
+        {% for task in tasks_by_status.backlog %}
+        {% include 'app_web/task_card.html' with task=task %}
+        {% endfor %}
+      </div>
+      <button class="add-task-btn" onclick="openTaskModal('backlog')">+ Add Task</button>
+    </div>
+
+    <!-- To Do Column -->
+    <div class="kanban-column" data-status="todo">
+      <div class="kanban-column-header">
+        <h3>To Do</h3>
+        <span class="task-count">{{ tasks_by_status.todo|length }}</span>
+      </div>
+      <div class="kanban-cards" id="kanban-todo" data-status="todo">
+        {% for task in tasks_by_status.todo %}
+        {% include 'app_web/task_card.html' with task=task %}
+        {% endfor %}
+      </div>
+      <button class="add-task-btn" onclick="openTaskModal('todo')">+ Add Task</button>
+    </div>
+
+    <!-- In Progress Column -->
+    <div class="kanban-column" data-status="in_progress">
+      <div class="kanban-column-header">
+        <h3>In Progress</h3>
+        <span class="task-count">{{ tasks_by_status.in_progress|length }}</span>
+      </div>
+      <div class="kanban-cards" id="kanban-in_progress" data-status="in_progress">
+        {% for task in tasks_by_status.in_progress %}
+        {% include 'app_web/task_card.html' with task=task %}
+        {% endfor %}
+      </div>
+      <button class="add-task-btn" onclick="openTaskModal('in_progress')">+ Add Task</button>
+    </div>
+
+    <!-- Review Column -->
+    <div class="kanban-column" data-status="review">
+      <div class="kanban-column-header">
+        <h3>Review</h3>
+        <span class="task-count">{{ tasks_by_status.review|length }}</span>
+      </div>
+      <div class="kanban-cards" id="kanban-review" data-status="review">
+        {% for task in tasks_by_status.review %}
+        {% include 'app_web/task_card.html' with task=task %}
+        {% endfor %}
+      </div>
+      <button class="add-task-btn" onclick="openTaskModal('review')">+ Add Task</button>
+    </div>
+
+    <!-- Done Column -->
+    <div class="kanban-column" data-status="done">
+      <div class="kanban-column-header">
+        <h3>Done</h3>
+        <span class="task-count">{{ tasks_by_status.done|length }}</span>
+      </div>
+      <div class="kanban-cards" id="kanban-done" data-status="done">
+        {% for task in tasks_by_status.done %}
+        {% include 'app_web/task_card.html' with task=task %}
+        {% endfor %}
+      </div>
+      <button class="add-task-btn" onclick="openTaskModal('done')">+ Add Task</button>
+    </div>
+
+    <!-- Blocked Column -->
+    <div class="kanban-column blocked-column" data-status="blocked">
+      <div class="kanban-column-header">
+        <h3>Blocked</h3>
+        <span class="task-count">{{ tasks_by_status.blocked|length }}</span>
+      </div>
+      <div class="kanban-cards" id="kanban-blocked" data-status="blocked">
+        {% for task in tasks_by_status.blocked %}
+        {% include 'app_web/task_card.html' with task=task %}
+        {% endfor %}
+      </div>
+      <button class="add-task-btn" onclick="openTaskModal('blocked')">+ Add Task</button>
+    </div>
+  </div>
+</div>
+

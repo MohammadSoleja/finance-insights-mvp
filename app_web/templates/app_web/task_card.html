@@ -1,0 +1,51 @@
+<!-- GitHub-Style Task Card -->
+<div class="task-card" data-task-id="{{ task.id }}" draggable="true" ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" onclick="openTaskDetails({{ task.id }})">
+
+  <!-- Header: Project name, task number, assignee -->
+  <div class="task-card-header">
+    <div class="task-card-meta-line">
+      <span class="task-repo">{{ task.project.name }}</span>
+      <span class="task-number">#{{ task.task_number }}</span>
+    </div>
+    {% if task.assignee %}
+    <div class="assignee-avatar-mini" title="{{ task.assignee.get_full_name|default:task.assignee.username }}">
+      {{ task.assignee.username.0|upper }}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Title -->
+  <h4 class="task-card-title">
+    {{ task.title }}
+  </h4>
+
+  <!-- Footer: Labels, milestone, due date -->
+  <div class="task-card-footer">
+    <div class="task-card-labels-row">
+      {% if task.labels.count > 0 %}
+        {% for label in task.labels.all|slice:":2" %}
+        <span class="label-tag-mini" style="background: {{ label.color }}; color: #fff;">
+          {{ label.name }}
+        </span>
+        {% endfor %}
+        {% if task.labels.count > 2 %}
+        <span class="label-more">+{{ task.labels.count|add:"-2" }}</span>
+        {% endif %}
+      {% endif %}
+      {% if task.milestone %}
+      <span class="milestone-tag">
+        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        {{ task.milestone.name }}
+      </span>
+      {% endif %}
+    </div>
+    {% if task.due_date %}
+    <span class="due-date-tag {% if task.is_overdue %}overdue{% endif %}">
+      <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      {{ task.due_date|date:"M d" }}
+    </span>
+    {% endif %}
+  </div>
+
+</div>
+
