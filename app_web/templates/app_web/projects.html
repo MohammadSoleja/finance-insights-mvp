@@ -11,54 +11,50 @@
 
 {% block content %}
 <div class="projects-container">
-  <div class="project-header">
-    <div>
-      <h1>Project Management</h1>
-      <p class="subtitle">Manage projects, sub-projects, milestones, and budgets</p>
-    </div>
-    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-      <button id="toggle-view-btn" class="btn" onclick="toggleView()">
-        <span id="view-icon">📊</span> <span id="view-text">Tree View</span>
-      </button>
-      <button id="bulk-delete-btn" class="btn" style="background: #ef4444; color: white; display: none;" onclick="confirmBulkDelete()">
-        Delete Selected (<span id="selected-count">0</span>)
-      </button>
-      <button class="btn btn-primary" onclick="openAddProjectModal()">+ Add Project</button>
-      <a href="{% url 'app_web:dashboard' %}" class="btn">← Dashboard</a>
-    </div>
-  </div>
-
   {% if messages %}
     {% for message in messages %}
       <div class="alert alert-{{ message.tags }}">{{ message }}</div>
     {% endfor %}
   {% endif %}
 
-  <!-- Project Filters -->
-  <div class="project-filters">
-    <div class="field-group">
-      <label>Status</label>
-      <select class="form-select" id="filter-status">
-        <option value="all">All Projects</option>
-        <option value="active">Active</option>
-        <option value="completed">Completed</option>
-        <option value="on-hold">On Hold</option>
-      </select>
-    </div>
+  <!-- Standardized Toolbar -->
+  <div class="page-toolbar">
+    <div class="toolbar-content">
+      <!-- Search -->
+      <div class="toolbar-search">
+        <input type="text" id="search-input" placeholder="Search projects...">
+      </div>
 
-    <div class="field-group">
-      <label>View</label>
-      <select class="form-select" id="filter-level">
-        <option value="all">All Levels</option>
-        <option value="0">Parent Projects Only</option>
-        <option value="1">Sub-Projects Only</option>
-        <option value="2">Tasks Only</option>
-      </select>
-    </div>
+      <!-- Status Filter -->
+      <div class="toolbar-select">
+        <select id="filter-status">
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="on-hold">On Hold</option>
+        </select>
+      </div>
 
-    <div class="field-group">
-      <label>Search</label>
-      <input type="text" class="form-input" id="search-input" placeholder="Search projects...">
+      <!-- View Filter -->
+      <div class="toolbar-select">
+        <select id="filter-level">
+          <option value="all">All Levels</option>
+          <option value="0">Parent Projects</option>
+          <option value="1">Sub-Projects</option>
+          <option value="2">Tasks</option>
+        </select>
+      </div>
+
+      <!-- Actions -->
+      <div class="toolbar-actions">
+        <button id="toggle-view-btn" class="btn btn-secondary" onclick="toggleView()">
+          Tree View
+        </button>
+        <button id="bulk-delete-btn" class="btn btn-secondary" style="display: none;" onclick="confirmBulkDelete()">
+          Delete (<span id="selected-count">0</span>)
+        </button>
+        <button class="btn btn-primary" onclick="openAddProjectModal()">+ Add Project</button>
+      </div>
     </div>
   </div>
 
@@ -101,7 +97,7 @@
           <option value="">None - This is a parent project</option>
           {% for parent in parent_projects %}
             <option value="{{ parent.id }}" data-level="{{ parent.level }}">
-              {% if parent.level == 0 %}📁{% elif parent.level == 1 %}📄{% endif %} {{ parent.name }}
+              {% if parent.level == 0 %}[Parent]{% elif parent.level == 1 %}[Sub]{% endif %} {{ parent.name }}
             </option>
           {% endfor %}
         </select>

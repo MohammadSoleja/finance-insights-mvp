@@ -94,13 +94,18 @@ function renderTreeView(container, projects) {
   function renderProjectNode(project, level = 0) {
     const hasChildren = project.sub_projects && project.sub_projects.length > 0;
     const expandedClass = hasChildren ? 'has-children' : '';
-    const levelIcon = level === 0 ? '📁' : (level === 1 ? '📄' : '📝');
+    const levelClass = level === 0 ? 'level-parent' : (level === 1 ? 'level-sub' : 'level-task');
+
+    const expandIcon = `
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    `;
 
     html += `
-      <div class="tree-node ${expandedClass}" data-project-id="${project.id}" data-level="${level}">
-        <div class="tree-node-header">
-          ${hasChildren ? '<button class="expand-btn" onclick="toggleNode(this)">▼</button>' : '<span class="no-children"></span>'}
-          <span class="level-icon">${levelIcon}</span>
+      <div class="tree-node ${expandedClass} ${levelClass}" data-project-id="${project.id}" data-level="${level}">
+        <div class="tree-node-header" onclick="navigateToProject(${project.id}, event)" style="cursor: pointer;">
+          ${hasChildren ? `<button class="expand-btn" onclick="toggleNode(this); event.stopPropagation();">${expandIcon}</button>` : '<span class="no-children"></span>'}
           ${createProjectCardCompact(project)}
         </div>
         ${hasChildren ? '<div class="tree-node-children">' : ''}
@@ -126,95 +131,110 @@ function createProjectCard(project, indentClass = '') {
   const budgetProgress = project.budget_usage_pct || 0;
   const milestoneProgress = project.milestone_progress || 0;
   const hasSubProjects = project.sub_projects && project.sub_projects.length > 0;
-  const levelIcon = project.level === 0 ? '📁' : (project.level === 1 ? '📄' : '📝');
+  const levelClass = project.level === 0 ? 'level-parent' : (project.level === 1 ? 'level-sub' : 'level-task');
+
+  // SVG Icons
+  const viewIcon = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const editIcon = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const addIcon = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const deleteIcon = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><polyline points="3 6 5 6 21 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
   return `
-    <div class="project-card ${indentClass}" data-project-id="${project.id}" data-status="${project.status}" data-level="${project.level}">
+    <div class="project-card ${indentClass} ${levelClass}" data-project-id="${project.id}" data-status="${project.status}" data-level="${project.level}" style="--project-color: ${project.color};">
       <div class="project-card-header">
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <input type="checkbox" class="project-checkbox" value="${project.id}" onchange="updateBulkDeleteButton()">
-          <span class="level-icon">${levelIcon}</span>
-          <div class="project-color" style="background: ${project.color};"></div>
-          <h3 class="project-name">${project.name}</h3>
-          ${hasSubProjects ? `<span class="sub-count">${project.sub_projects.length} sub-project${project.sub_projects.length > 1 ? 's' : ''}</span>` : ''}
-        </div>
+        <input type="checkbox" class="project-checkbox" value="${project.id}" onchange="updateBulkDeleteButton()" onclick="event.stopPropagation()">
+        <div class="project-color-indicator" style="background: ${project.color};"></div>
+        <h3 class="project-name" onclick="navigateToProject(${project.id}, event)" style="cursor: pointer;">${project.name}</h3>
+        ${hasSubProjects ? `<span class="sub-count">${project.sub_projects.length} sub</span>` : ''}
         <span class="project-status status-${project.status}">${project.status_display}</span>
       </div>
 
-      ${project.description ? `<p class="project-description">${project.description.substring(0, 100)}${project.description.length > 100 ? '...' : ''}</p>` : ''}
+      <div class="project-card-body">
+        ${project.description ? `<p class="project-description">${project.description}</p>` : ''}
 
-      <div class="project-labels">
-        ${project.labels && project.labels.length > 0 
-          ? project.labels.map(label => `
-              <span class="label-tag" style="background: ${label.color}20; color: ${label.color}; border: 1px solid ${label.color}40;">
-                ${label.name}
+        <div class="project-labels">
+          ${project.labels && project.labels.length > 0 
+            ? project.labels.map(label => `
+                <span class="label-tag" style="background: ${label.color}20; color: ${label.color}; border: 1px solid ${label.color}40;">
+                  ${label.name}
+                </span>
+              `).join('')
+            : '<span class="text-muted">No labels assigned</span>'}
+        </div>
+
+        <div class="project-metrics">
+          <div class="metric">
+            <span class="metric-label">Budget</span>
+            <span class="metric-value">${project.budget ? '£' + project.budget.toLocaleString() : '<span class="text-muted">Not set</span>'}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Spent</span>
+            <span class="metric-value ${budgetProgress > 100 ? 'text-danger' : ''}">£${project.total_outflow.toLocaleString()}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Income</span>
+            <span class="metric-value text-success">£${project.total_inflow.toLocaleString()}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Net</span>
+            <span class="metric-value ${project.net_amount >= 0 ? 'text-success' : 'text-danger'}">£${project.net_amount.toLocaleString()}</span>
+          </div>
+        </div>
+
+        ${project.budget ? `
+          <div class="budget-progress">
+            <div class="budget-progress-bar">
+              <div class="budget-progress-fill ${budgetProgress > 100 ? 'over-budget' : budgetProgress > 80 ? 'near-limit' : ''}" 
+                   style="width: ${Math.min(budgetProgress, 100)}%;"></div>
+            </div>
+            <div class="budget-progress-text">
+              <span>${budgetProgress.toFixed(0)}% Used</span>
+              ${project.budget_variance !== null ? `
+                <span class="${project.budget_variance < 0 ? 'text-danger' : 'text-success'}">
+                  ${project.budget_variance < 0 ? 'Over' : 'Remaining'}: £${project.budget_variance_abs.toLocaleString()}
+                </span>
+              ` : ''}
+            </div>
+          </div>
+        ` : ''}
+
+        ${project.milestones_total > 0 ? `
+          <div class="milestone-progress">
+            <div class="milestone-progress-bar">
+              <div class="milestone-progress-fill" style="width: ${milestoneProgress}%;"></div>
+            </div>
+            <span class="milestone-progress-text">${project.milestones_completed} / ${project.milestones_total} Milestones</span>
+          </div>
+        ` : ''}
+
+        ${project.budget_categories && project.budget_categories.length > 0 ? `
+          <div class="budget-categories-preview">
+            <span class="categories-label">Budget Categories</span>
+            ${project.budget_categories.slice(0, 3).map(cat => `
+              <span class="category-tag" style="background: ${cat.color}20; color: ${cat.color}; border: 1px solid ${cat.color}40;">
+                ${cat.name}: ${cat.usage_pct.toFixed(0)}%
               </span>
-            `).join('')
-          : '<span class="text-muted">No labels assigned</span>'}
+            `).join('')}
+            ${project.budget_categories.length > 3 ? `<span class="text-muted">+${project.budget_categories.length - 3} more</span>` : ''}
+          </div>
+        ` : ''}
       </div>
-
-      <div class="project-metrics">
-        <div class="metric">
-          <span class="metric-label">Budget</span>
-          <span class="metric-value">${project.budget ? '£' + project.budget.toLocaleString() : '<span class="text-muted">Not set</span>'}</span>
-        </div>
-        <div class="metric">
-          <span class="metric-label">Spent</span>
-          <span class="metric-value ${budgetProgress > 100 ? 'text-danger' : ''}">£${project.total_outflow.toLocaleString()}</span>
-        </div>
-        <div class="metric">
-          <span class="metric-label">Income</span>
-          <span class="metric-value text-success">£${project.total_inflow.toLocaleString()}</span>
-        </div>
-        <div class="metric">
-          <span class="metric-label">Net</span>
-          <span class="metric-value ${project.net_amount >= 0 ? 'text-success' : 'text-danger'}">£${project.net_amount.toLocaleString()}</span>
-        </div>
-      </div>
-
-      ${project.budget ? `
-        <div class="budget-progress">
-          <div class="budget-progress-bar">
-            <div class="budget-progress-fill ${budgetProgress > 100 ? 'over-budget' : budgetProgress > 80 ? 'near-limit' : ''}" 
-                 style="width: ${Math.min(budgetProgress, 100)}%;"></div>
-          </div>
-          <div class="budget-progress-text">
-            <span>${budgetProgress.toFixed(0)}% of budget</span>
-            ${project.budget_variance !== null ? `
-              <span class="${project.budget_variance < 0 ? 'text-danger' : 'text-success'}">
-                ${project.budget_variance < 0 ? 'Over' : 'Remaining'}: £${project.budget_variance_abs.toLocaleString()}
-              </span>
-            ` : ''}
-          </div>
-        </div>
-      ` : ''}
-
-      ${project.milestones_total > 0 ? `
-        <div class="milestone-progress">
-          <div class="milestone-progress-bar">
-            <div class="milestone-progress-fill" style="width: ${milestoneProgress}%;"></div>
-          </div>
-          <span class="milestone-progress-text">${project.milestones_completed} / ${project.milestones_total} milestones completed</span>
-        </div>
-      ` : ''}
-
-      ${project.budget_categories && project.budget_categories.length > 0 ? `
-        <div class="budget-categories-preview">
-          <span class="categories-label">Budget Categories:</span>
-          ${project.budget_categories.slice(0, 3).map(cat => `
-            <span class="category-tag" style="background: ${cat.color}20; color: ${cat.color}; border: 1px solid ${cat.color}40;">
-              ${cat.name}: ${cat.usage_pct.toFixed(0)}%
-            </span>
-          `).join('')}
-          ${project.budget_categories.length > 3 ? `<span class="text-muted">+${project.budget_categories.length - 3} more</span>` : ''}
-        </div>
-      ` : ''}
 
       <div class="project-actions">
-        ${project.level < 2 ? `<button class="btn btn-sm" onclick="openAddSubProjectModal(${project.id})">+ Sub-Project</button>` : ''}
-        <button class="btn btn-sm" onclick="viewProjectDetails(${project.id})">View Details</button>
-        <button class="btn btn-sm" onclick="openEditModal(${project.id})">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete(${project.id}, '${project.name.replace(/'/g, "\\'")}')">Delete</button>
+        <button class="btn-icon btn-icon-view" onclick="navigateToProject(${project.id}, event)" title="View Details">
+          ${viewIcon}
+        </button>
+        <button class="btn-icon btn-icon-edit" onclick="openEditModal(${project.id}); event.stopPropagation();" title="Edit Project">
+          ${editIcon}
+        </button>
+        ${project.level < 2 ? `
+        <button class="btn-icon btn-icon-add" onclick="openAddSubProjectModal(${project.id}); event.stopPropagation();" title="Add Sub-Project">
+          ${addIcon}
+        </button>
+        ` : ''}
+        <button class="btn-icon btn-icon-delete" onclick="confirmDelete(${project.id}, '${project.name.replace(/'/g, "\\'")}'); event.stopPropagation();" title="Delete Project">
+          ${deleteIcon}
+        </button>
       </div>
     </div>
   `;
@@ -224,6 +244,10 @@ function createProjectCard(project, indentClass = '') {
 function createProjectCardCompact(project) {
   const budgetProgress = project.budget_usage_pct || 0;
   const progressClass = budgetProgress > 100 ? 'over-budget' : budgetProgress > 80 ? 'near-limit' : 'on-track';
+
+  const viewIcon = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const editIcon = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const addIcon = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
   return `
     <div class="project-card-compact" data-project-id="${project.id}">
@@ -238,9 +262,15 @@ function createProjectCardCompact(project) {
         <span class="metric ${project.net_amount >= 0 ? 'text-success' : 'text-danger'}">Net: £${project.net_amount.toLocaleString()}</span>
       </div>
       <div class="compact-actions">
-        <button class="btn-icon" onclick="viewProjectDetails(${project.id})" title="View Details">👁️</button>
-        <button class="btn-icon" onclick="openEditModal(${project.id})" title="Edit">✏️</button>
-        ${project.level < 2 ? `<button class="btn-icon" onclick="openAddSubProjectModal(${project.id})" title="Add Sub-Project">➕</button>` : ''}
+        <button class="btn-icon btn-view" onclick="navigateToProject(${project.id}, event)" title="View Details">
+          ${viewIcon}
+        </button>
+        <button class="btn-icon btn-edit" onclick="openEditModal(${project.id}); event.stopPropagation();" title="Edit">
+          ${editIcon}
+        </button>
+        ${project.level < 2 ? `<button class="btn-icon btn-add" onclick="openAddSubProjectModal(${project.id}); event.stopPropagation();" title="Add Sub-Project">
+          ${addIcon}
+        </button>` : ''}
       </div>
     </div>
   `;
@@ -248,19 +278,23 @@ function createProjectCardCompact(project) {
 
 // Toggle between grid and tree view
 function toggleView() {
+  console.log('toggleView called, currentView before:', currentView);
   currentView = currentView === 'grid' ? 'tree' : 'grid';
-  const viewBtn = document.getElementById('view-text');
-  const viewIcon = document.getElementById('view-icon');
+  console.log('currentView after:', currentView);
+
+  const viewBtn = document.getElementById('toggle-view-btn');
+
+  console.log('viewBtn:', viewBtn);
 
   if (currentView === 'tree') {
-    viewBtn.textContent = 'Grid View';
-    viewIcon.textContent = '📊';
+    if (viewBtn) viewBtn.textContent = 'Grid View';
   } else {
-    viewBtn.textContent = 'Tree View';
-    viewIcon.textContent = '🌳';
+    if (viewBtn) viewBtn.textContent = 'Tree View';
   }
 
+  console.log('About to call renderProjects');
   renderProjects();
+  console.log('renderProjects completed');
 }
 
 // Toggle tree node expansion
@@ -270,11 +304,9 @@ function toggleNode(btn) {
 
   if (node.classList.contains('collapsed')) {
     node.classList.remove('collapsed');
-    btn.textContent = '▼';
-    if (children) children.style.display = 'block';
+    if (children) children.style.display = 'flex';
   } else {
     node.classList.add('collapsed');
-    btn.textContent = '▶';
     if (children) children.style.display = 'none';
   }
 }
@@ -343,7 +375,22 @@ function findProjectById(id, projects = projectsData) {
 }
 
 // View project details with tabs
+// Navigate to project detail page
+function navigateToProject(projectId, event) {
+  // Prevent navigation if clicking on buttons or checkboxes
+  if (event && (event.target.tagName === 'BUTTON' || event.target.tagName === 'INPUT' || event.target.closest('button') || event.target.closest('.project-checkbox'))) {
+    return;
+  }
+  window.location.href = `/projects/${projectId}/`;
+}
+
+// View project details (legacy - keeping for backward compatibility)
 function viewProjectDetails(projectId) {
+  navigateToProject(projectId);
+}
+
+// Old modal-based view function (replaced by navigation)
+function viewProjectDetailsModal(projectId) {
   const modal = document.getElementById('details-modal');
   const content = document.getElementById('details-content');
   const projectName = document.getElementById('details-project-name');
@@ -429,34 +476,34 @@ function renderOverviewTab(data) {
     <div class="overview-grid">
       <div class="overview-card">
         <h3>Project Information</h3>
-        <div class="info-grid">
-          <div class="info-item">
+        <div class="info-grid" style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center;">
+          <div class="info-item" style="display: flex; gap: 0.5rem; align-items: center;">
             <span class="info-label">Status:</span>
             <span class="project-status status-${project.status}">${project.status}</span>
           </div>
-          <div class="info-item">
+          <div class="info-item" style="display: flex; gap: 0.5rem; align-items: center;">
             <span class="info-label">Level:</span>
             <span>${project.level === 0 ? 'Parent Project' : project.level === 1 ? 'Sub-Project' : 'Task'}</span>
           </div>
           ${project.start_date ? `
-            <div class="info-item">
+            <div class="info-item" style="display: flex; gap: 0.5rem; align-items: center;">
               <span class="info-label">Start Date:</span>
               <span>${new Date(project.start_date).toLocaleDateString()}</span>
             </div>
           ` : ''}
           ${project.end_date ? `
-            <div class="info-item">
+            <div class="info-item" style="display: flex; gap: 0.5rem; align-items: center;">
               <span class="info-label">End Date:</span>
               <span>${new Date(project.end_date).toLocaleDateString()}</span>
             </div>
           ` : ''}
         </div>
-        ${project.description ? `<p class="project-description">${project.description}</p>` : ''}
+        ${project.description ? `<p class="project-description" style="margin-top: 1rem;">${project.description}</p>` : ''}
       </div>
       
       <div class="overview-card">
         <h3>Financial Summary</h3>
-        <div class="metrics-grid">
+        <div class="metrics-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
           <div class="metric-card">
             <span class="metric-label">Total Inflow</span>
             <span class="metric-value text-success">£${pl.total_inflow.toLocaleString()}</span>
@@ -706,17 +753,17 @@ function renderActivityTab(data) {
 // Get icon for activity type
 function getActivityIcon(action) {
   const icons = {
-    'created': '✨',
-    'updated': '✏️',
-    'deleted': '🗑️',
-    'status_changed': '🔄',
-    'budget_changed': '💰',
-    'milestone_added': '🎯',
-    'milestone_completed': '✅',
-    'sub_project_added': '📁',
-    'transaction_added': '💵'
+    'created': 'Created',
+    'updated': 'Updated',
+    'deleted': 'Deleted',
+    'status_changed': 'Status',
+    'budget_changed': 'Budget',
+    'milestone_added': 'Milestone',
+    'milestone_completed': 'Complete',
+    'sub_project_added': 'Sub-Project',
+    'transaction_added': 'Transaction'
   };
-  return icons[action] || '📝';
+  return icons[action] || 'Activity';
 }
 
 // Format relative time

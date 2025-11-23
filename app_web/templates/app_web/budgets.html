@@ -11,62 +11,61 @@
 
 {% block content %}
 <div class="budgets-container">
-  <div class="budget-header">
-    <h1>Budget Management</h1>
-    <div style="display: flex; gap: 0.5rem; align-items: center;">
-      <button id="bulk-delete-btn" class="btn" style="background: #ef4444; color: white; display: none;" onclick="confirmBulkDelete()">
-        Delete Selected (<span id="selected-count">0</span>)
-      </button>
-      <button class="btn btn-primary" onclick="openAddBudgetModal()">+ Add Budget</button>
-      <a href="{% url 'app_web:dashboard' %}" class="btn">← Back to Dashboard</a>
-    </div>
-  </div>
-
   {% if messages %}
     {% for message in messages %}
       <div class="alert alert-{{ message.tags }}">{{ message }}</div>
     {% endfor %}
   {% endif %}
 
-  <!-- Budget Filters -->
-  <div class="budget-filters">
-    <div class="field-group">
-      <label>Status</label>
-      <select class="form-select" id="filter-status">
-        <option value="all">All Budgets</option>
-        <option value="active">Active Only</option>
-        <option value="inactive">Inactive Only</option>
-      </select>
-    </div>
+  <!-- Standardized Toolbar -->
+  <div class="page-toolbar">
+    <div class="toolbar-content">
+      <!-- Status Filter -->
+      <div class="toolbar-select">
+        <select class="form-select" id="filter-status">
+          <option value="all">All Status</option>
+          <option value="active">Active Only</option>
+          <option value="inactive">Inactive Only</option>
+        </select>
+      </div>
 
-    <div class="field-group">
-      <label>Period</label>
-      <select class="form-select" id="filter-period">
-        <option value="all">All Periods</option>
-        <option value="weekly">Weekly</option>
-        <option value="monthly">Monthly</option>
-        <option value="yearly">Yearly</option>
-        <option value="custom">Custom</option>
-      </select>
-    </div>
+      <!-- Period Filter -->
+      <div class="toolbar-select">
+        <select class="form-select" id="filter-period">
+          <option value="all">All Periods</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
 
-    <div class="field-group">
-      <label>Usage</label>
-      <select class="form-select" id="filter-usage">
-        <option value="all">All</option>
-        <option value="over">Over Budget</option>
-        <option value="warning">Near Limit (80%+)</option>
-        <option value="ok">Under 80%</option>
-      </select>
-    </div>
+      <!-- Usage Filter -->
+      <div class="toolbar-select">
+        <select class="form-select" id="filter-usage">
+          <option value="all">All Usage</option>
+          <option value="over">Over Budget</option>
+          <option value="warning">Near Limit (80%+)</option>
+          <option value="ok">Under 80%</option>
+        </select>
+      </div>
 
-    <div class="field-group">
-      <label>Sort By</label>
-      <select class="form-select" id="filter-sort">
-        <option value="usage">Usage (High to Low)</option>
-        <option value="name">Name (A-Z)</option>
-        <option value="amount">Amount (High to Low)</option>
-      </select>
+      <!-- Sort -->
+      <div class="toolbar-select">
+        <select class="form-select" id="filter-sort">
+          <option value="usage">Sort: Usage ↓</option>
+          <option value="name">Sort: Name ↑</option>
+          <option value="amount">Sort: Amount ↓</option>
+        </select>
+      </div>
+
+      <!-- Actions -->
+      <div class="toolbar-actions">
+        <button id="bulk-delete-btn" class="btn btn-secondary" style="display: none;" onclick="confirmBulkDelete()">
+          Delete (<span id="selected-count">0</span>)
+        </button>
+        <button class="btn btn-primary" onclick="openAddBudgetModal()">+ Add Budget</button>
+      </div>
     </div>
   </div>
 

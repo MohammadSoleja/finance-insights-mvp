@@ -3,7 +3,7 @@ from .views import upload_view, dashboard_view, health_view, signup_view, home_v
 from .views import transaction_edit_view, transaction_delete_view, transaction_bulk_edit_view
 from .views import transaction_columns_view
 from .views import budgets_view, budget_widget_data, budget_list_data
-from .views import projects_view, project_list_data, project_detail_data
+from .views import projects_view, project_detail_view, project_list_data, project_detail_data
 from .views import invoices_view, clients_view, clients_list_api, invoice_create_view, invoice_edit_view, invoice_delete_view
 from .views import invoice_send_view, invoice_payment_view, invoice_detail_view, invoice_reminder_view
 from .views import invoice_pdf_view, invoice_pdf_download
@@ -48,6 +48,7 @@ urlpatterns = [
     path("api/budget-widget/", budget_widget_data, name="budget_widget_data"),
     path("api/budget-list/", budget_list_data, name="budget_list_data"),
     path("projects/", projects_view, name="projects"),
+    path("projects/<int:project_id>/", project_detail_view, name="project_detail"),
     path("api/project-list/", project_list_data, name="project_list_data"),
     path("api/project-detail/<int:project_id>/", project_detail_data, name="project_detail_data"),
 

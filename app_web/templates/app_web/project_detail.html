@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ project.name }} - Projects{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{% static 'app_web/projects.css' %}">
+<link rel="stylesheet" href="{% static 'app_web/project_detail.css' %}">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="{% static 'app_web/projects.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="project-detail-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="project-sidebar">
+      <div class="project-sidebar-header">
+        <a href="{% url 'app_web:projects' %}" class="back-link">
+          <svg width="20" height="20" fill="currentColor">
+            <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L4.414 9H17a1 1 0 110 2H4.414l5.293 5.293a1 1 0 010 1.414z" clip-rule="evenodd"/>
+          </svg>
+          Back to Projects
+        </a>
+
+        <div class="project-header-info">
+          <div class="project-color-large" style="background: {{ project.color }};"></div>
+          <div>
+            <h2 class="project-title">{{ project.name }}</h2>
+            <span class="project-status status-{{ project.status }}">{{ project.get_status_display }}</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="project-nav">
+        <ul>
+          <li>
+            <a href="?tab=overview" class="project-nav-link {% if active_tab == 'overview' %}active{% endif %}">
+              <svg width="20" height="20" fill="currentColor">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+              </svg>
+              Overview
+            </a>
+          </li>
+          <li>
+            <a href="?tab=financials" class="project-nav-link {% if active_tab == 'financials' %}active{% endif %}">
+              <svg width="20" height="20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+              </svg>
+              Financials
+            </a>
+          </li>
+          <li>
+            <a href="?tab=milestones" class="project-nav-link {% if active_tab == 'milestones' %}active{% endif %}">
+              <svg width="20" height="20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clip-rule="evenodd"/>
+              </svg>
+              Milestones
+            </a>
+          </li>
+          <li>
+            <a href="?tab=categories" class="project-nav-link {% if active_tab == 'categories' %}active{% endif %}">
+              <svg width="20" height="20" fill="currentColor">
+                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+              </svg>
+              Budget Categories
+            </a>
+          </li>
+          <li>
+            <a href="?tab=sub-projects" class="project-nav-link {% if active_tab == 'sub-projects' %}active{% endif %}">
+              <svg width="20" height="20" fill="currentColor">
+                <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1H8a3 3 0 00-3 3v1.5a1.5 1.5 0 01-3 0V6z" clip-rule="evenodd"/>
+                <path d="M6 12a2 2 0 012-2h8a2 2 0 012 2v2a2 2 0 01-2 2H2h2a2 2 0 002-2v-2z"/>
+              </svg>
+              Sub-Projects
+            </a>
+          </li>
+          <li>
+            <a href="?tab=activity" class="project-nav-link {% if active_tab == 'activity' %}active{% endif %}">
+              <svg width="20" height="20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+              </svg>
+              Activity Log
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="project-sidebar-actions">
+        <button class="btn btn-block" onclick="window.location.href='{% url 'app_web:projects' %}'">Edit Project</button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="project-content">
+      <div id="project-detail-content">
+        <div class="loading-state">
+          Loading project details...
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+  // Load project details dynamically
+  const projectId = {{ project_id }};
+  const activeTab = '{{ active_tab }}';
+
+  document.addEventListener('DOMContentLoaded', function() {
+    loadProjectDetails(activeTab);
+  });
+
+  function loadProjectDetails(tab) {
+    const contentEl = document.getElementById('project-detail-content');
+    contentEl.innerHTML = '<div class="loading-state">Loading...</div>';
+
+    fetch(`/api/project-detail/${projectId}/`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.ok) {
+          renderTabContent(data, tab);
+        } else {
+          contentEl.innerHTML = '<div class="alert alert-error">Failed to load project details</div>';
+        }
+      })
+      .catch(error => {
+        console.error('Error loading project:', error);
+        contentEl.innerHTML = '<div class="alert alert-error">Failed to load project details</div>';
+      });
+  }
+
+  function renderTabContent(data, tab) {
+    const contentEl = document.getElementById('project-detail-content');
+
+    // Use the existing comprehensive render functions from projects.js
+    switch(tab) {
+      case 'overview':
+        if (typeof renderOverviewTab === 'function') {
+          contentEl.innerHTML = renderOverviewTab(data);
+        } else {
+          contentEl.innerHTML = '<div class="alert alert-error">Overview renderer not found. Please ensure projects.js is loaded.</div>';
+        }
+        break;
+      case 'financials':
+        if (typeof renderFinancialsTab === 'function') {
+          contentEl.innerHTML = renderFinancialsTab(data);
+        } else {
+          contentEl.innerHTML = '<div class="alert alert-error">Financials renderer not found. Please ensure projects.js is loaded.</div>';
+        }
+        break;
+      case 'milestones':
+        if (typeof renderMilestonesTab === 'function') {
+          contentEl.innerHTML = renderMilestonesTab(data);
+        } else {
+          contentEl.innerHTML = '<div class="alert alert-error">Milestones renderer not found. Please ensure projects.js is loaded.</div>';
+        }
+        break;
+      case 'categories':
+      case 'budget-categories':
+        if (typeof renderCategoriesTab === 'function') {
+          contentEl.innerHTML = renderCategoriesTab(data);
+        } else {
+          contentEl.innerHTML = '<div class="alert alert-error">Categories renderer not found. Please ensure projects.js is loaded.</div>';
+        }
+        break;
+      case 'sub-projects':
+        // Render sub-projects
+        const subProjects = data.sub_projects || [];
+        contentEl.innerHTML = `
+          <div class="tab-header">
+            <h1>Sub-Projects</h1>
+          </div>
+          ${subProjects.length > 0 ? `
+            <div class="sub-projects-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem;">
+              ${subProjects.map(sub => `
+                <div class="project-card" onclick="navigateToProject(${sub.id}, event)" style="cursor: pointer;">
+                  <div class="project-card-header">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                      <div class="project-color-indicator" style="background: ${sub.color};"></div>
+                      <h3 class="project-name">${sub.name}</h3>
+                    </div>
+                    <span class="project-status status-${sub.status}">${sub.status_display || sub.status}</span>
+                  </div>
+                  ${sub.description ? `<p class="project-description">${sub.description}</p>` : ''}
+                  ${sub.budget ? `
+                    <div class="metric">
+                      <span class="metric-label">Budget</span>
+                      <span class="metric-value">£${sub.budget.toLocaleString()}</span>
+                    </div>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
+          ` : '<div class="empty-state-small"><p class="text-muted">No sub-projects yet</p></div>'}
+        `;
+        break;
+      case 'activity':
+        if (typeof renderActivityTab === 'function') {
+          contentEl.innerHTML = renderActivityTab(data);
+        } else {
+          contentEl.innerHTML = '<div class="alert alert-error">Activity renderer not found. Please ensure projects.js is loaded.</div>';
+        }
+        break;
+      default:
+        if (typeof renderOverviewTab === 'function') {
+          contentEl.innerHTML = renderOverviewTab(data);
+        } else {
+          contentEl.innerHTML = '<div class="alert alert-error">Default renderer not found. Please ensure projects.js is loaded.</div>';
+        }
+    }
+  }
+</script>
+{% endblock %}
+

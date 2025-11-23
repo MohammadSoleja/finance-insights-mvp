@@ -1,25 +1,131 @@
-{% extends "base.html" %}
-{% load static %}
+{% extends "app_web/reports_base.html" %}
+{% load static humanize %}
 
-{% block title %}Reports & Analytics - Finance Insights{% endblock %}
+{% block report_title %}Reports Overview{% endblock %}
 
-{% block head_extra %}
-<link rel="stylesheet" href="{% static 'app_web/reports.css' %}">
-{% endblock %}
+{% block report_content %}
 
-{% block content %}
-<div class="page-header">
-  <h1>Reports & Analytics</h1>
-</div>
-
-<div class="templates-grid">
-  {% for rep in reports %}
-  <a class="template-card" href="{{ rep.url }}">
-    <div class="template-header">
-      <h3>{{ rep.name }}</h3>
+<!-- KPI Cards - All in One Line -->
+<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem;">
+  <!-- Net Profit Card -->
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
+    <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.35rem;">Net Profit</div>
+    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">£{{ net_profit|floatformat:2|intcomma }}</div>
+    <div style="font-size: 0.75rem; opacity: 0.8;">
+      {% if net_profit_change >= 0 %}
+        <span style="color: #a7f3d0;">▲ £{{ net_profit_change|floatformat:2|intcomma }}</span>
+      {% else %}
+        <span style="color: #fca5a5;">▼ £{{ net_profit_change_abs|floatformat:2|intcomma }}</span>
+      {% endif %}
     </div>
-    <div style="padding-top:.5rem; color:#6b7280">Open {{ rep.name }} report</div>
-  </a>
-  {% endfor %}
+  </div>
+
+  <!-- Total Income Card -->
+  <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+    <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.35rem;">Total Income</div>
+    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">£{{ total_income|floatformat:2|intcomma }}</div>
+    <div style="font-size: 0.75rem; opacity: 0.8;">
+      {% if income_change >= 0 %}
+        <span style="color: #a7f3d0;">▲ {{ income_change_pct|floatformat:1 }}%</span>
+      {% else %}
+        <span style="color: #fca5a5;">▼ {{ income_change_pct_abs|floatformat:1 }}%</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Total Expenses Card -->
+  <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+    <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.35rem;">Total Expenses</div>
+    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">£{{ total_expenses|floatformat:2|intcomma }}</div>
+    <div style="font-size: 0.75rem; opacity: 0.8;">
+      {% if expenses_change >= 0 %}
+        <span style="color: #fca5a5;">▲ {{ expenses_change_pct|floatformat:1 }}%</span>
+      {% else %}
+        <span style="color: #a7f3d0;">▼ {{ expenses_change_pct_abs|floatformat:1 }}%</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Tax Estimate Card -->
+  <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);">
+    <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.35rem;">Tax Estimate</div>
+    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">£{{ tax_estimate|floatformat:2|intcomma }}</div>
+    <div style="font-size: 0.75rem; opacity: 0.8;">20% of profit</div>
+  </div>
 </div>
-{% endblock %}
+
+<!-- This Week's Highlights - 3 per row -->
+<h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; color: #111827;">This Week's Highlights</h2>
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem;">
+
+  <!-- Top Income Source -->
+  <div class="card" style="padding: 1.25rem; border-left: 4px solid #10b981;">
+    <div style="font-size: 0.875rem; color: #059669; font-weight: 600; margin-bottom: 0.5rem;">💰 Top Income Source</div>
+    <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">{{ top_income_category }}</div>
+    <div style="font-size: 0.875rem; color: #6b7280;">£{{ top_income_amount|floatformat:2|intcomma }}</div>
+  </div>
+
+  <!-- Top Expense Category -->
+  <div class="card" style="padding: 1.25rem; border-left: 4px solid #ef4444;">
+    <div style="font-size: 0.875rem; color: #dc2626; font-weight: 600; margin-bottom: 0.5rem;">💸 Top Expense</div>
+    <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">{{ top_expense_category }}</div>
+    <div style="font-size: 0.875rem; color: #6b7280;">£{{ top_expense_amount|floatformat:2|intcomma }}</div>
+  </div>
+
+  <!-- Profit Margin -->
+  <div class="card" style="padding: 1.25rem; border-left: 4px solid #8b5cf6;">
+    <div style="font-size: 0.875rem; color: #7c3aed; font-weight: 600; margin-bottom: 0.5rem;">📊 Profit Margin</div>
+    <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">
+      {% widthratio net_profit total_income 100 %}%
+    </div>
+    <div style="font-size: 0.875rem; color: #6b7280;">This week's margin</div>
+  </div>
+
+  <!-- Average Daily Income -->
+  <div class="card" style="padding: 1.25rem; border-left: 4px solid #10b981;">
+    <div style="font-size: 0.875rem; color: #059669; font-weight: 600; margin-bottom: 0.5rem;">📈 Avg Daily Income</div>
+    <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">
+      £{% widthratio total_income 7 1 %}
+    </div>
+    <div style="font-size: 0.875rem; color: #6b7280;">Per day this week</div>
+  </div>
+
+  <!-- Average Daily Expenses -->
+  <div class="card" style="padding: 1.25rem; border-left: 4px solid #f59e0b;">
+    <div style="font-size: 0.875rem; color: #d97706; font-weight: 600; margin-bottom: 0.5rem;">📉 Avg Daily Expenses</div>
+    <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">
+      £{% widthratio total_expenses 7 1 %}
+    </div>
+    <div style="font-size: 0.875rem; color: #6b7280;">Per day this week</div>
+  </div>
+
+  <!-- Budget Status -->
+  <div class="card" style="padding: 1.25rem; border-left: 4px solid {% if budgets_over_limit > 0 %}#f59e0b{% else %}#10b981{% endif %};">
+    <div style="font-size: 0.875rem; color: {% if budgets_over_limit > 0 %}#d97706{% else %}#059669{% endif %}; font-weight: 600; margin-bottom: 0.5rem;">🎯 Budget Status</div>
+    <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">
+      {% if budgets_over_limit > 0 %}
+        {{ budgets_over_limit }} Over Limit
+      {% else %}
+        All on Track
+      {% endif %}
+    </div>
+    <div style="font-size: 0.875rem; color: #6b7280;">
+      {% if budgets_over_limit > 0 %}
+        Review needed
+      {% else %}
+        Looking good!
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<style>
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(16, 24, 40, 0.1) !important;
+  }
+</style>
+
+{% endblock report_content %}
+

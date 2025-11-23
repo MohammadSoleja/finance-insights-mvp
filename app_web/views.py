@@ -27,7 +27,7 @@ from django.utils.safestring import mark_safe
 
 from app_core.insights import generate_insights
 
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, HttpResponseNotFound
 
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth import login
@@ -680,6 +680,74 @@ def dashboard_view(request):
         context['budget_summary'] = budget_summary
     except Exception:
         context['budget_summary'] = []
+
+    # Generate sparkline data (last 7 days) for KPI cards
+    try:
+        import logging
+        from collections import defaultdict
+        logger = logging.getLogger(__name__)
+
+        sparkline_days = 7
+        sparkline_end = today
+        sparkline_start = sparkline_end - datetime.timedelta(days=sparkline_days - 1)
+
+        logger.info(f"Generating sparklines from {sparkline_start} to {sparkline_end}")
+
+        # Use organization filter for sparklines
+        if not org:
+            sparkline_q = Q(user=user)
+        else:
+            sparkline_q = Q(organization=org)
+        sparkline_q &= Q(date__gte=sparkline_start, date__lte=sparkline_end)
+
+        # Apply same category filter if present
+        if category:
+            sparkline_q &= Q(category=category)
+
+        sparkline_qs = Transaction.objects.filter(sparkline_q).order_by('date')
+        logger.info(f"Found {sparkline_qs.count()} transactions for sparklines")
+
+        # Use dictionaries to aggregate by date (simpler than pandas)
+        daily_outflow = defaultdict(float)
+        daily_inflow = defaultdict(float)
+        daily_net = defaultdict(float)
+
+        for tx in sparkline_qs:
+            date_key = tx.date
+            if tx.direction == Transaction.OUTFLOW:
+                daily_outflow[date_key] += float(tx.amount or 0)
+                daily_net[date_key] -= float(tx.amount or 0)
+            else:  # INFLOW
+                daily_inflow[date_key] += float(tx.amount or 0)
+                daily_net[date_key] += float(tx.amount or 0)
+
+        # Generate arrays for all 7 days (fill missing days with 0)
+        sparkline_outflow = []
+        sparkline_inflow = []
+        sparkline_net = []
+
+        current_date = sparkline_start
+        for i in range(sparkline_days):
+            sparkline_outflow.append(round(daily_outflow.get(current_date, 0.0), 2))
+            sparkline_inflow.append(round(daily_inflow.get(current_date, 0.0), 2))
+            sparkline_net.append(round(daily_net.get(current_date, 0.0), 2))
+            current_date += datetime.timedelta(days=1)
+
+        logger.info(f"Sparkline data generated: outflow={sparkline_outflow}, inflow={sparkline_inflow}, net={sparkline_net}")
+
+        context['sparkline_outflow'] = json.dumps(sparkline_outflow)
+        context['sparkline_inflow'] = json.dumps(sparkline_inflow)
+        context['sparkline_net'] = json.dumps(sparkline_net)
+    except Exception as e:
+        # Log the error and fallback to empty arrays
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error generating sparklines: {str(e)}", exc_info=True)
+
+        # Still provide empty arrays so the frontend doesn't break
+        context['sparkline_outflow'] = '[]'
+        context['sparkline_inflow'] = '[]'
+        context['sparkline_net'] = '[]'
 
     return render(request, "app_web/dashboard.html", context)
 
@@ -1714,6 +1782,30 @@ def projects_view(request):
     }
 
     return render(request, 'app_web/projects.html', context)
+
+
+@login_required
+def project_detail_view(request, project_id):
+    """Individual project detail page with sidebar navigation (like reports page)."""
+    from app_core.models import Project
+
+    # Get the project
+    try:
+        project = Project.objects.get(id=project_id, organization=request.organization)
+    except Project.DoesNotExist:
+        return HttpResponseNotFound("Project not found")
+
+    # Determine which tab to show (default to overview)
+    active_tab = request.GET.get('tab', 'overview')
+
+    context = {
+        'title': f'{project.name} - Project Details',
+        'project': project,
+        'project_id': project_id,
+        'active_tab': active_tab,
+    }
+
+    return render(request, 'app_web/project_detail.html', context)
 
 
 @login_required
@@ -2850,26 +2942,153 @@ def template_detail_view(request, template_id):
 
 @login_required
 def reports_view(request):
-    """Reports overview page"""
+    """Reports overview page with key insights for the current week"""
     from django.shortcuts import render
+    from app_core.models import Transaction, Label, Budget
+    from django.db.models import Sum
+    from datetime import date, timedelta
+    from decimal import Decimal
 
-    # Minimal overview page that lists available reports and quick links
+    # Calculate current week (Monday to Sunday)
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())  # Monday
+    end_of_week = start_of_week + timedelta(days=6)  # Sunday
+
+    # Previous week for comparison
+    prev_week_start = start_of_week - timedelta(days=7)
+    prev_week_end = end_of_week - timedelta(days=7)
+
+    # Current week transactions
+    current_txns = Transaction.objects.filter(
+        user=request.user,
+        date__gte=start_of_week,
+        date__lte=end_of_week
+    )
+
+    # Previous week transactions
+    prev_txns = Transaction.objects.filter(
+        user=request.user,
+        date__gte=prev_week_start,
+        date__lte=prev_week_end
+    )
+
+    # Calculate totals
+    total_income = current_txns.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    total_expenses = current_txns.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    net_profit = total_income - total_expenses
+
+    # Previous week totals for comparison
+    prev_income = prev_txns.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    prev_expenses = prev_txns.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    prev_net_profit = prev_income - prev_expenses
+
+    # Calculate changes
+    net_profit_change = net_profit - prev_net_profit
+    income_change = total_income - prev_income
+    expenses_change = total_expenses - prev_expenses
+
+    # Calculate percentage changes
+    income_change_pct = ((income_change / prev_income) * 100) if prev_income > 0 else 0
+    expenses_change_pct = ((expenses_change / prev_expenses) * 100) if prev_expenses > 0 else 0
+
+    # Tax estimate (simplified - 20% of profit)
+    tax_estimate = max(net_profit * Decimal('0.20'), Decimal('0'))
+
+    # Top income and expense categories
+    top_income = current_txns.filter(direction=Transaction.INFLOW).exclude(label__isnull=True).values('label__name').annotate(total=Sum('amount')).order_by('-total').first()
+    top_expense = current_txns.filter(direction=Transaction.OUTFLOW).exclude(label__isnull=True).values('label__name').annotate(total=Sum('amount')).order_by('-total').first()
+
+    top_income_category = top_income['label__name'] if top_income else 'N/A'
+    top_income_amount = top_income['total'] if top_income else Decimal('0')
+    top_expense_category = top_expense['label__name'] if top_expense else 'N/A'
+    top_expense_amount = top_expense['total'] if top_expense else Decimal('0')
+
+    # Check budgets over limit - use calculate_budget_usage function
+    from app_core.budgets import calculate_budget_usage
+    budgets = Budget.objects.filter(organization=request.organization, active=True)
+    budgets_over_limit = 0
+    for budget in budgets:
+        try:
+            usage = calculate_budget_usage(budget, Transaction)
+            if usage['is_over']:
+                budgets_over_limit += 1
+        except Exception:
+            # Skip budgets that fail to calculate
+            pass
+
+    # Report links with descriptions
     reports = [
-        {'key': 'pnl', 'name': 'Profit & Loss (P&L)', 'url': '/reports/pnl/'},
-        {'key': 'cashflow', 'name': 'Cash Flow Statement', 'url': '/reports/cashflow/'},
-        {'key': 'expenses', 'name': 'Expense Report by Category', 'url': '/reports/expenses/'},
-        {'key': 'income', 'name': 'Income Report by Source', 'url': '/reports/income/'},
-        {'key': 'tax', 'name': 'Tax Summary Report', 'url': '/reports/tax/'},
-        {'key': 'budget_perf', 'name': 'Budget Performance Report', 'url': '/reports/budget-performance/'},
-        {'key': 'project_perf', 'name': 'Project Performance Report', 'url': '/reports/project-performance/'},
+        {
+            'name': 'Profit & Loss Statement',
+            'description': 'View detailed revenue and expenses breakdown by category',
+            'url_name': 'report_pnl',
+            'icon': '<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>'
+        },
+        {
+            'name': 'Cash Flow Statement',
+            'description': 'Track money in and out over time periods',
+            'url_name': 'report_cashflow',
+            'icon': '<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>'
+        },
+        {
+            'name': 'Expense Report',
+            'description': 'Analyze spending patterns by category',
+            'url_name': 'report_expenses',
+            'icon': '<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>'
+        },
+        {
+            'name': 'Income Report',
+            'description': 'Review income sources and trends',
+            'url_name': 'report_income',
+            'icon': '<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8zM8 9a1 1 0 00-2 0v2a1 1 0 102 0V9z" clip-rule="evenodd"/></svg>'
+        },
+        {
+            'name': 'Tax Summary',
+            'description': 'Estimate tax obligations and VAT',
+            'url_name': 'report_tax',
+            'icon': '<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>'
+        },
+        {
+            'name': 'Budget Performance',
+            'description': 'Monitor budget vs actual spending',
+            'url_name': 'report_budget_performance',
+            'icon': '<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>'
+        },
+        {
+            'name': 'Project Performance',
+            'description': 'Track project costs and profitability',
+            'url_name': 'report_project_performance',
+            'icon': '<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>'
+        },
     ]
 
     context = {
+        'title': 'Reports Overview',
+        'active_report': 'overview',
         'reports': reports,
-        'title': 'Reports & Analytics'
+        'total_income': total_income,
+        'total_expenses': total_expenses,
+        'net_profit': net_profit,
+        'net_profit_change': net_profit_change,
+        'net_profit_change_abs': abs(net_profit_change),
+        'income_change': income_change,
+        'income_change_abs': abs(income_change),
+        'income_change_pct': income_change_pct,
+        'income_change_pct_abs': abs(income_change_pct),
+        'expenses_change': expenses_change,
+        'expenses_change_abs': abs(expenses_change),
+        'expenses_change_pct': expenses_change_pct,
+        'expenses_change_pct_abs': abs(expenses_change_pct),
+        'tax_estimate': tax_estimate,
+        'top_income_category': top_income_category,
+        'top_income_amount': top_income_amount,
+        'top_expense_category': top_expense_category,
+        'top_expense_amount': top_expense_amount,
+        'budgets_over_limit': budgets_over_limit,
     }
 
     return render(request, 'app_web/reports.html', context)
+
 
 
 @login_required
@@ -3054,6 +3273,7 @@ def report_pnl_view(request):
 
     context = {
         'title': 'Profit & Loss (P&L)',
+        'active_report': 'pnl',
         'revenue_rows': revenue_rows,
         'expense_rows': expense_rows,
         'total_revenue_cur': total_revenue_cur,
@@ -3467,6 +3687,7 @@ def report_cashflow_view(request):
 
     context = {
         'title': 'Cash Flow Statement',
+        'active_report': 'cashflow',
         'rows': rows,
         'total_inflow': total_inflow,
         'total_outflow': total_outflow,
@@ -3709,6 +3930,7 @@ def report_expenses_view(request):
 
     context = {
         'title': 'Expense Report by Category',
+        'active_report': 'expenses',
         'rows': rows,
         'total': total,
         'start_date': start_date,
@@ -3935,6 +4157,7 @@ def report_income_view(request):
 
     context = {
         'title': 'Income Report by Source',
+        'active_report': 'income',
         'rows': rows,
         'total': total,
         'start_date': start_date,
@@ -4151,6 +4374,7 @@ def report_tax_view(request):
 
     context = {
         'title': 'Tax Summary Report',
+        'active_report': 'tax',
         'total_income': total_income,
         'total_expenses': total_expenses,
         'taxable_income': taxable_income,
@@ -4343,7 +4567,7 @@ def report_budget_performance_view(request):
     total_variance = total_budget - total_actual
     total_usage_pct = (total_actual / total_budget * 100) if total_budget > 0 else 0
 
-    return render(request, 'app_web/report_budget_performance.html', {'title': 'Budget Performance', 'rows': rows, 'total_budget': total_budget, 'total_actual': total_actual, 'total_variance': total_variance, 'total_usage_pct': total_usage_pct, 'start_date': start_date, 'end_date': end_date})
+    return render(request, 'app_web/report_budget_performance.html', {'title': 'Budget Performance', 'active_report': 'budget_performance', 'rows': rows, 'total_budget': total_budget, 'total_actual': total_actual, 'total_variance': total_variance, 'total_usage_pct': total_usage_pct, 'start_date': start_date, 'end_date': end_date})
 
 
 @login_required
@@ -4489,7 +4713,7 @@ def report_project_performance_view(request):
     total_variance = total_budget - total_actual
     total_usage_pct = (total_actual / total_budget * 100) if total_budget > 0 else 0
 
-    return render(request, 'app_web/report_project_performance.html', {'title': 'Project Performance', 'rows': rows, 'total_budget': total_budget, 'total_actual': total_actual, 'total_variance': total_variance, 'total_usage_pct': total_usage_pct, 'start_date': start_date, 'end_date': end_date})
+    return render(request, 'app_web/report_project_performance.html', {'title': 'Project Performance', 'active_report': 'project_performance', 'rows': rows, 'total_budget': total_budget, 'total_actual': total_actual, 'total_variance': total_variance, 'total_usage_pct': total_usage_pct, 'start_date': start_date, 'end_date': end_date})
 
 
 @login_required

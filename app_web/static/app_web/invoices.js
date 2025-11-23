@@ -271,6 +271,19 @@ function closeDeleteModal() {
 async function confirmDeleteInvoice() {
   if (!deleteInvoiceId) return;
 
+  const confirmed = await ConfirmDialog.show({
+    title: 'Delete Invoice',
+    message: 'Are you sure you want to delete this invoice? This action cannot be undone.',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    type: 'danger'
+  });
+
+  if (!confirmed) return;
+
+  const deleteBtn = document.querySelector(`[onclick="deleteInvoice(${deleteInvoiceId})"]`);
+  if (deleteBtn) ButtonLoader.start(deleteBtn);
+
   try {
     const response = await fetch(`/invoices/${deleteInvoiceId}/delete/`, {
       method: 'POST',
@@ -283,13 +296,16 @@ async function confirmDeleteInvoice() {
 
     if (result.success) {
       closeDeleteModal();
-      window.location.reload();
+      Toast.success('Invoice deleted successfully');
+      setTimeout(() => window.location.reload(), 500);
     } else {
-      alert('Error: ' + (result.error || 'Failed to delete invoice'));
+      Toast.error(result.error || 'Failed to delete invoice');
     }
   } catch (error) {
     console.error('Error deleting invoice:', error);
-    alert('Failed to delete invoice');
+    Toast.error('Failed to delete invoice');
+  } finally {
+    if (deleteBtn) ButtonLoader.stop(deleteBtn);
   }
 }
 
@@ -309,6 +325,9 @@ function closeSendModal() {
 async function confirmSendInvoice() {
   if (!sendInvoiceId) return;
 
+  const sendBtn = document.querySelector('.modal-footer .btn-primary');
+  if (sendBtn) ButtonLoader.start(sendBtn);
+
   try {
     const response = await fetch(`/invoices/${sendInvoiceId}/send/`, {
       method: 'POST',
@@ -323,22 +342,33 @@ async function confirmSendInvoice() {
 
     if (result.success) {
       closeSendModal();
-      alert(result.message || 'Invoice sent successfully');
-      window.location.reload();
+      Toast.success(result.message || 'Invoice sent successfully');
+      setTimeout(() => window.location.reload(), 500);
     } else {
-      alert('Error: ' + (result.error || 'Failed to send invoice'));
+      Toast.error(result.error || 'Failed to send invoice');
     }
   } catch (error) {
     console.error('Error sending invoice:', error);
-    alert('Failed to send invoice');
+    Toast.error('Failed to send invoice');
+  } finally {
+    if (sendBtn) ButtonLoader.stop(sendBtn);
   }
 }
 
 // Send Payment Reminder
 async function sendReminder(invoiceId) {
-  if (!confirm('Send payment reminder to client?')) {
-    return;
-  }
+  const confirmed = await ConfirmDialog.show({
+    title: 'Send Reminder',
+    message: 'Send payment reminder to client?',
+    confirmText: 'Send Reminder',
+    cancelText: 'Cancel',
+    type: 'info'
+  });
+
+  if (!confirmed) return;
+
+  const reminderBtn = document.querySelector(`[onclick="sendReminder(${invoiceId})"]`);
+  if (reminderBtn) ButtonLoader.start(reminderBtn);
 
   try {
     const response = await fetch(`/invoices/${invoiceId}/reminder/`, {
@@ -353,13 +383,15 @@ async function sendReminder(invoiceId) {
     const result = await response.json();
 
     if (result.success) {
-      alert(result.message || 'Reminder sent successfully');
+      Toast.success(result.message || 'Reminder sent successfully');
     } else {
-      alert('Error: ' + (result.error || 'Failed to send reminder'));
+      Toast.error(result.error || 'Failed to send reminder');
     }
   } catch (error) {
     console.error('Error sending reminder:', error);
-    alert('Failed to send reminder');
+    Toast.error('Failed to send reminder');
+  } finally {
+    if (reminderBtn) ButtonLoader.stop(reminderBtn);
   }
 }
 

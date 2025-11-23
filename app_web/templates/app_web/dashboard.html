@@ -12,54 +12,70 @@
 {% endblock %}
 
 {% block content %}
-  <h1 class="title">Dashboard</h1>
+  <!-- Standardized Toolbar -->
+  <div class="page-toolbar">
+    <div class="toolbar-content">
+      <!-- Frequency Tabs -->
+      <div class="toolbar-freq-tabs" role="tablist" aria-label="Frequency">
+        {% with base=base_qs %}
+          <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=D" {% if freq == 'D' %}aria-current="page"{% endif %}>Daily</a>
+          <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=W" {% if freq == 'W' %}aria-current="page"{% endif %}>Weekly</a>
+          <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=M" {% if freq == 'M' %}aria-current="page"{% endif %}>Monthly</a>
+          <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=Y" {% if freq == 'Y' %}aria-current="page"{% endif %}>YTD</a>
+        {% endwith %}
+      </div>
 
-  <!-- Combined toolbar: frequency buttons to the left, filters to the right (dashboard-scoped form) -->
-  <div class="dashboard-toolbar">
-    <div class="freq-group" role="tablist" aria-label="Frequency">
-      {% with base=base_qs %}
-        <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=D" {% if freq == 'D' %}aria-current="page"{% endif %}>Daily</a>
-        <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=W" {% if freq == 'W' %}aria-current="page"{% endif %}>Weekly</a>
-        <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=M" {% if freq == 'M' %}aria-current="page"{% endif %}>Monthly</a>
-        <a class="btn" href="?{{ base }}{% if base %}&amp;{% endif %}freq=Y" {% if freq == 'Y' %}aria-current="page"{% endif %}>YTD</a>
-      {% endwith %}
+      <!-- Search -->
+      <div class="toolbar-search">
+        <form method="get" style="margin: 0;">
+          <input type="hidden" name="freq" value="{{ freq }}" />
+          <input id="q" aria-label="Search" class="form-input" type="text" name="q" placeholder="Search transactions..." value="{{ request.GET.q|default:'' }}" />
+        </form>
+      </div>
+
+      <!-- Date Range -->
+      <div class="toolbar-date">
+        <form method="get" style="margin: 0;">
+          <input type="hidden" name="freq" value="{{ freq }}" />
+          <input id="start_date" aria-label="Start date" name="start" type="text" class="form-input" value="{{ start }}" placeholder="Start date" />
+        </form>
+      </div>
+
+      <div class="toolbar-date">
+        <form method="get" style="margin: 0;">
+          <input type="hidden" name="freq" value="{{ freq }}" />
+          <input id="end_date" aria-label="End date" name="end" type="text" class="form-input" value="{{ end }}" placeholder="End date" />
+        </form>
+      </div>
+
+      <!-- Category Filter -->
+      <div class="toolbar-select">
+        <form method="get" style="margin: 0;">
+          <input type="hidden" name="freq" value="{{ freq }}" />
+          <select id="category" aria-label="Category" name="category" class="form-select">
+            <option value="">All Categories</option>
+            {% for c in categories %}
+              <option value="{{ c }}" {% if c == category %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </form>
+      </div>
+
+      <!-- Actions -->
+      <div class="toolbar-actions">
+        <a href="/dashboard/" class="btn btn-secondary">Reset</a>
+        <button class="btn btn-primary" type="submit" form="dashboard-filters">Apply</button>
+      </div>
     </div>
-
-    <form method="get" class="dashboard-filters" role="search" aria-label="Dashboard filters">
-      <input type="hidden" name="freq" value="{{ freq }}" />
-
-      <div class="field-group search-field">
-        <input id="q" aria-label="Search" class="form-input search" type="text" name="q" placeholder="Search description or category" value="{{ request.GET.q|default:'' }}" />
-      </div>
-
-      <div class="field-group date-field">
-        <input id="start_date" aria-label="Start date" name="start" type="text" class="form-input form-date" value="{{ start }}" placeholder="Start date" />
-      </div>
-
-      <div class="field-group date-field">
-        <input id="end_date" aria-label="End date" name="end" type="text" class="form-input form-date" value="{{ end }}" placeholder="End date" />
-      </div>
-
-      <div class="field-group category-field">
-        <select id="category" aria-label="Category" name="category" class="form-select">
-          <option value="">All</option>
-          {% for c in categories %}
-            <option value="{{ c }}" {% if c == category %}selected{% endif %}>{{ c }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="toolbar-actions" style="display:flex; align-items:center; gap:.5rem">
-        <a href="/dashboard/" class="btn">Reset</a>
-        <button class="btn btn-primary" type="submit">Apply</button>
-      </div>
-    </form>
   </div>
 
-  <div class="spacer"></div>
+  <!-- Hidden form for combined submit -->
+  <form id="dashboard-filters" method="get" style="display: none;">
+    <input type="hidden" name="freq" value="{{ freq }}" />
+  </form>
 
   <div class="kpi-grid">
-    <!-- Total Outflow (first as requested) -->
+    <!-- Total Outflow (with sparkline) -->
     <div class="card numeric"><div>
         <div class="muted">Total Outflow</div>
         {% if kpi.tx_count|default:0 > 0 %}
@@ -73,13 +89,14 @@
               </div>
             {% endif %}
           {% endwith %}
+          <div id="outflow-sparkline" class="sparkline-container" style="margin-top: 0.5rem;"></div>
         {% else %}
           <div class="kpi">—</div>
           <div class="muted" title="No data in selected period">No data in selected period</div>
         {% endif %}
       </div></div>
 
-    <!-- Total Inflow -->
+    <!-- Total Inflow (with sparkline) -->
     <div class="card numeric"><div>
         <div class="muted">Total Inflow</div>
         {% if kpi.tx_count|default:0 > 0 %}
@@ -93,13 +110,14 @@
               </div>
             {% endif %}
           {% endwith %}
+          <div id="inflow-sparkline" class="sparkline-container" style="margin-top: 0.5rem;"></div>
         {% else %}
           <div class="kpi">—</div>
           <div class="muted" title="No data in selected period">No data in selected period</div>
         {% endif %}
       </div></div>
 
-    <!-- Net -->
+    <!-- Net (with sparkline) -->
     <div class="card numeric"><div>
         <div class="muted">Net</div>
         {% if kpi.tx_count|default:0 > 0 %}
@@ -113,6 +131,7 @@
               </div>
             {% endif %}
           {% endwith %}
+          <div id="net-sparkline" class="sparkline-container" style="margin-top: 0.5rem;"></div>
         {% else %}
           <div class="kpi">—</div>
           <div class="muted" title="No data in selected period">No data in selected period</div>
@@ -268,6 +287,89 @@
           var opts = { dateFormat: 'Y-m-d', allowInput: true };
           flatpickr('#start_date', opts);
           flatpickr('#end_date', opts);
+        }
+
+        // Generate sparklines for KPI cards using actual historical data
+        const outflowContainer = document.getElementById('outflow-sparkline');
+        const inflowContainer = document.getElementById('inflow-sparkline');
+        const netContainer = document.getElementById('net-sparkline');
+
+        console.log('Sparkline containers:', { outflowContainer, inflowContainer, netContainer });
+        console.log('createSparkline function exists:', typeof createSparkline);
+
+        if (outflowContainer) {
+          try {
+            // Use actual 7-day historical data from backend if available
+            const outflowData = {{ sparkline_outflow|default:"[]"|safe }};
+            console.log('Outflow sparkline data:', outflowData);
+
+            if (typeof createSparkline === 'function') {
+              // Show sparkline even if all zeros (flat line = no activity)
+              if (outflowData && outflowData.length > 0) {
+                const sparklineHTML = createSparkline(outflowData, 80, 28, '#ef4444');
+                console.log('Generated outflow sparkline HTML:', sparklineHTML);
+                outflowContainer.innerHTML = sparklineHTML;
+              } else {
+                console.log('No outflow data available (empty array)');
+              }
+            } else {
+              console.error('createSparkline function not found');
+            }
+          } catch (e) {
+            console.error('Error generating outflow sparkline:', e);
+          }
+        } else {
+          console.log('Outflow container not found');
+        }
+
+        if (inflowContainer) {
+          try {
+            // Use actual 7-day historical data from backend if available
+            const inflowData = {{ sparkline_inflow|default:"[]"|safe }};
+            console.log('Inflow sparkline data:', inflowData);
+
+            if (typeof createSparkline === 'function') {
+              // Show sparkline even if all zeros (flat line = no activity)
+              if (inflowData && inflowData.length > 0) {
+                const sparklineHTML = createSparkline(inflowData, 80, 28, '#10b981');
+                console.log('Generated inflow sparkline HTML:', sparklineHTML);
+                inflowContainer.innerHTML = sparklineHTML;
+              } else {
+                console.log('No inflow data available (empty array)');
+              }
+            } else {
+              console.error('createSparkline function not found');
+            }
+          } catch (e) {
+            console.error('Error generating inflow sparkline:', e);
+          }
+        } else {
+          console.log('Inflow container not found');
+        }
+
+        if (netContainer) {
+          try {
+            // Use actual 7-day historical data from backend if available
+            const netData = {{ sparkline_net|default:"[]"|safe }};
+            console.log('Net sparkline data:', netData);
+
+            if (typeof createSparkline === 'function') {
+              // Show sparkline even if all zeros (flat line = no activity)
+              if (netData && netData.length > 0) {
+                const sparklineHTML = createSparkline(netData, 80, 28, '#2563eb');
+                console.log('Generated net sparkline HTML:', sparklineHTML);
+                netContainer.innerHTML = sparklineHTML;
+              } else {
+                console.log('No net data available (empty array)');
+              }
+            } else {
+              console.error('createSparkline function not found');
+            }
+          } catch (e) {
+            console.error('Error generating net sparkline:', e);
+          }
+        } else {
+          console.log('Net container not found');
         }
       });
     })();
