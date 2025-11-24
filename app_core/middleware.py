@@ -7,7 +7,29 @@ Team Collaboration Middleware
 """
 
 from django.utils.deprecation import MiddlewareMixin
+from django.shortcuts import redirect
+from django.contrib import messages
+from functools import wraps
 from app_core.models import Organization, OrganizationMember
+
+
+def organization_required(view_func):
+    """
+    Decorator that ensures user has an organization context.
+    Redirects to organization creation if user has no organization.
+    """
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+
+        if not hasattr(request, 'organization') or request.organization is None:
+            messages.warning(request, 'You need to be part of an organization to access this page.')
+            return redirect('home')
+
+        return view_func(request, *args, **kwargs)
+
+    return wrapper
 
 
 class OrganizationMiddleware(MiddlewareMixin):

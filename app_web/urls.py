@@ -16,6 +16,12 @@ from .views import (
     task_update_status, task_bulk_delete, task_comment_create, task_time_entry_create
 )
 
+# Dashboard widget views (separate from main dashboard)
+from .dashboard_views import (
+    dashboard_view as widgets_dashboard_view, get_dashboard_layout, save_dashboard_layout,
+    reset_dashboard_layout, get_widget_data
+)
+
 # Team collaboration views
 from app_core.team_views import (
     switch_organization, team_overview, team_members,
@@ -33,7 +39,15 @@ app_name = "app_web"
 
 urlpatterns = [
     path("upload/", upload_view, name="upload"),
-    path("dashboard/", dashboard_view, name="dashboard"),
+    path("dashboard/", dashboard_view, name="dashboard"),  # Original dashboard
+
+    # Dashboard Widgets (NEW - separate page)
+    path("dashboard/widgets/", widgets_dashboard_view, name="dashboard_widgets"),
+    path("api/dashboard/layout/", get_dashboard_layout, name="get_dashboard_layout"),
+    path("api/dashboard/layout/save/", save_dashboard_layout, name="save_dashboard_layout"),
+    path("api/dashboard/layout/reset/", reset_dashboard_layout, name="reset_dashboard_layout"),
+    path("api/dashboard/widget/<str:widget_id>/", get_widget_data, name="get_widget_data"),
+
     path("pricing/", pricing_view, name="pricing"),
     path("demo/", demo_view, name="demo"),
     path("about/", about_view, name="about"),

@@ -14,6 +14,9 @@ from .team_models import (
     ActivityLog,
 )
 
+# Import dashboard models
+from .dashboard_models import DashboardLayout
+
 class Label(models.Model):
     """
     Labels (tags) for categorizing transactions.
