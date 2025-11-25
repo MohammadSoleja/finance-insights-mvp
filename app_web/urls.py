@@ -1,5 +1,5 @@
 from django.urls import path, include
-from .views import upload_view, dashboard_view, health_view, signup_view, home_view, profile_view, settings_view, transactions_view, pricing_view, demo_view, about_view
+from .views import upload_view, health_view, signup_view, home_view, profile_view, settings_view, transactions_view, pricing_view, demo_view, about_view
 from .views import transaction_edit_view, transaction_delete_view, transaction_bulk_edit_view
 from .views import transaction_columns_view
 from .views import budgets_view, budget_widget_data, budget_list_data
@@ -16,9 +16,12 @@ from .views import (
     task_update_status, task_bulk_delete, task_comment_create, task_time_entry_create
 )
 
-# Dashboard widget views (separate from main dashboard)
+# Import old dashboard as legacy (keeping for reference)
+from .views import dashboard_view as dashboard_legacy_view
+
+# NEW: Dashboard widgets is now the main dashboard
 from .dashboard_views import (
-    dashboard_view as widgets_dashboard_view, get_dashboard_layout, save_dashboard_layout,
+    dashboard_view as dashboard_view, get_dashboard_layout, save_dashboard_layout,
     reset_dashboard_layout, get_widget_data
 )
 
@@ -39,14 +42,16 @@ app_name = "app_web"
 
 urlpatterns = [
     path("upload/", upload_view, name="upload"),
-    path("dashboard/", dashboard_view, name="dashboard"),  # Original dashboard
 
-    # Dashboard Widgets (NEW - separate page)
-    path("dashboard/widgets/", widgets_dashboard_view, name="dashboard_widgets"),
+    # NEW: Widgets dashboard is now the main dashboard at /dashboard/
+    path("dashboard/", dashboard_view, name="dashboard"),
     path("api/dashboard/layout/", get_dashboard_layout, name="get_dashboard_layout"),
     path("api/dashboard/layout/save/", save_dashboard_layout, name="save_dashboard_layout"),
     path("api/dashboard/layout/reset/", reset_dashboard_layout, name="reset_dashboard_layout"),
     path("api/dashboard/widget/<str:widget_id>/", get_widget_data, name="get_widget_data"),
+
+    # OLD: Keep legacy dashboard for reference at /dashboard/legacy/
+    path("dashboard/legacy/", dashboard_legacy_view, name="dashboard_legacy"),
 
     path("pricing/", pricing_view, name="pricing"),
     path("demo/", demo_view, name="demo"),

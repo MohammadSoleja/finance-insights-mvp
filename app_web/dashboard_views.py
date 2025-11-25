@@ -792,26 +792,12 @@ def get_list_recent_transactions(request, start_date, end_date):
 
 def get_list_upcoming_bills(request, start_date, end_date):
     """Upcoming bills/due dates"""
-    # Get invoices due soon
-    upcoming = Invoice.objects.filter(
-        organization=request.organization,
-        status__in=[Invoice.STATUS_SENT, Invoice.STATUS_PARTIALLY_PAID],
-        due_date__gte=date.today(),
-        due_date__lte=date.today() + timedelta(days=30)
-    ).order_by('due_date')[:10]
+    # TODO: Bills feature not yet implemented
+    # Currently showing invoices, but bills (recurring expenses/obligations) are different
+    # Return empty state until bills feature is implemented
 
-    bills = []
-    for invoice in upcoming:
-        bills.append({
-            'id': invoice.id,
-            'client': invoice.client.name,
-            'due_date': invoice.due_date.isoformat(),
-            'amount': float(invoice.balance_due),
-            'status': invoice.status,
-            'days_until_due': (invoice.due_date - date.today()).days
-        })
+    return {'bills': [], 'message': 'Bills feature coming soon'}
 
-    return {'bills': bills}
 
 
 def get_list_budget_alerts(request, start_date, end_date):

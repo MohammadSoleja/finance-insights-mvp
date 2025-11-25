@@ -7,7 +7,10 @@
 {% block head_extra %}
 <!-- Gridstack CSS -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.1.2/dist/gridstack.min.css" />
-<link rel="stylesheet" href="{% static 'app_web/dashboard_widgets.css' %}?v=20251124j">
+<!-- Flatpickr for modern date picker -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<link rel="stylesheet" href="{% static 'app_web/dashboard_widgets.css' %}?v=20251125j">
 {% endblock %}
 
 {% block content %}
@@ -26,19 +29,25 @@
 
       <!-- Date Range -->
       <div class="toolbar-date">
-        <input id="start_date" aria-label="Start date" name="start" type="date" class="form-input" placeholder="Start date" />
+        <input id="start_date" aria-label="Start date" name="start" type="text" class="form-input" placeholder="Start date" />
       </div>
 
       <div class="toolbar-date">
-        <input id="end_date" aria-label="End date" name="end" type="date" class="form-input" placeholder="End date" />
+        <input id="end_date" aria-label="End date" name="end" type="text" class="form-input" placeholder="End date" />
       </div>
 
 
       <!-- Actions -->
       <div class="toolbar-actions">
         <button class="btn btn-secondary" onclick="applyDateFilter()">Apply</button>
-        <button class="btn btn-secondary" onclick="openAddWidgetModal()">+ Add Widget</button>
-        <button class="btn btn-secondary" onclick="resetLayout()">Reset</button>
+        <button class="btn btn-edit-mode" id="editModeBtn" onclick="toggleEditMode()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+          </svg>
+          <span id="editModeText">Edit Mode</span>
+        </button>
+        <button class="btn btn-secondary" id="addWidgetBtn" onclick="openAddWidgetModal()" disabled>+ Add Widget</button>
+        <button class="btn btn-secondary" id="resetBtn" onclick="resetLayout()" disabled>Reset</button>
         <span class="auto-save-indicator" id="saveIndicator">
           <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
@@ -207,6 +216,18 @@
 <!-- Chart.js for charts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <!-- Dashboard Widgets JS -->
-<script src="{% static 'app_web/dashboard_widgets.js' %}?v=20251124j"></script>
+<script src="{% static 'app_web/dashboard_widgets.js' %}?v=20251125i"></script>
+<script>
+  // Initialize flatpickr on dashboard date inputs for modern date pickers
+  (function(){
+    document.addEventListener('DOMContentLoaded', function(){
+      if(window.flatpickr){
+        var opts = { dateFormat: 'Y-m-d', allowInput: true };
+        flatpickr('#start_date', opts);
+        flatpickr('#end_date', opts);
+      }
+    });
+  })();
+</script>
 {% endblock %}
 

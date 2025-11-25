@@ -4,9 +4,12 @@
 .page-toolbar {
   background: white;
   border-radius: 12px;
-  padding: 1rem;
+  padding: 1.25rem;
   margin-bottom: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f3f4f6;
 }
 
 .toolbar-content {
@@ -23,29 +26,64 @@
 
 .toolbar-freq-tabs .btn {
   height: 40px;
-  padding: 0 12px;
+  padding: 0 16px;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
   background: white;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   color: #374151;
+  transition: all 0.2s ease;
+}
+
+.toolbar-freq-tabs .btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #111827;
 }
 
 .toolbar-freq-tabs .btn[aria-current="page"] {
-  background: #2563eb;
+  background: #3b82f6;
   color: white;
   border-color: transparent;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
 .toolbar-date .form-input {
-  width: 140px;
+  width: 150px;
   height: 40px;
   padding: 0 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  background: white;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.toolbar-date .form-input:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.toolbar-date .form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Style the calendar icon */
+.toolbar-date .form-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.toolbar-date .form-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
 }
 
 
@@ -58,10 +96,82 @@
   height: 40px;
   padding: 0 16px;
   font-size: 14px;
+  font-weight: 600;
   border-radius: 8px;
-  border: 1px solid #d1d5db;
+  border: 1px solid #e5e7eb;
   background: white;
+  color: #374151;
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toolbar-actions .btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+.toolbar-actions .btn.btn-primary {
+  background: #3b82f6;
+  color: white;
+  border-color: transparent;
+}
+
+.toolbar-actions .btn.btn-primary:hover {
+  background: #2563eb;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+}
+
+/* Edit Mode Button */
+.toolbar-actions .btn.btn-edit-mode {
+  background: white;
+  color: #374151;
+  border: 2px solid #e5e7eb;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 10;
+}
+
+.toolbar-actions .btn.btn-edit-mode svg {
+  transition: all 0.2s ease;
+}
+
+.toolbar-actions .btn.btn-edit-mode:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.toolbar-actions .btn.btn-edit-mode.active {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.toolbar-actions .btn.btn-edit-mode.active:hover {
+  background: #2563eb;
+}
+
+/* Disabled state for buttons when not in edit mode */
+.toolbar-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f3f4f6;
+  color: #9ca3af;
+  border-color: #e5e7eb;
+}
+
+.toolbar-actions .btn:disabled:hover {
+  background: #f3f4f6;
+  color: #9ca3af;
+  border-color: #e5e7eb;
+  box-shadow: none;
 }
 
 .auto-save-indicator {
@@ -80,14 +190,39 @@
 /* Grid */
 .grid-stack {
   background: transparent;
+  margin-top: 1.5rem;
 }
 
+/* CRITICAL: Override gridstack default margins to create space between widgets */
+.grid-stack > .grid-stack-item {
+  margin-bottom: 20px !important;
+  padding: 0 !important;
+}
 
-.grid-stack-item-content {
+.grid-stack > .grid-stack-item > .grid-stack-item-content {
   border-radius: 12px;
   background: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  inset: 0 !important;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.05);
+  inset: 10px !important; /* This creates the gap between widgets */
+  left: 10px !important;
+  right: 10px !important;
+  top: 10px !important;
+  bottom: 10px !important;
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.grid-stack > .grid-stack-item > .grid-stack-item-content:hover {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.1),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+/* Ensure proper spacing in grid layout */
+.grid-stack.grid-stack-12 > .grid-stack-item {
+  min-height: 100px;
 }
 
 /* Widget */
@@ -103,23 +238,34 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid #e5e7eb;
-  cursor: move;
+  padding: 12px 16px;
+  border-bottom: none;
+  cursor: default; /* Default cursor when locked */
   background: white;
-  min-height: 36px;
+  min-height: 40px;
+  border-radius: 12px 12px 0 0;
+}
+
+/* When grid is in edit mode, show move cursor */
+.grid-stack.grid-stack-animate .widget-header {
+  cursor: move;
 }
 
 .widget-title {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: #111827;
+  letter-spacing: -0.01em;
 }
 
 .widget-controls {
-  display: flex;
+  display: none; /* Hidden by default, shown only in edit mode */
   gap: 4px;
+}
+
+.widget-controls.show {
+  display: flex;
 }
 
 .widget-btn {
@@ -137,7 +283,7 @@
 }
 
 .widget-body {
-  padding: 12px;
+  padding: 16px;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -147,20 +293,20 @@
 /* Delete Zone */
 .widget-delete-zone {
   position: fixed;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%) translateY(100px);
+  top: 80px;
+  right: 20px;
+  transform: translateX(300px);
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: white;
-  padding: 16px 32px;
-  border-radius: 16px;
+  padding: 16px 24px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   gap: 12px;
   box-shadow: 0 10px 40px rgba(239, 68, 68, 0.4);
   z-index: 10000;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   opacity: 0;
   pointer-events: none;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -169,17 +315,18 @@
 .widget-delete-zone.visible {
   opacity: 1;
   pointer-events: all;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(0);
 }
 
 .widget-delete-zone.active-drop {
-  transform: translateX(-50%) translateY(0) scale(1.1);
+  transform: translateX(0) scale(1.05);
   box-shadow: 0 15px 50px rgba(239, 68, 68, 0.6);
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
 }
 
 .widget-delete-zone svg {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
 }
 

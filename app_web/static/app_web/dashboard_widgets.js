@@ -6,47 +6,51 @@
 (function() {
   'use strict';
 
+  console.log('Dashboard Widgets JS Loading...');
+
   // Global state
   let grid;
   let widgets = {};
   let charts = {};
   let saveTimeout;
   let currentDateRange = 'last7days'; // Default to current week (Daily view)
+  let isEditMode = false; // Track edit mode state
   const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
 
   // Widget metadata with default sizes (users can resize freely)
+  // Note: cellHeight is 50px, so h:3 = 150px, h:8 = 400px, etc.
   const WIDGET_META = {
-    // KPI Widgets - MEDIUM size (2x2 - tall enough to see content)
-    'kpi-total-income': { title: 'Total Income', w: 2, h: 2, type: 'kpi', minW: 2, minH: 1 },
-    'kpi-total-expenses': { title: 'Total Expenses', w: 2, h: 2, type: 'kpi', minW: 2, minH: 1 },
-    'kpi-net-cash-flow': { title: 'Net Cash Flow', w: 2, h: 2, type: 'kpi', minW: 2, minH: 1 },
-    'kpi-avg-transaction': { title: 'Avg Transaction', w: 2, h: 2, type: 'kpi', minW: 2, minH: 1 },
-    'kpi-transaction-count': { title: 'Transaction Count', w: 2, h: 2, type: 'kpi', minW: 2, minH: 1 },
-    'kpi-budget-progress': { title: 'Budget Progress', w: 2, h: 2, type: 'kpi', minW: 2, minH: 1 },
-    'kpi-burn-rate': { title: 'Burn Rate', w: 2, h: 2, type: 'kpi', minW: 2, minH: 1 },
-    'kpi-active-projects': { title: 'Active Projects', w: 2, h: 2, type: 'kpi', minW: 2, minH: 1 },
-    'kpi-pending-invoices': { title: 'Pending Invoices', w: 2, h: 2, type: 'kpi', minW: 2, minH: 1 },
-    'kpi-overdue-invoices': { title: 'Overdue Invoices', w: 2, h: 2, type: 'kpi', minW: 2, minH: 1 },
+    // KPI Widgets - 200px wide × 150px tall (w:2 columns, h:3 cells @ 50px each)
+    'kpi-total-income': { title: 'Total Income', w: 2, h: 3, type: 'kpi', minW: 2, minH: 2 },
+    'kpi-total-expenses': { title: 'Total Expenses', w: 2, h: 3, type: 'kpi', minW: 2, minH: 2 },
+    'kpi-net-cash-flow': { title: 'Net Cash Flow', w: 2, h: 3, type: 'kpi', minW: 2, minH: 2 },
+    'kpi-avg-transaction': { title: 'Avg Transaction', w: 2, h: 3, type: 'kpi', minW: 2, minH: 2 },
+    'kpi-transaction-count': { title: 'Transaction Count', w: 2, h: 3, type: 'kpi', minW: 2, minH: 2 },
+    'kpi-budget-progress': { title: 'Budget Progress', w: 2, h: 3, type: 'kpi', minW: 2, minH: 2 },
+    'kpi-burn-rate': { title: 'Burn Rate', w: 2, h: 3, type: 'kpi', minW: 2, minH: 2 },
+    'kpi-active-projects': { title: 'Active Projects', w: 2, h: 3, type: 'kpi', minW: 2, minH: 2 },
+    'kpi-pending-invoices': { title: 'Pending Invoices', w: 2, h: 3, type: 'kpi', minW: 2, minH: 2 },
+    'kpi-overdue-invoices': { title: 'Overdue Invoices', w: 2, h: 3, type: 'kpi', minW: 2, minH: 2 },
 
-    // Chart Widgets - MEDIUM size (6x4 - tall enough for charts with legends)
-    'chart-revenue-expense': { title: 'Revenue vs Expenses', w: 6, h: 4, type: 'chart', minW: 4, minH: 3 },
-    'chart-expense-pie': { title: 'Expense Breakdown', w: 6, h: 4, type: 'chart', minW: 3, minH: 3 },
-    'chart-income-pie': { title: 'Income Breakdown', w: 6, h: 4, type: 'chart', minW: 3, minH: 3 },
-    'chart-trend-line': { title: 'Trend Line', w: 6, h: 4, type: 'chart', minW: 4, minH: 3 },
-    'chart-waterfall': { title: 'Cash Flow Waterfall', w: 6, h: 4, type: 'chart', minW: 4, minH: 3 },
-    'chart-budget-performance': { title: 'Budget Performance', w: 6, h: 4, type: 'chart', minW: 4, minH: 3 },
-    'chart-category-heatmap': { title: 'Category Heatmap', w: 6, h: 4, type: 'chart', minW: 3, minH: 3 },
-    'chart-money-flow-sankey': { title: 'Money Flow', w: 6, h: 4, type: 'chart', minW: 3, minH: 3 },
+    // Chart Widgets - 6 columns wide × 8 cells tall (8 × 50px = 400px)
+    'chart-revenue-expense': { title: 'Revenue vs Expenses', w: 6, h: 8, type: 'chart', minW: 4, minH: 6 },
+    'chart-expense-pie': { title: 'Expense Breakdown', w: 6, h: 8, type: 'chart', minW: 3, minH: 6 },
+    'chart-income-pie': { title: 'Income Breakdown', w: 6, h: 8, type: 'chart', minW: 3, minH: 6 },
+    'chart-trend-line': { title: 'Trend Line', w: 6, h: 8, type: 'chart', minW: 4, minH: 6 },
+    'chart-waterfall': { title: 'Cash Flow Waterfall', w: 6, h: 8, type: 'chart', minW: 4, minH: 6 },
+    'chart-budget-performance': { title: 'Budget Performance', w: 6, h: 8, type: 'chart', minW: 4, minH: 6 },
+    'chart-category-heatmap': { title: 'Category Heatmap', w: 6, h: 8, type: 'chart', minW: 3, minH: 6 },
+    'chart-money-flow-sankey': { title: 'Money Flow', w: 6, h: 8, type: 'chart', minW: 3, minH: 6 },
 
-    // List Widgets - MEDIUM size (4x4 - tall enough to show list items)
-    'list-recent-transactions': { title: 'Recent Transactions', w: 4, h: 4, type: 'list', minW: 3, minH: 2 },
-    'list-upcoming-bills': { title: 'Upcoming Bills', w: 4, h: 4, type: 'list', minW: 3, minH: 2 },
-    'list-budget-alerts': { title: 'Budget Alerts', w: 4, h: 4, type: 'list', minW: 3, minH: 2 },
-    'list-recent-invoices': { title: 'Recent Invoices', w: 4, h: 4, type: 'list', minW: 3, minH: 2 },
+    // List Widgets - 4 columns wide × 8 cells tall (8 × 50px = 400px)
+    'list-recent-transactions': { title: 'Recent Transactions', w: 4, h: 8, type: 'list', minW: 3, minH: 4 },
+    'list-upcoming-bills': { title: 'Upcoming Bills', w: 4, h: 8, type: 'list', minW: 3, minH: 4 },
+    'list-budget-alerts': { title: 'Budget Alerts', w: 4, h: 8, type: 'list', minW: 3, minH: 4 },
+    'list-recent-invoices': { title: 'Recent Invoices', w: 4, h: 8, type: 'list', minW: 3, minH: 4 },
 
-    // Summary Widgets - MEDIUM size (4x3)
-    'summary-financial': { title: 'Financial Summary', w: 4, h: 3, type: 'summary', minW: 3, minH: 2 },
-    'summary-month-comparison': { title: 'Month Comparison', w: 4, h: 3, type: 'summary', minW: 3, minH: 2 },
+    // Summary Widgets - 4 columns × 6 cells (6 × 50px = 300px)
+    'summary-financial': { title: 'Financial Summary', w: 4, h: 6, type: 'summary', minW: 3, minH: 4 },
+    'summary-month-comparison': { title: 'Month Comparison', w: 4, h: 6, type: 'summary', minW: 3, minH: 4 },
   };
 
   // Configure Chart.js defaults for modern tooltips
@@ -97,17 +101,46 @@
   // Initialize on DOM load
   document.addEventListener('DOMContentLoaded', init);
 
+  // Color palette for charts - modern, accessible colors
+  function getChartColors(count) {
+    const palette = [
+      '#3b82f6', // Blue
+      '#10b981', // Green
+      '#f59e0b', // Amber
+      '#ef4444', // Red
+      '#8b5cf6', // Purple
+      '#ec4899', // Pink
+      '#14b8a6', // Teal
+      '#f97316', // Orange
+      '#6366f1', // Indigo
+      '#84cc16', // Lime
+      '#06b6d4', // Cyan
+      '#f43f5e', // Rose
+    ];
+
+    // If we need more colors than in palette, generate lighter variations
+    if (count <= palette.length) {
+      return palette.slice(0, count);
+    }
+
+    const colors = [...palette];
+    while (colors.length < count) {
+      // Add lighter versions of existing colors
+      const baseColor = palette[colors.length % palette.length];
+      colors.push(baseColor + 'aa'); // Add alpha for lighter shade
+    }
+    return colors;
+  }
+
   function init() {
 
-    // Initialize Gridstack with resizing ENABLED
+    // Initialize Gridstack in static mode (locked) by default
     grid = GridStack.init({
       column: 12,
-      cellHeight: 100,
-      margin: '20px', // Increased spacing between widgets - use string for px units
-      resizable: true, // ENABLED - widgets can be resized by users
-      draggable: {
-        handle: '.widget-header'
-      },
+      cellHeight: 50,
+      margin: 10,
+      staticGrid: true, // Start locked - users must click Edit Mode to unlock
+      disableOneColumnMode: true,
       float: true,
       animate: true
     });
@@ -121,11 +154,14 @@
     // Create delete zone
     createDeleteZone();
 
-    // Set default dates (last 30 days)
+    // Set default dates
     setDefaultDates();
 
     // Load layout
     loadLayout();
+
+    // Initialize edit mode as disabled
+    setEditMode(false);
 
     // Setup auto-refresh (30 seconds)
     setInterval(refreshAllWidgets, 30000);
@@ -177,33 +213,47 @@
     currentDateRange = range;
 
     const today = new Date();
-    let startDate;
+    let startDate, endDate;
 
     switch(range) {
-      case 'last7days':
-        // Current week: Monday to Sunday
+      case 'last7days': // Daily: Current week (Monday to Sunday)
         const dayOfWeek = today.getDay();
         const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
         startDate = new Date(today);
         startDate.setDate(today.getDate() - daysToMonday);
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6); // Sunday
         break;
-      case 'last30days':
-        // Last 4 weeks (28 days)
-        startDate = new Date(today);
-        startDate.setDate(today.getDate() - 27); // 28 days including today
+
+      case 'last30days': // Weekly: Last 4 weeks (Monday to Sunday structure)
+        const currentDayOfWeek = today.getDay();
+        const daysToCurrentMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+        // Go back to this week's Monday
+        const thisMonday = new Date(today);
+        thisMonday.setDate(today.getDate() - daysToCurrentMonday);
+        // Then go back 3 more weeks (21 days)
+        startDate = new Date(thisMonday);
+        startDate.setDate(thisMonday.getDate() - 21); // 4 weeks total
+        endDate = new Date(thisMonday);
+        endDate.setDate(thisMonday.getDate() + 6); // This week's Sunday
         break;
-      case 'last90days':
-        // Last 12 months
+
+      case 'last90days': // Monthly: Last 12 months including current month
         startDate = new Date(today);
         startDate.setMonth(today.getMonth() - 11); // 12 months including current
         startDate.setDate(1); // Start from 1st of that month
+        endDate = new Date(today); // End today
         break;
-      case 'thisYear':
-        startDate = new Date(today.getFullYear(), 0, 1);
+
+      case 'thisYear': // YTD: Start of current year to today
+        startDate = new Date(today.getFullYear(), 0, 1); // January 1st
+        endDate = new Date(today); // Today
         break;
+
       default:
         startDate = new Date(today);
         startDate.setDate(today.getDate() - 6);
+        endDate = new Date(today);
     }
 
     // Update date inputs
@@ -211,9 +261,9 @@
     const endInput = document.getElementById('end_date');
 
     if (startInput) startInput.value = formatDateForInput(startDate);
-    if (endInput) endInput.value = formatDateForInput(today);
+    if (endInput) endInput.value = formatDateForInput(endDate);
 
-    console.log('Date range updated to:', formatDateForInput(startDate), '-', formatDateForInput(today));
+    console.log('Date range updated to:', formatDateForInput(startDate), '-', formatDateForInput(endDate));
 
     // Update active tab
     const tabs = document.querySelectorAll('.toolbar-freq-tabs .btn');
@@ -290,10 +340,10 @@
   async function loadDefaultWidgets() {
     // Load a few default widgets to get started
     const defaultWidgets = [
-      { id: 'kpi-total-income', x: 0, y: 0, w: 2, h: 2 },
-      { id: 'kpi-total-expenses', x: 2, y: 0, w: 2, h: 2 },
-      { id: 'kpi-net-cash-flow', x: 4, y: 0, w: 2, h: 2 },
-      { id: 'chart-revenue-expense', x: 0, y: 2, w: 6, h: 4 }
+      { id: 'kpi-total-income', x: 0, y: 0, w: 2, h: 3 },
+      { id: 'kpi-total-expenses', x: 2, y: 0, w: 2, h: 3 },
+      { id: 'kpi-net-cash-flow', x: 4, y: 0, w: 2, h: 3 },
+      { id: 'chart-revenue-expense', x: 0, y: 3, w: 6, h: 8 }
     ];
 
     for (const config of defaultWidgets) {
@@ -594,9 +644,19 @@
     // Calculate responsive font size
     const legendFontSize = Math.max(9, Math.min(12, parentHeight / 30));
 
+    // Apply color palette to the data
+    const chartData = { ...data };
+    if (chartData.datasets && chartData.datasets.length > 0) {
+      const datasetLength = chartData.datasets[0].data?.length || 0;
+      const colors = getChartColors(datasetLength);
+      chartData.datasets[0].backgroundColor = colors;
+      chartData.datasets[0].borderColor = '#ffffff';
+      chartData.datasets[0].borderWidth = 2;
+    }
+
     return new Chart(ctx, {
       type: 'pie',
-      data: data,
+      data: chartData,
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -801,7 +861,11 @@
 
   function renderUpcomingBills(bodyEl, data) {
     if (!data.bills || data.bills.length === 0) {
-      bodyEl.innerHTML = '<div class="widget-loading">No upcoming bills</div>';
+      const message = data.message || 'No upcoming bills';
+      bodyEl.innerHTML = `<div class="widget-loading" style="text-align: center; padding: 2rem; color: #6b7280;">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📅</div>
+        <div style="font-weight: 500;">${message}</div>
+      </div>`;
       return;
     }
 
@@ -810,10 +874,10 @@
         ${data.bills.map(bill => `
           <div class="list-item">
             <div>
-              <div class="list-item-label">${bill.client}</div>
-              <div class="list-item-date">Due in ${bill.days_until_due} days</div>
+              <div class="list-item-label">${bill.name || bill.description}</div>
+              <div class="list-item-date">Due: ${bill.due_date}</div>
             </div>
-            <div class="list-item-amount">£${formatNumber(bill.amount)}</div>
+            <div class="list-item-amount" style="color: #ef4444;">£${formatNumber(bill.amount)}</div>
           </div>
         `).join('')}
       </div>
@@ -1152,6 +1216,66 @@
   function debouncedSaveLayout() {
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(saveLayout, 2000);
+  }
+
+  // ==================== EDIT MODE FUNCTIONS ====================
+
+  window.toggleEditMode = function() {
+    console.log('toggleEditMode called, current state:', isEditMode);
+    isEditMode = !isEditMode;
+    console.log('toggleEditMode new state:', isEditMode);
+    setEditMode(isEditMode);
+  };
+
+  function setEditMode(enabled) {
+    isEditMode = enabled;
+    const editBtn = document.getElementById('editModeBtn');
+    const editText = document.getElementById('editModeText');
+    const addWidgetBtn = document.getElementById('addWidgetBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    if (!grid) {
+      console.error('Grid not initialized');
+      return;
+    }
+
+    if (enabled) {
+      // Enable edit mode - use correct GridStack v10 API
+      grid.setStatic(false); // Make grid interactive
+
+      // Update button styling
+      editBtn.classList.add('active');
+      editText.textContent = 'Exit Edit Mode';
+
+      // Enable action buttons
+      addWidgetBtn.disabled = false;
+      resetBtn.disabled = false;
+
+      // Show widget control buttons (edit/delete)
+      document.querySelectorAll('.widget-controls').forEach(el => {
+        el.style.display = 'flex';
+      });
+
+      console.log('Edit mode ENABLED - widgets can be dragged, resized, added, and removed');
+    } else {
+      // Disable edit mode - lock the grid
+      grid.setStatic(true); // Make grid static (locked)
+
+      // Update button styling
+      editBtn.classList.remove('active');
+      editText.textContent = 'Edit Mode';
+
+      // Disable action buttons
+      addWidgetBtn.disabled = true;
+      resetBtn.disabled = true;
+
+      // Hide widget control buttons (edit/delete)
+      document.querySelectorAll('.widget-controls').forEach(el => {
+        el.style.display = 'none';
+      });
+
+      console.log('Edit mode DISABLED - dashboard is locked');
+    }
   }
 
   // ==================== MODAL FUNCTIONS ====================
