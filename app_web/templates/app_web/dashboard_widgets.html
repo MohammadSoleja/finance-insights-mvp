@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block head_extra %}
+<!-- Gridstack CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.1.2/dist/gridstack.min.css" />
+<!-- Flatpickr for modern date picker -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<link rel="stylesheet" href="{% static 'app_web/dashboard_widgets.css' %}?v=20251125j">
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+<div class="dashboard-widgets-container">
+  <!-- Standardized Toolbar (same as original dashboard) -->
+  <div class="page-toolbar">
+    <div class="toolbar-content">
+      <!-- Frequency Tabs -->
+      <div class="toolbar-freq-tabs" role="tablist" aria-label="Frequency">
+        <button class="btn" data-freq="last7days" onclick="updateDateRange('last7days')" aria-current="page">Daily</button>
+        <button class="btn" data-freq="last30days" onclick="updateDateRange('last30days')">Weekly</button>
+        <button class="btn" data-freq="last90days" onclick="updateDateRange('last90days')">Monthly</button>
+        <button class="btn" data-freq="thisYear" onclick="updateDateRange('thisYear')">YTD</button>
+      </div>
+
+      <!-- Date Range -->
+      <div class="toolbar-date">
+        <input id="start_date" aria-label="Start date" name="start" type="text" class="form-input" placeholder="Start date" />
+      </div>
+
+      <div class="toolbar-date">
+        <input id="end_date" aria-label="End date" name="end" type="text" class="form-input" placeholder="End date" />
+      </div>
+
+
+      <!-- Actions -->
+      <div class="toolbar-actions">
+        <button class="btn btn-secondary" onclick="applyDateFilter()">Apply</button>
+        <button class="btn btn-edit-mode" id="editModeBtn" onclick="toggleEditMode()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+          </svg>
+          <span id="editModeText">Edit Mode</span>
+        </button>
+        <button class="btn btn-secondary" id="addWidgetBtn" onclick="openAddWidgetModal()" disabled>+ Add Widget</button>
+        <button class="btn btn-secondary" id="resetBtn" onclick="resetLayout()" disabled>Reset</button>
+        <span class="auto-save-indicator" id="saveIndicator">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          Saved
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid Container -->
+  <div class="grid-stack" id="dashboard-grid"></div>
+</div>
+
+<!-- Add Widget Modal -->
+<div class="modal-backdrop" id="addWidgetModal">
+  <div class="modal widget-selector-modal">
+    <div class="modal-header">
+      <h2>Add Widget to Dashboard</h2>
+      <button class="modal-close" onclick="closeAddWidgetModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- Search -->
+      <div class="widget-search">
+        <input type="text" id="widgetSearch" placeholder="Search widgets..." oninput="filterWidgets()">
+      </div>
+
+      <!-- Widget Categories -->
+      <div class="widget-categories">
+        <!-- KPI Widgets -->
+        <div class="widget-category">
+          <h3>📊 KPI Widgets</h3>
+          <div class="widget-grid">
+            <div class="widget-item" data-widget-id="kpi-total-income" onclick="addWidget('kpi-total-income')">
+              <div class="widget-icon">💰</div>
+              <div class="widget-name">Total Income</div>
+            </div>
+            <div class="widget-item" data-widget-id="kpi-total-expenses" onclick="addWidget('kpi-total-expenses')">
+              <div class="widget-icon">💸</div>
+              <div class="widget-name">Total Expenses</div>
+            </div>
+            <div class="widget-item" data-widget-id="kpi-net-cash-flow" onclick="addWidget('kpi-net-cash-flow')">
+              <div class="widget-icon">💵</div>
+              <div class="widget-name">Net Cash Flow</div>
+            </div>
+            <div class="widget-item" data-widget-id="kpi-avg-transaction" onclick="addWidget('kpi-avg-transaction')">
+              <div class="widget-icon">📈</div>
+              <div class="widget-name">Avg Transaction</div>
+            </div>
+            <div class="widget-item" data-widget-id="kpi-transaction-count" onclick="addWidget('kpi-transaction-count')">
+              <div class="widget-icon">🔢</div>
+              <div class="widget-name">Transaction Count</div>
+            </div>
+            <div class="widget-item" data-widget-id="kpi-budget-progress" onclick="addWidget('kpi-budget-progress')">
+              <div class="widget-icon">🎯</div>
+              <div class="widget-name">Budget Progress</div>
+            </div>
+            <div class="widget-item" data-widget-id="kpi-burn-rate" onclick="addWidget('kpi-burn-rate')">
+              <div class="widget-icon">🔥</div>
+              <div class="widget-name">Burn Rate</div>
+            </div>
+            <div class="widget-item" data-widget-id="kpi-active-projects" onclick="addWidget('kpi-active-projects')">
+              <div class="widget-icon">💼</div>
+              <div class="widget-name">Active Projects</div>
+            </div>
+            <div class="widget-item" data-widget-id="kpi-pending-invoices" onclick="addWidget('kpi-pending-invoices')">
+              <div class="widget-icon">📄</div>
+              <div class="widget-name">Pending Invoices</div>
+            </div>
+            <div class="widget-item" data-widget-id="kpi-overdue-invoices" onclick="addWidget('kpi-overdue-invoices')">
+              <div class="widget-icon">⏰</div>
+              <div class="widget-name">Overdue Invoices</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart Widgets -->
+        <div class="widget-category">
+          <h3>📈 Chart Widgets</h3>
+          <div class="widget-grid">
+            <div class="widget-item" data-widget-id="chart-revenue-expense" onclick="addWidget('chart-revenue-expense')">
+              <div class="widget-icon">📊</div>
+              <div class="widget-name">Revenue vs Expenses</div>
+            </div>
+            <div class="widget-item" data-widget-id="chart-expense-pie" onclick="addWidget('chart-expense-pie')">
+              <div class="widget-icon">🥧</div>
+              <div class="widget-name">Expense Breakdown</div>
+            </div>
+            <div class="widget-item" data-widget-id="chart-income-pie" onclick="addWidget('chart-income-pie')">
+              <div class="widget-icon">🥧</div>
+              <div class="widget-name">Income Breakdown</div>
+            </div>
+            <div class="widget-item" data-widget-id="chart-trend-line" onclick="addWidget('chart-trend-line')">
+              <div class="widget-icon">📉</div>
+              <div class="widget-name">Trend Line</div>
+            </div>
+            <div class="widget-item" data-widget-id="chart-waterfall" onclick="addWidget('chart-waterfall')">
+              <div class="widget-icon">🌊</div>
+              <div class="widget-name">Cash Flow Waterfall</div>
+            </div>
+            <div class="widget-item" data-widget-id="chart-budget-performance" onclick="addWidget('chart-budget-performance')">
+              <div class="widget-icon">🎯</div>
+              <div class="widget-name">Budget Performance</div>
+            </div>
+            <div class="widget-item" data-widget-id="chart-category-heatmap" onclick="addWidget('chart-category-heatmap')">
+              <div class="widget-icon">🗺️</div>
+              <div class="widget-name">Category Heatmap</div>
+            </div>
+            <div class="widget-item" data-widget-id="chart-money-flow-sankey" onclick="addWidget('chart-money-flow-sankey')">
+              <div class="widget-icon">🔄</div>
+              <div class="widget-name">Money Flow Sankey</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- List Widgets -->
+        <div class="widget-category">
+          <h3>📋 List Widgets</h3>
+          <div class="widget-grid">
+            <div class="widget-item" data-widget-id="list-recent-transactions" onclick="addWidget('list-recent-transactions')">
+              <div class="widget-icon">📝</div>
+              <div class="widget-name">Recent Transactions</div>
+            </div>
+            <div class="widget-item" data-widget-id="list-upcoming-bills" onclick="addWidget('list-upcoming-bills')">
+              <div class="widget-icon">📅</div>
+              <div class="widget-name">Upcoming Bills</div>
+            </div>
+            <div class="widget-item" data-widget-id="list-budget-alerts" onclick="addWidget('list-budget-alerts')">
+              <div class="widget-icon">⚠️</div>
+              <div class="widget-name">Budget Alerts</div>
+            </div>
+            <div class="widget-item" data-widget-id="list-recent-invoices" onclick="addWidget('list-recent-invoices')">
+              <div class="widget-icon">💼</div>
+              <div class="widget-name">Recent Invoices</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary Widgets -->
+        <div class="widget-category">
+          <h3>📑 Summary Widgets</h3>
+          <div class="widget-grid">
+            <div class="widget-item" data-widget-id="summary-financial" onclick="addWidget('summary-financial')">
+              <div class="widget-icon">💎</div>
+              <div class="widget-name">Financial Summary</div>
+            </div>
+            <div class="widget-item" data-widget-id="summary-month-comparison" onclick="addWidget('summary-month-comparison')">
+              <div class="widget-icon">📊</div>
+              <div class="widget-name">Month Comparison</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAddWidgetModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Gridstack JS -->
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.1.2/dist/gridstack-all.js"></script>
+<!-- Chart.js for charts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Dashboard Widgets JS -->
+<script src="{% static 'app_web/dashboard_widgets.js' %}?v=20251125i"></script>
+<script>
+  // Initialize flatpickr on dashboard date inputs for modern date pickers
+  (function(){
+    document.addEventListener('DOMContentLoaded', function(){
+      if(window.flatpickr){
+        var opts = { dateFormat: 'Y-m-d', allowInput: true };
+        flatpickr('#start_date', opts);
+        flatpickr('#end_date', opts);
+      }
+    });
+  })();
+</script>
+{% endblock %}
+

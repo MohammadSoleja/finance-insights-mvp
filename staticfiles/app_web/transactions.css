@@ -1,0 +1,304 @@
+/* Transactions Page Styles */
+
+:root {
+  --brand: #111827;
+  --muted: #6b7280;
+}
+
+/* Toolbar Layout */
+.toolbar {
+  display: grid !important;
+  grid-auto-rows: auto !important;
+  grid-template-columns: minmax(160px, 250px) 115px 115px 100px 130px auto !important;
+  gap: 0.6rem !important;
+  align-items: center !important;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.toolbar > * {
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  min-height: 44px !important;
+  display: inline-flex !important;
+  align-self: center !important;
+}
+
+.toolbar .field-group {
+  height: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+}
+
+/* Toolbar Inputs */
+.toolbar .form-input,
+.toolbar .form-select,
+.toolbar .form-date {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  color: var(--brand) !important;
+  font-size: 0.95rem !important;
+  background: #fff !important;
+  height: 40px !important;
+  padding: 8px 10px !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  vertical-align: middle !important;
+  border-radius: 6px !important;
+  font-family: inherit !important;
+  margin: 0 !important;
+}
+
+.toolbar .form-input::-webkit-input-placeholder,
+.toolbar .form-date::-webkit-input-placeholder {
+  line-height: 1 !important;
+}
+
+.toolbar .form-input::-moz-placeholder,
+.toolbar .form-date::-moz-placeholder {
+  line-height: 1 !important;
+}
+
+.toolbar .form-input:-ms-input-placeholder,
+.toolbar .form-date:-ms-input-placeholder {
+  line-height: 1 !important;
+}
+
+.toolbar .form-input::placeholder,
+.toolbar .form-date::placeholder {
+  line-height: 1 !important;
+  color: var(--muted) !important;
+}
+
+.toolbar input,
+.toolbar select {
+  font-family: inherit !important;
+  font-size: 0.95rem !important;
+  vertical-align: middle !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  color: var(--brand) !important;
+}
+
+.toolbar label {
+  color: var(--muted) !important;
+}
+
+.toolbar .field-group > label.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  border: 0 !important;
+}
+
+.toolbar .flatpickr-input {
+  color: var(--brand) !important;
+}
+
+/* Toolbar Actions */
+.toolbar-actions {
+  justify-self: end !important;
+  display: flex !important;
+  gap: 0.6rem !important;
+}
+
+.toolbar-secondary {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.5rem;
+  justify-content: flex-end;
+}
+
+.toolbar-secondary .btn {
+  height: 40px !important;
+  padding: 6px 12px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 6px !important;
+  font-size: 0.95rem !important;
+  box-sizing: border-box !important;
+  width: auto !important;
+}
+
+/* Modal Styles */
+.modal {
+  transition: opacity 0.18s ease;
+}
+
+.modal[aria-hidden="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.modal[aria-hidden="false"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal .card {
+  transform: translateY(-6px);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18) !important;
+  will-change: transform, box-shadow;
+}
+
+.modal[aria-hidden="false"] .card {
+  transform: translateY(0);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+}
+
+.modal .field-error {
+  color: #b91c1c;
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+.modal .modal-errors {
+  color: #b91c1c;
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Spinner */
+.modal-spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 0, 0, 0.08);
+  border-top-color: var(--accent);
+  animation: spin 800ms linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Row Highlight Animation */
+.row-updated {
+  animation: highlight 1800ms ease forwards;
+}
+
+@keyframes highlight {
+  0% {
+    background: #d1fae5;
+  }
+  60% {
+    background: #fefce8;
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* Table Styles */
+.preview-table th {
+  position: relative;
+}
+
+.preview-table td {
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* Column Resizer */
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  height: 100%;
+  z-index: 3;
+  display: inline-block;
+  background: transparent;
+  transition: background 0.12s ease;
+  pointer-events: auto;
+}
+
+.preview-table th:hover > .col-resizer {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.06));
+}
+
+/* Card Optimization */
+.card {
+  box-shadow: none !important;
+  border: 1px solid rgba(16, 24, 40, 0.06) !important;
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout style paint;
+}
+
+.card .toolbar {
+  border-bottom: 1px solid rgba(16, 24, 40, 0.06);
+  padding-bottom: 0.6rem;
+}
+
+/* Responsive Design */
+@media (max-width: 900px) {
+  .toolbar {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+
+  .toolbar > * {
+    flex: 0 0 auto !important;
+  }
+
+  .toolbar .field-group {
+    flex: 1 1 48% !important;
+    min-width: 140px !important;
+  }
+
+  .toolbar .dir-field,
+  .toolbar .sort-field {
+    flex: 0 0 48% !important;
+    min-width: 120px !important;
+  }
+
+  .toolbar-actions {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+  }
+
+  .toolbar-secondary {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .toolbar-secondary {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    justify-self: flex-start !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .toolbar {
+    display: flex !important;
+    flex-wrap: wrap !important;
+  }
+}
+
