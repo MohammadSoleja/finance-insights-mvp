@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static currency_tags %}
 {% block title %}Transactions — Finance Insights{% endblock %}
 
 {% block head_extra %}
@@ -162,7 +162,7 @@
                 {% elif col == 'subcategory' %}
                   <td data-col="subcategory">{{ t.subcategory }}</td>
                 {% elif col == 'amount' %}
-                  <td data-col="amount" style="text-align:right">{{ t.amount }}</td>
+                  <td data-col="amount" style="text-align:right">{% currency_amount t.amount t.original_currency %}</td>
                 {% elif col == 'direction' %}
                   <td data-col="direction">{{ t.direction }}</td>
                 {% elif col == 'account' %}

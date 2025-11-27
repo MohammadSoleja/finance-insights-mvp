@@ -64,6 +64,32 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     direction = models.CharField(max_length=10, choices=DIRECTION_CHOICES)
 
+    # Multi-currency support
+    original_currency = models.CharField(
+        max_length=3,
+        default='GBP',
+        help_text="Currency this transaction was originally in"
+    )
+    display_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Amount converted to organization's preferred currency"
+    )
+    exchange_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        help_text="Exchange rate used for conversion"
+    )
+    rate_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date when exchange rate was fetched"
+    )
+
     # Label-based categorization (replaces category string)
     label = models.ForeignKey(Label, on_delete=models.SET_NULL, null=True, blank=True, related_name="transactions")
 
@@ -88,6 +114,41 @@ class Transaction(models.Model):
         sign = "+" if self.direction == self.INFLOW else "-"
         label_name = self.label.name if self.label else self.category or "Uncategorized"
         return f"{self.date} {sign}{self.amount} [{label_name}] {self.description[:30]}"
+
+    def get_display_amount(self):
+        """Get amount in organization's preferred currency"""
+        return self.display_amount if self.display_amount is not None else self.amount
+
+    def save(self, *args, **kwargs):
+        """Auto-convert currency on save"""
+        if self.organization and self.original_currency != self.organization.preferred_currency:
+            try:
+                from .currency_service import CurrencyConverter
+                from decimal import Decimal
+
+                self.display_amount = CurrencyConverter.convert_to_org_currency(
+                    self.amount,
+                    self.original_currency,
+                    self.organization
+                )
+                self.exchange_rate = CurrencyConverter.get_rate(
+                    self.original_currency,
+                    self.organization.preferred_currency,
+                    self.date
+                )
+                self.rate_date = self.date
+            except Exception as e:
+                # If conversion fails, use original amount
+                self.display_amount = self.amount
+                self.exchange_rate = Decimal('1.00')
+                self.rate_date = self.date
+        else:
+            from decimal import Decimal
+            self.display_amount = self.amount
+            self.exchange_rate = Decimal('1.00')
+            self.rate_date = self.date
+
+        super().save(*args, **kwargs)
 
 class Rule(models.Model):
     # very simple MVP rules: substring/regex → category/subcategory
@@ -588,6 +649,37 @@ class Invoice(models.Model):
         from decimal import Decimal
         return self.total - (self.paid_amount or Decimal('0.00'))
 
+    def get_currency_symbol(self):
+        """Get currency symbol for this invoice"""
+        symbols = {
+            'GBP': '£',
+            'USD': '$',
+            'EUR': '€',
+            'JPY': '¥',
+            'AUD': 'A$',
+            'CAD': 'C$',
+            'CHF': 'CHF ',
+            'INR': '₹',
+        }
+        return symbols.get(self.currency, '£')
+
+    def get_total_in_org_currency(self):
+        """Convert invoice total to organization's preferred currency"""
+        if not self.organization:
+            return self.total
+
+        if self.currency != self.organization.preferred_currency:
+            try:
+                from .currency_service import CurrencyConverter
+                return CurrencyConverter.convert_to_org_currency(
+                    self.total,
+                    self.currency,
+                    self.organization
+                )
+            except Exception:
+                return self.total
+        return self.total
+
     @property
     def is_overdue(self):
         """Check if invoice is overdue"""
@@ -728,6 +820,35 @@ class InvoiceTemplateItem(models.Model):
 
     def __str__(self):
         return f"{self.description} - {self.quantity} × {self.unit_price}"
+
+
+# ==================== CURRENCY EXCHANGE MODELS ====================
+
+class ExchangeRate(models.Model):
+    """
+    Cache exchange rates from API for currency conversion.
+    Stores historical rates for accurate reporting.
+    """
+    from_currency = models.CharField(max_length=3, help_text="Source currency code (e.g., 'USD')")
+    to_currency = models.CharField(max_length=3, help_text="Target currency code (e.g., 'GBP')")
+    rate = models.DecimalField(max_digits=10, decimal_places=6, help_text="Exchange rate")
+    date = models.DateField(help_text="Date for this exchange rate", db_index=True)
+    source = models.CharField(max_length=50, default='exchangerate-api.com', help_text="API source for the rate")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['from_currency', 'to_currency', 'date']
+        indexes = [
+            models.Index(fields=['from_currency', 'to_currency', 'date']),
+            models.Index(fields=['date']),
+        ]
+        ordering = ['-date']
+        verbose_name = 'Exchange Rate'
+        verbose_name_plural = 'Exchange Rates'
+
+    def __str__(self):
+        return f"{self.from_currency} → {self.to_currency}: {self.rate} ({self.date})"
 
 
 # Import Task models to register them with Django

@@ -277,16 +277,77 @@ class FinancialGoal(models.Model):
 
 ---
 
-### 8. **Multi-Currency Support** 💱 (LOW-MEDIUM PRIORITY)
-**Why**: International businesses need multi-currency
+### 8. 🔄 **Multi-Currency Support** 💱 (IN PROGRESS - Nov 26, 2025)
+**Why**: International businesses need multi-currency tracking and conversion
 
-**Features**:
-- Add transactions in different currencies
-- Automatic exchange rate conversion
-- Historical exchange rates
-- Currency conversion reports
-- Base currency setting
-- Real-time rate updates (API integration)
+**Status**: 🔄 **IN DEVELOPMENT** - Full conversion with live exchange rates
+
+**Implementation Approach**:
+- ✅ **Full currency conversion** (not just symbol changes)
+- ✅ **Organization-level** currency preference (whole team uses same)
+- ✅ **Database storage** for exchange rates and historical data
+- ✅ **8 currencies** initially: GBP (£), USD ($), EUR (€), JPY (¥), AUD (A$), CAD (C$), CHF, INR (₹)
+- ✅ **GBP default** for new organizations
+- ✅ **Exchange rate API** integration (ExchangeRate-API.com)
+
+**Features** (PLANNED):
+- [ ] Organization currency preference in settings
+- [ ] Automatic exchange rate fetching from API
+- [ ] Historical exchange rate storage and caching
+- [ ] Transaction currency tracking (original + display)
+- [ ] Invoice currency selection (per invoice)
+- [ ] Convert all amounts to org preferred currency for display
+- [ ] Show original currency + converted amount in parentheses
+- [ ] Exchange rate cache (24-hour TTL, database backup)
+- [ ] Currency conversion reports
+- [ ] Real-time rate updates (daily background job)
+
+**Database Models**:
+```python
+# Organization - Add preferred currency
+class Organization(models.Model):
+    preferred_currency = models.CharField(max_length=3, default='GBP')
+
+# Transaction - Track original and display currency
+class Transaction(models.Model):
+    amount = models.DecimalField(...)  # Original amount
+    original_currency = models.CharField(max_length=3, default='GBP')
+    display_amount = models.DecimalField(null=True)  # Converted
+    exchange_rate = models.DecimalField(null=True)
+    rate_date = models.DateField(null=True)
+
+# Invoice - Currency per invoice
+class Invoice(models.Model):
+    currency = models.CharField(max_length=3, default='GBP')
+
+# Exchange rate cache
+class ExchangeRate(models.Model):
+    from_currency = models.CharField(max_length=3)
+    to_currency = models.CharField(max_length=3)
+    rate = models.DecimalField(max_digits=10, decimal_places=6)
+    date = models.DateField()
+    source = models.CharField(max_length=50)
+```
+
+**API Integration**:
+- **Provider**: ExchangeRate-API.com
+- **Free tier**: 1,500 requests/month
+- **Caching**: 24 hours in memory + database storage
+- **Fallback**: Use most recent cached rate if API fails
+
+**User Experience**:
+- Organization sets preferred currency in settings
+- All dashboard, reports, budgets show in preferred currency
+- Invoices can be in any currency (client's preference)
+- Original amounts preserved, conversions shown in parentheses
+- Example display: `$1,000.00 USD (£787.40 GBP at 1.27 on Nov 26)`
+
+**Use Cases**:
+- UK business receiving payments in USD/EUR
+- International freelancer working with global clients
+- E-commerce business selling worldwide
+- Multi-national company tracking expenses
+- Accountants managing international clients
 
 ---
 

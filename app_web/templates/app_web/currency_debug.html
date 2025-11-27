@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Currency Debug — Finance Insights{% endblock %}
+
+{% block content %}
+  <h1>Currency System Status</h1>
+
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <h3 style="margin-top: 0;">Organization Info</h3>
+    {% if request.organization %}
+      <p><strong>Organization:</strong> {{ request.organization.name }}</p>
+      <p><strong>Slug:</strong> {{ request.organization.slug }}</p>
+      <p><strong>Owner:</strong> {{ request.organization.owner.username }}</p>
+
+      {% if request.organization.preferred_currency %}
+        <p><strong>Preferred Currency:</strong> {{ request.organization.preferred_currency }}</p>
+        <p><strong>Currency Symbol:</strong> {{ request.organization.get_currency_symbol }}</p>
+      {% else %}
+        <p style="color: red;"><strong>⚠️ NO PREFERRED_CURRENCY FIELD!</strong></p>
+      {% endif %}
+    {% else %}
+      <p style="color: red;"><strong>⚠️ NO ORGANIZATION IN REQUEST!</strong></p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <h3 style="margin-top: 0;">User Membership</h3>
+    {% if request.organization_member %}
+      <p><strong>User:</strong> {{ request.user.username }}</p>
+      <p><strong>Role:</strong> {{ request.organization_member.role.name }}</p>
+      <p><strong>Is Owner:</strong> {{ request.organization_member.role.is_owner }}</p>
+      <p><strong>Can Manage Organization:</strong> {{ request.organization_member.role.can_manage_organization }}</p>
+      <p><strong>Is Active:</strong> {{ request.organization_member.is_active }}</p>
+      <p><strong>Can Edit Org:</strong>
+        {% if request.organization_member.role.is_owner or request.organization_member.role.can_manage_organization %}
+          <span style="color: green;">✓ YES</span>
+        {% else %}
+          <span style="color: red;">✗ NO (insufficient permissions)</span>
+        {% endif %}
+      </p>
+    {% else %}
+      <p style="color: red;"><strong>⚠️ NO ORGANIZATION_MEMBER IN REQUEST!</strong></p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top: 0;">Exchange Rates Status</h3>
+    <p><strong>API Key Configured:</strong>
+      {% if api_key_configured %}
+        <span style="color: green;">✓ YES</span>
+      {% else %}
+        <span style="color: red;">✗ NO</span>
+      {% endif %}
+    </p>
+    <p><strong>Cached Rates:</strong> {{ exchange_rates_count }}</p>
+  </div>
+
+  <div style="margin-top: 1.5rem;">
+    <a href="{% url 'app_web:settings' %}" class="btn btn-primary">Go to Settings</a>
+  </div>
+{% endblock %}
+

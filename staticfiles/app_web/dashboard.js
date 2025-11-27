@@ -15,14 +15,18 @@
     let data = {};
     try { data = JSON.parse(el.textContent || "{}"); } catch (e) { console.error("[dashboard] Failed to parse chart payload:", e); return; }
 
+    // Get currency symbol from data (defaults to GBP if not provided)
+    const currencySymbol = data.currency_symbol || '£';
+    const currencyCode = data.currency_code || 'GBP';
+
     const smallScreen = window.matchMedia('(max-width: 720px)').matches;
 
-    // Utility: currency formatter (simple, consistent)
+    // Utility: currency formatter using org's currency
     function fmtCurrency(v) {
       try {
         const n = Number(v) || 0;
-        return '£' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      } catch (e) { return '£' + String(v); }
+        return currencySymbol + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      } catch (e) { return currencySymbol + String(v); }
     }
 
     // Modern tooltip configuration with glassmorphism

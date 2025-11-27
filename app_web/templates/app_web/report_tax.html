@@ -1,5 +1,5 @@
 {% extends "app_web/reports_base.html" %}
-{% load humanize %}
+{% load humanize currency_tags %}
 
 {% block report_title %}Tax Summary{% endblock %}
 
@@ -42,23 +42,23 @@
     <tbody>
       <tr>
         <td>Total Income</td>
-        <td class="num change-up">£{{ total_income|floatformat:2|intcomma }}</td>
+        <td class="num change-up">{% currency_symbol %}{{ total_income|floatformat:2|intcomma }}</td>
       </tr>
       <tr>
         <td>Total Expenses</td>
-        <td class="num change-down">£{{ total_expenses|floatformat:2|intcomma }}</td>
+        <td class="num change-down">{% currency_symbol %}{{ total_expenses|floatformat:2|intcomma }}</td>
       </tr>
       <tr class="total-row" style="font-weight:700; border-top:2px solid #e6e9ef;">
         <td>Taxable Income</td>
-        <td class="num">£{{ taxable_income|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ taxable_income|floatformat:2|intcomma }}</td>
       </tr>
       <tr>
         <td>Personal Allowance</td>
-        <td class="num">£{{ personal_allowance|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ personal_allowance|floatformat:2|intcomma }}</td>
       </tr>
       <tr class="net-row" style="font-weight:800; background:#fff8dc;">
         <td>Income Tax Payable</td>
-        <td class="num">£{{ income_tax|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ income_tax|floatformat:2|intcomma }}</td>
       </tr>
     </tbody>
   </table>
@@ -79,15 +79,15 @@
     <tbody>
       <tr>
         <td>VAT on Income</td>
-        <td class="num change-up">£{{ vat_on_income|floatformat:2|intcomma }}</td>
+        <td class="num change-up">{% currency_symbol %}{{ vat_on_income|floatformat:2|intcomma }}</td>
       </tr>
       <tr>
         <td>VAT on Expenses</td>
-        <td class="num change-down">£{{ vat_on_expenses|floatformat:2|intcomma }}</td>
+        <td class="num change-down">{% currency_symbol %}{{ vat_on_expenses|floatformat:2|intcomma }}</td>
       </tr>
       <tr class="net-row" style="font-weight:800; background:#fff8dc;">
         <td>VAT Payable</td>
-        <td class="num">£{{ vat_payable|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ vat_payable|floatformat:2|intcomma }}</td>
       </tr>
     </tbody>
   </table>

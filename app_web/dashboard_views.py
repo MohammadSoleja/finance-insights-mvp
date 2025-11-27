@@ -17,6 +17,16 @@ from app_core.dashboard_models import DashboardLayout
 from app_core.middleware import organization_required
 
 
+def get_org_currency_info(request):
+    """Helper to get organization's currency symbol and code"""
+    if hasattr(request, 'organization') and request.organization:
+        return {
+            'symbol': request.organization.get_currency_symbol(),
+            'code': request.organization.preferred_currency
+        }
+    return {'symbol': '£', 'code': 'GBP'}
+
+
 @login_required
 @organization_required
 def dashboard_view(request):
@@ -199,12 +209,22 @@ def parse_date_range(date_range):
 
 def get_kpi_total_income(request, start_date, end_date):
     """Total income in period"""
+    # Use display_amount (converted) if available, otherwise use amount
+    from django.db.models import Case, When, F
+    
     total = Transaction.objects.filter(
         organization=request.organization,
         direction=Transaction.INFLOW,
         date__gte=start_date,
         date__lte=end_date
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(display_amount__isnull=False, then=F('display_amount')),
+                default=F('amount')
+            )
+        )
+    )['total'] or Decimal('0.00')
 
     # Previous period for comparison
     days_diff = (end_date - start_date).days
@@ -216,7 +236,14 @@ def get_kpi_total_income(request, start_date, end_date):
         direction=Transaction.INFLOW,
         date__gte=prev_start,
         date__lte=prev_end
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(display_amount__isnull=False, then=F('display_amount')),
+                default=F('amount')
+            )
+        )
+    )['total'] or Decimal('0.00')
 
     change = total - prev_total
     change_pct = (change / prev_total * 100) if prev_total else 0
@@ -226,18 +253,27 @@ def get_kpi_total_income(request, start_date, end_date):
         'prev_value': float(prev_total),
         'change': float(change),
         'change_pct': float(change_pct),
-        'currency': '£'
+        'currency': get_org_currency_info(request)['symbol']
     }
 
 
 def get_kpi_total_expenses(request, start_date, end_date):
     """Total expenses in period"""
+    from django.db.models import Case, When, F
+    
     total = Transaction.objects.filter(
         organization=request.organization,
         direction=Transaction.OUTFLOW,
         date__gte=start_date,
         date__lte=end_date
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(display_amount__isnull=False, then=F('display_amount')),
+                default=F('amount')
+            )
+        )
+    )['total'] or Decimal('0.00')
 
     days_diff = (end_date - start_date).days
     prev_start = start_date - timedelta(days=days_diff)
@@ -248,7 +284,14 @@ def get_kpi_total_expenses(request, start_date, end_date):
         direction=Transaction.OUTFLOW,
         date__gte=prev_start,
         date__lte=prev_end
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(display_amount__isnull=False, then=F('display_amount')),
+                default=F('amount')
+            )
+        )
+    )['total'] or Decimal('0.00')
 
     change = total - prev_total
     change_pct = (change / prev_total * 100) if prev_total else 0
@@ -258,25 +301,41 @@ def get_kpi_total_expenses(request, start_date, end_date):
         'prev_value': float(prev_total),
         'change': float(change),
         'change_pct': float(change_pct),
-        'currency': '£'
+        'currency': get_org_currency_info(request)['symbol']
     }
 
 
 def get_kpi_net_cash_flow(request, start_date, end_date):
     """Net cash flow (income - expenses)"""
+    from django.db.models import Case, When, F
+
     income = Transaction.objects.filter(
         organization=request.organization,
         direction=Transaction.INFLOW,
         date__gte=start_date,
         date__lte=end_date
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(display_amount__isnull=False, then=F('display_amount')),
+                default=F('amount')
+            )
+        )
+    )['total'] or Decimal('0.00')
 
     expenses = Transaction.objects.filter(
         organization=request.organization,
         direction=Transaction.OUTFLOW,
         date__gte=start_date,
         date__lte=end_date
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(display_amount__isnull=False, then=F('display_amount')),
+                default=F('amount')
+            )
+        )
+    )['total'] or Decimal('0.00')
 
     net = income - expenses
 
@@ -290,14 +349,28 @@ def get_kpi_net_cash_flow(request, start_date, end_date):
         direction=Transaction.INFLOW,
         date__gte=prev_start,
         date__lte=prev_end
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(display_amount__isnull=False, then=F('display_amount')),
+                default=F('amount')
+            )
+        )
+    )['total'] or Decimal('0.00')
 
     prev_expenses = Transaction.objects.filter(
         organization=request.organization,
         direction=Transaction.OUTFLOW,
         date__gte=prev_start,
         date__lte=prev_end
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    ).aggregate(
+        total=Sum(
+            Case(
+                When(display_amount__isnull=False, then=F('display_amount')),
+                default=F('amount')
+            )
+        )
+    )['total'] or Decimal('0.00')
 
     prev_net = prev_income - prev_expenses
     change = net - prev_net
@@ -308,21 +381,30 @@ def get_kpi_net_cash_flow(request, start_date, end_date):
         'prev_value': float(prev_net),
         'change': float(change),
         'change_pct': float(change_pct),
-        'currency': '£'
+        'currency': get_org_currency_info(request)['symbol']
     }
 
 
 def get_kpi_avg_transaction(request, start_date, end_date):
     """Average transaction amount"""
+    from django.db.models import Case, When, F
+
     avg = Transaction.objects.filter(
         organization=request.organization,
         date__gte=start_date,
         date__lte=end_date
-    ).aggregate(avg=Avg('amount'))['avg'] or Decimal('0.00')
+    ).aggregate(
+        avg=Avg(
+            Case(
+                When(display_amount__isnull=False, then=F('display_amount')),
+                default=F('amount')
+            )
+        )
+    )['avg'] or Decimal('0.00')
 
     return {
         'value': float(avg),
-        'currency': '£'
+        'currency': get_org_currency_info(request)['symbol']
     }
 
 
@@ -371,7 +453,7 @@ def get_kpi_budget_progress(request, start_date, end_date):
         'value': float(progress),
         'total_budget': float(total_budget),
         'total_spent': float(total_spent),
-        'currency': '£'
+        'currency': get_org_currency_info(request)['symbol']
     }
 
 
@@ -391,7 +473,7 @@ def get_kpi_burn_rate(request, start_date, end_date):
         'value': float(burn_rate),
         'total_expenses': float(total_expenses),
         'days': days,
-        'currency': '£'
+        'currency': get_org_currency_info(request)['symbol']
     }
 
 
@@ -420,7 +502,7 @@ def get_kpi_pending_invoices(request, start_date, end_date):
     return {
         'count': count,
         'value': float(total),
-        'currency': '£'
+        'currency': get_org_currency_info(request)['symbol']
     }
 
 
@@ -437,7 +519,7 @@ def get_kpi_overdue_invoices(request, start_date, end_date):
     return {
         'count': count,
         'value': float(total),
-        'currency': '£'
+        'currency': get_org_currency_info(request)['symbol']
     }
 
 
@@ -897,7 +979,7 @@ def get_summary_financial(request, start_date, end_date):
         'net': float(net),
         'transaction_count': txn_count,
         'avg_transaction': float(avg),
-        'currency': '£'
+        'currency': get_org_currency_info(request)['symbol']
     }
 
 
@@ -957,6 +1039,6 @@ def get_summary_month_comparison(request, start_date, end_date):
             'income_pct': float(income_change),
             'expense_pct': float(expense_change)
         },
-        'currency': '£'
+        'currency': get_org_currency_info(request)['symbol']
     }
 

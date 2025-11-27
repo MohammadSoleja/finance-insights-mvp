@@ -1,5 +1,5 @@
 {% extends "app_web/reports_base.html" %}
-{% load humanize %}
+{% load humanize currency_tags %}
 
 {% block report_title %}Project Performance{% endblock %}
 
@@ -14,8 +14,8 @@
       <button class="btn btn-secondary" type="submit">Apply</button>
     </form>
 
-    {% url 'app_web:report_project_performance_download' as base %}
-    <a class="btn btn-primary" id="pnl-download" href="{% if start_date and end_date %}{{ base }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ base }}{% endif %}">Download PDF</a>
+    {% url 'app_web:report_project_performance_download' as download_url %}
+    <a class="btn btn-primary" href="{% if start_date and end_date %}{{ download_url }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ download_url }}{% endif %}">Download PDF</a>
     <button class="btn btn-secondary" id="printBtn">Print</button>
   </div>
 </div>
@@ -39,33 +39,27 @@
       <tr>
         <th>Project</th>
         <th class="num">Budget</th>
-        <th class="num">Actual</th>
-        <th class="num">Variance</th>
-        <th class="num">Usage %</th>
+        <th class="num">Expenses</th>
+        <th class="num">Income</th>
+        <th class="num">Profit</th>
         <th>Status</th>
       </tr>
     </thead>
     <tbody>
-      {% for row in rows %}
+      {% for project in project_data %}
       <tr>
-        <td>{{ row.name }}</td>
-        <td class="num">£{{ row.budget|floatformat:2|intcomma }}</td>
-        <td class="num change-down">£{{ row.actual|floatformat:2|intcomma }}</td>
-        <td class="num {% if row.variance >= 0 %}change-up{% else %}change-down{% endif %}">£{{ row.variance|floatformat:2|intcomma }}</td>
-        <td class="num">{{ row.usage_pct|floatformat:1 }}%</td>
-        <td style="text-transform:capitalize;">{{ row.status }}</td>
+        <td>{{ project.name }}</td>
+        <td class="num">{% if project.budget %}{% currency_symbol %}{{ project.budget|floatformat:2|intcomma }}{% else %}-{% endif %}</td>
+        <td class="num change-down">{% currency_symbol %}{{ project.expenses|floatformat:2|intcomma }}</td>
+        <td class="num change-up">{% currency_symbol %}{{ project.income|floatformat:2|intcomma }}</td>
+        <td class="num {% if project.profit >= 0 %}change-up{% else %}change-down{% endif %}">{% currency_symbol %}{{ project.profit|floatformat:2|intcomma }}</td>
+        <td style="text-transform:capitalize;">{{ project.status }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6" style="text-align: center; padding: 2rem; color: #6b7280;">No projects found</td>
       </tr>
       {% endfor %}
-
-      <!-- Total row -->
-      <tr class="total-row" style="font-weight:700; border-top:2px solid #e6e9ef;">
-        <td>Total</td>
-        <td class="num">£{{ total_budget|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ total_actual|floatformat:2|intcomma }}</td>
-        <td class="num {% if total_variance >= 0 %}change-up{% else %}change-down{% endif %}">£{{ total_variance|floatformat:2|intcomma }}</td>
-        <td class="num">{{ total_usage_pct|floatformat:1 }}%</td>
-        <td></td>
-      </tr>
     </tbody>
   </table>
 </div>

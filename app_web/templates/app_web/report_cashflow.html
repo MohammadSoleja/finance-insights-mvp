@@ -1,5 +1,5 @@
 {% extends "app_web/reports_base.html" %}
-{% load humanize %}
+{% load humanize currency_tags %}
 
 {% block report_title %}Cash Flow Statement{% endblock %}
 
@@ -14,8 +14,8 @@
       <button class="btn btn-secondary" type="submit">Apply</button>
     </form>
 
-    {% url 'app_web:report_cashflow_download' as base %}
-    <a class="btn btn-primary" id="pnl-download" href="{% if start_date and end_date %}{{ base }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ base }}{% endif %}">Download PDF</a>
+    {% url 'app_web:report_cashflow_download' as download_url %}
+    <a class="btn btn-primary" href="{% if start_date and end_date %}{{ download_url }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ download_url }}{% endif %}">Download PDF</a>
     <button class="btn btn-secondary" id="printBtn">Print</button>
   </div>
 </div>
@@ -28,39 +28,33 @@
 <div class="card" id="pnl-card">
   <table class="pl-table">
     <colgroup>
-      <col style="width:20%;">
-      <col style="width:20%;">
-      <col style="width:20%;">
-      <col style="width:20%;">
-      <col style="width:20%;">
+      <col style="width:40%;">
+      <col style="width:30%;">
+      <col style="width:30%;">
     </colgroup>
     <thead>
       <tr>
-        <th>Month</th>
+        <th>Category</th>
         <th class="num">Inflows</th>
         <th class="num">Outflows</th>
-        <th class="num">Net Flow</th>
-        <th class="num">Balance</th>
       </tr>
     </thead>
     <tbody>
-      {% for row in rows %}
       <tr>
-        <td>{{ row.month }}</td>
-        <td class="num change-up">£{{ row.inflow|floatformat:2|intcomma }}</td>
-        <td class="num change-down">£{{ row.outflow|floatformat:2|intcomma }}</td>
-        <td class="num {% if row.net_flow >= 0 %}change-up{% else %}change-down{% endif %}">£{{ row.net_flow|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ row.balance|floatformat:2|intcomma }}</td>
+        <td>Total Inflows</td>
+        <td class="num change-up">{% currency_symbol %}{{ total_inflows|floatformat:2|intcomma }}</td>
+        <td class="num">-</td>
       </tr>
-      {% endfor %}
+      <tr>
+        <td>Total Outflows</td>
+        <td class="num">-</td>
+        <td class="num change-down">{% currency_symbol %}{{ total_outflows|floatformat:2|intcomma }}</td>
+      </tr>
 
-      <!-- Total row -->
+      <!-- Net row -->
       <tr class="total-row" style="font-weight:700; border-top:2px solid #e6e9ef;">
-        <td>Total</td>
-        <td class="num">£{{ total_inflow|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ total_outflow|floatformat:2|intcomma }}</td>
-        <td class="num {% if net_change >= 0 %}change-up{% else %}change-down{% endif %}">£{{ net_change|floatformat:2|intcomma }}</td>
-        <td class="num"></td>
+        <td>Net Cash Flow</td>
+        <td colspan="2" class="num {% if net_cash_flow >= 0 %}change-up{% else %}change-down{% endif %}">{% currency_symbol %}{{ net_cash_flow|floatformat:2|intcomma }}</td>
       </tr>
     </tbody>
   </table>

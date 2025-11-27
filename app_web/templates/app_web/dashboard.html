@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static humanize %}
+{% load static humanize currency_tags %}
 {% block title %}{{ title|default:"Dashboard" }} — Finance Insights{% endblock %}
 
 {% block head_extra %}
@@ -79,12 +79,12 @@
     <div class="card numeric"><div>
         <div class="muted">Total Outflow</div>
         {% if kpi.tx_count|default:0 > 0 %}
-          <div class="kpi" tabindex="0" aria-label="Total outflow £{{ kpi.outflow|floatformat:2|intcomma }}">£{{ kpi.outflow|floatformat:2|intcomma }}</div>
+          <div class="kpi" tabindex="0" aria-label="Total outflow {% currency_symbol %}{{ kpi.outflow|floatformat:2|intcomma }}">{% currency_symbol %}{{ kpi.outflow|floatformat:2|intcomma }}</div>
           {% with d=kpi_delta.outflow %}
             {% if d %}
-              <div class="kpi-delta {% if d.abs >= 0 %}negative{% else %}positive{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} pounds, {{ d.pct|default:'no' }} percent compared to previous period">
+              <div class="kpi-delta {% if d.abs >= 0 %}negative{% else %}positive{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} {% org_currency %}, {{ d.pct|default:'no' }} percent compared to previous period">
                 <span class="arrow">{% if d.abs >= 0 %}▲{% else %}▼{% endif %}</span>
-                <span>£{{ d.abs|floatformat:2|intcomma }}</span>
+                <span>{% currency_symbol %}{{ d.abs|floatformat:2|intcomma }}</span>
                 {% if d.pct is not None %}<span>({{ d.pct }}%)</span>{% endif %}
               </div>
             {% endif %}
@@ -95,17 +95,18 @@
           <div class="muted" title="No data in selected period">No data in selected period</div>
         {% endif %}
       </div></div>
+      </div></div>
 
     <!-- Total Inflow (with sparkline) -->
     <div class="card numeric"><div>
         <div class="muted">Total Inflow</div>
         {% if kpi.tx_count|default:0 > 0 %}
-          <div class="kpi" tabindex="0" aria-label="Total inflow £{{ kpi.inflow|floatformat:2|intcomma }}">£{{ kpi.inflow|floatformat:2|intcomma }}</div>
+          <div class="kpi" tabindex="0" aria-label="Total inflow {% currency_symbol %}{{ kpi.inflow|floatformat:2|intcomma }}">{% currency_symbol %}{{ kpi.inflow|floatformat:2|intcomma }}</div>
           {% with d=kpi_delta.inflow %}
             {% if d %}
-              <div class="kpi-delta {% if d.abs >= 0 %}positive{% else %}negative{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} pounds, {{ d.pct|default:'no' }} percent compared to previous period">
+              <div class="kpi-delta {% if d.abs >= 0 %}positive{% else %}negative{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} {% org_currency %}, {{ d.pct|default:'no' }} percent compared to previous period">
                 <span class="arrow">{% if d.abs >= 0 %}▲{% else %}▼{% endif %}</span>
-                <span>£{{ d.abs|floatformat:2|intcomma }}</span>
+                <span>{% currency_symbol %}{{ d.abs|floatformat:2|intcomma }}</span>
                 {% if d.pct is not None %}<span>({{ d.pct }}%)</span>{% endif %}
               </div>
             {% endif %}
@@ -121,12 +122,12 @@
     <div class="card numeric"><div>
         <div class="muted">Net</div>
         {% if kpi.tx_count|default:0 > 0 %}
-          <div class="kpi" tabindex="0" aria-label="Net £{{ kpi.net|floatformat:2|intcomma }}">£{{ kpi.net|floatformat:2|intcomma }}</div>
+          <div class="kpi" tabindex="0" aria-label="Net {% currency_symbol %}{{ kpi.net|floatformat:2|intcomma }}">{% currency_symbol %}{{ kpi.net|floatformat:2|intcomma }}</div>
           {% with d=kpi_delta.net %}
             {% if d %}
-              <div class="kpi-delta {% if d.abs >= 0 %}positive{% else %}negative{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} pounds, {{ d.pct|default:'no' }} percent compared to previous period">
+              <div class="kpi-delta {% if d.abs >= 0 %}positive{% else %}negative{% endif %}" tabindex="0" aria-label="Change {{ d.abs|floatformat:2|intcomma }} {% org_currency %}, {{ d.pct|default:'no' }} percent compared to previous period">
                 <span class="arrow">{% if d.abs >= 0 %}▲{% else %}▼{% endif %}</span>
-                <span>£{{ d.abs|floatformat:2|intcomma }}</span>
+                <span>{% currency_symbol %}{{ d.abs|floatformat:2|intcomma }}</span>
                 {% if d.pct is not None %}<span>({{ d.pct }}%)</span>{% endif %}
               </div>
             {% endif %}

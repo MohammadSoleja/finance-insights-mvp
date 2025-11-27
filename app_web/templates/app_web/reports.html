@@ -1,5 +1,5 @@
 {% extends "app_web/reports_base.html" %}
-{% load static humanize %}
+{% load static humanize currency_tags %}
 
 {% block report_title %}Reports Overview{% endblock %}
 
@@ -10,12 +10,12 @@
   <!-- Net Profit Card -->
   <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);">
     <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.35rem;">Net Profit</div>
-    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">£{{ net_profit|floatformat:2|intcomma }}</div>
+    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">{% currency_symbol %}{{ net_profit|floatformat:2|intcomma }}</div>
     <div style="font-size: 0.75rem; opacity: 0.8;">
       {% if net_profit_change >= 0 %}
-        <span style="color: #a7f3d0;">▲ £{{ net_profit_change|floatformat:2|intcomma }}</span>
+        <span style="color: #a7f3d0;">▲ {% currency_symbol %}{{ net_profit_change_abs|floatformat:2|intcomma }}</span>
       {% else %}
-        <span style="color: #fca5a5;">▼ £{{ net_profit_change_abs|floatformat:2|intcomma }}</span>
+        <span style="color: #fca5a5;">▼ {% currency_symbol %}{{ net_profit_change_abs|floatformat:2|intcomma }}</span>
       {% endif %}
     </div>
   </div>
@@ -23,7 +23,7 @@
   <!-- Total Income Card -->
   <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
     <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.35rem;">Total Income</div>
-    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">£{{ total_income|floatformat:2|intcomma }}</div>
+    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">{% currency_symbol %}{{ total_income|floatformat:2|intcomma }}</div>
     <div style="font-size: 0.75rem; opacity: 0.8;">
       {% if income_change >= 0 %}
         <span style="color: #a7f3d0;">▲ {{ income_change_pct|floatformat:1 }}%</span>
@@ -36,7 +36,7 @@
   <!-- Total Expenses Card -->
   <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
     <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.35rem;">Total Expenses</div>
-    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">£{{ total_expenses|floatformat:2|intcomma }}</div>
+    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">{% currency_symbol %}{{ total_expenses|floatformat:2|intcomma }}</div>
     <div style="font-size: 0.75rem; opacity: 0.8;">
       {% if expenses_change >= 0 %}
         <span style="color: #fca5a5;">▲ {{ expenses_change_pct|floatformat:1 }}%</span>
@@ -49,7 +49,7 @@
   <!-- Tax Estimate Card -->
   <div style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; padding: 1rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);">
     <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 0.35rem;">Tax Estimate</div>
-    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">£{{ tax_estimate|floatformat:2|intcomma }}</div>
+    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;">{% currency_symbol %}{{ tax_estimate|floatformat:2|intcomma }}</div>
     <div style="font-size: 0.75rem; opacity: 0.8;">20% of profit</div>
   </div>
 </div>
@@ -62,14 +62,14 @@
   <div class="card" style="padding: 1.25rem; border-left: 4px solid #10b981;">
     <div style="font-size: 0.875rem; color: #059669; font-weight: 600; margin-bottom: 0.5rem;">💰 Top Income Source</div>
     <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">{{ top_income_category }}</div>
-    <div style="font-size: 0.875rem; color: #6b7280;">£{{ top_income_amount|floatformat:2|intcomma }}</div>
+    <div style="font-size: 0.875rem; color: #6b7280;">{% currency_symbol %}{{ top_income_amount|floatformat:2|intcomma }}</div>
   </div>
 
   <!-- Top Expense Category -->
   <div class="card" style="padding: 1.25rem; border-left: 4px solid #ef4444;">
     <div style="font-size: 0.875rem; color: #dc2626; font-weight: 600; margin-bottom: 0.5rem;">💸 Top Expense</div>
     <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">{{ top_expense_category }}</div>
-    <div style="font-size: 0.875rem; color: #6b7280;">£{{ top_expense_amount|floatformat:2|intcomma }}</div>
+    <div style="font-size: 0.875rem; color: #6b7280;">{% currency_symbol %}{{ top_expense_amount|floatformat:2|intcomma }}</div>
   </div>
 
   <!-- Profit Margin -->
@@ -84,8 +84,7 @@
   <!-- Average Daily Income -->
   <div class="card" style="padding: 1.25rem; border-left: 4px solid #10b981;">
     <div style="font-size: 0.875rem; color: #059669; font-weight: 600; margin-bottom: 0.5rem;">📈 Avg Daily Income</div>
-    <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">
-      £{% widthratio total_income 7 1 %}
+    <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">{% currency_symbol %}{% widthratio total_income 7 1 %}
     </div>
     <div style="font-size: 0.875rem; color: #6b7280;">Per day this week</div>
   </div>
@@ -93,8 +92,7 @@
   <!-- Average Daily Expenses -->
   <div class="card" style="padding: 1.25rem; border-left: 4px solid #f59e0b;">
     <div style="font-size: 0.875rem; color: #d97706; font-weight: 600; margin-bottom: 0.5rem;">📉 Avg Daily Expenses</div>
-    <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">
-      £{% widthratio total_expenses 7 1 %}
+    <div style="font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.25rem;">{% currency_symbol %}{% widthratio total_expenses 7 1 %}
     </div>
     <div style="font-size: 0.875rem; color: #6b7280;">Per day this week</div>
   </div>

@@ -1,5 +1,5 @@
 {% extends "app_web/reports_base.html" %}
-{% load humanize %}
+{% load humanize currency_tags %}
 
 {% block report_title %}Profit & Loss (P&L){% endblock %}
 
@@ -58,15 +58,15 @@
       {% for r in revenue_rows %}
       <tr class="revenue-row">
         <td>{{ r.label }}</td>
-        <td class="num">£{{ r.cur|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ r.prev|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ r.cur|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ r.prev|floatformat:2|intcomma }}</td>
         {% comment %}Colour rules: for revenue, increase = green, decrease = red{% endcomment %}
         {% if r.change > 0 %}
-          <td class="num change change-up">£{{ r.change|floatformat:2|intcomma }} <span class="pct">({{ r.pct|floatformat:1 }}%)</span></td>
+          <td class="num change change-up">{% currency_symbol %}{{ r.change|floatformat:2|intcomma }} <span class="pct">({{ r.pct|floatformat:1 }}%)</span></td>
         {% elif r.change < 0 %}
-          <td class="num change change-down">£{{ r.change|floatformat:2|intcomma }} <span class="pct">({{ r.pct|floatformat:1 }}%)</span></td>
+          <td class="num change change-down">{% currency_symbol %}{{ r.change|abs_value|floatformat:2|intcomma }} <span class="pct">({{ r.pct|floatformat:1 }}%)</span></td>
         {% else %}
-          <td class="num">£{{ r.change|floatformat:2|intcomma }}</td>
+          <td class="num">{% currency_symbol %}{{ r.change|floatformat:2|intcomma }}</td>
         {% endif %}
       </tr>
       {% endfor %}
@@ -74,14 +74,14 @@
        <!-- Total Revenue -->
       <tr class="total-row" style="font-weight:700; border-top:2px solid #e6e9ef;">
         <td>Total Revenue &amp; Gains</td>
-        <td class="num">£{{ total_revenue_cur|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ total_revenue_prev|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ total_revenue_cur|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ total_revenue_prev|floatformat:2|intcomma }}</td>
         {% if total_revenue_change > 0 %}
-          <td class="num change change-up">£{{ total_revenue_change|floatformat:2|intcomma }} {% if total_revenue_pct is not None %}<span class="pct">({{ total_revenue_pct|floatformat:1 }}%)</span>{% endif %}</td>
+          <td class="num change change-up">{% currency_symbol %}{{ total_revenue_change|floatformat:2|intcomma }} {% if total_revenue_pct is not None %}<span class="pct">({{ total_revenue_pct|floatformat:1 }}%)</span>{% endif %}</td>
         {% elif total_revenue_change < 0 %}
-          <td class="num change change-down">£{{ total_revenue_change|floatformat:2|intcomma }} {% if total_revenue_pct is not None %}<span class="pct">({{ total_revenue_pct|floatformat:1 }}%)</span>{% endif %}</td>
+          <td class="num change change-down">{% currency_symbol %}{{ total_revenue_change|abs_value|floatformat:2|intcomma }} {% if total_revenue_pct is not None %}<span class="pct">({{ total_revenue_pct|floatformat:1 }}%)</span>{% endif %}</td>
         {% else %}
-          <td class="num">£{{ total_revenue_change|floatformat:2|intcomma }}</td>
+          <td class="num">{% currency_symbol %}{{ total_revenue_change|floatformat:2|intcomma }}</td>
         {% endif %}
       </tr>
       <!-- spacer row to separate revenue and expenses -->
@@ -92,15 +92,15 @@
       {% for e in expense_rows %}
       <tr class="expense-row">
         <td>{{ e.label }}</td>
-        <td class="num">£{{ e.cur|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ e.prev|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ e.cur|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ e.prev|floatformat:2|intcomma }}</td>
         {% comment %}For expenses, increase (more spent) should be red, decrease should be green{% endcomment %}
         {% if e.change > 0 %}
-          <td class="num change change-down">£{{ e.change|floatformat:2|intcomma }} <span class="pct">({{ e.pct|floatformat:1 }}%)</span></td>
+          <td class="num change change-down">{% currency_symbol %}{{ e.change|floatformat:2|intcomma }} <span class="pct">({{ e.pct|floatformat:1 }}%)</span></td>
         {% elif e.change < 0 %}
-          <td class="num change change-up">£{{ e.change|floatformat:2|intcomma }} <span class="pct">({{ e.pct|floatformat:1 }}%)</span></td>
+          <td class="num change change-up">{% currency_symbol %}{{ e.change|abs_value|floatformat:2|intcomma }} <span class="pct">({{ e.pct|floatformat:1 }}%)</span></td>
         {% else %}
-          <td class="num">£{{ e.change|floatformat:2|intcomma }}</td>
+          <td class="num">{% currency_symbol %}{{ e.change|floatformat:2|intcomma }}</td>
         {% endif %}
       </tr>
       {% endfor %}
@@ -108,35 +108,35 @@
        <!-- Total Expenses -->
       <tr class="total-row" style="font-weight:700; border-top:2px solid #e6e9ef;">
         <td>Total Expenses</td>
-        <td class="num">£{{ total_expense_cur|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ total_expense_prev|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ total_expense_cur|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ total_expense_prev|floatformat:2|intcomma }}</td>
         {% if total_expense_change > 0 %}
-          <td class="num change change-down">£{{ total_expense_change|floatformat:2|intcomma }} {% if total_expense_pct is not None %}<span class="pct">({{ total_expense_pct|floatformat:1 }}%)</span>{% endif %}</td>
+          <td class="num change change-down">{% currency_symbol %}{{ total_expense_change|floatformat:2|intcomma }} {% if total_expense_pct is not None %}<span class="pct">({{ total_expense_pct|floatformat:1 }}%)</span>{% endif %}</td>
         {% elif total_expense_change < 0 %}
-          <td class="num change change-up">£{{ total_expense_change|floatformat:2|intcomma }} {% if total_expense_pct is not None %}<span class="pct">({{ total_expense_pct|floatformat:1 }}%)</span>{% endif %}</td>
+          <td class="num change change-up">{% currency_symbol %}{{ total_expense_change|abs_value|floatformat:2|intcomma }} {% if total_expense_pct is not None %}<span class="pct">({{ total_expense_pct|floatformat:1 }}%)</span>{% endif %}</td>
         {% else %}
-          <td class="num">£{{ total_expense_change|floatformat:2|intcomma }}</td>
+          <td class="num">{% currency_symbol %}{{ total_expense_change|floatformat:2|intcomma }}</td>
         {% endif %}
       </tr>
 
        <!-- Income before tax, tax, net profit -->
       <tr class="total-row" style="font-weight:700;">
         <td>Income before tax</td>
-        <td class="num">£{{ income_before_tax|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ income_before_tax_prev|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ net_change|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ income_before_tax|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ income_before_tax_prev|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ net_change|floatformat:2|intcomma }}</td>
       </tr>
       <tr class="total-row tax-row">
         <td>Income tax expense</td>
-        <td class="num">£{{ tax_amount|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ tax_amount|floatformat:2|intcomma }}</td>
         <td class="num">&ndash;</td>
         <td class="num">&ndash;</td>
       </tr>
       <tr class="net-row" style="font-weight:800;">
         <td>Net Profit (Loss)</td>
-        <td class="num">£{{ net_profit|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ net_profit_prev|floatformat:2|intcomma }}</td>
-        <td class="num">£{{ net_change|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ net_profit|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ net_profit_prev|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ net_profit_change|floatformat:2|intcomma }}</td>
       </tr>
 
     </tbody>

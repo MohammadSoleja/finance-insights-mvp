@@ -3,7 +3,21 @@
 
 {% block content %}
   <h1>Settings</h1>
-  <div class="card">
+
+  <!-- Success Messages -->
+  {% if messages %}
+    <div style="margin-bottom: 1rem;">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem; border-radius: 0.375rem; background-color: {% if message.tags == 'success' %}#d1fae5{% elif message.tags == 'error' %}#fee2e2{% else %}#dbeafe{% endif %}; color: {% if message.tags == 'success' %}#065f46{% elif message.tags == 'error' %}#991b1b{% else %}#1e40af{% endif %}; border: 1px solid {% if message.tags == 'success' %}#10b981{% elif message.tags == 'error' %}#ef4444{% else %}#3b82f6{% endif %};">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- User Profile Settings -->
+  <div class="card" style="margin-bottom: 1.5rem;">
+    <h3 style="margin-top: 0;">User Profile</h3>
     <form method="post">
       {% csrf_token %}
       <label>First name</label>
@@ -11,9 +25,78 @@
       <label style="display:block; margin-top:.5rem">Email</label>
       <input type="email" name="email" value="{{ request.user.email }}" />
       <div style="margin-top:.75rem">
-        <button class="btn btn-primary" type="submit">Save</button>
+        <button class="btn btn-primary" type="submit">Save Profile</button>
       </div>
     </form>
   </div>
+
+  <!-- Organization Settings (for owners/admins only) -->
+  {% if can_edit_org %}
+  <div class="card">
+    <h3 style="margin-top: 0;">Organization Settings</h3>
+    <form method="post">
+      {% csrf_token %}
+
+      <div style="margin-bottom: 1rem;">
+        <label for="preferred_currency">Preferred Currency</label>
+        <select id="preferred_currency" name="preferred_currency" class="form-input" style="display: block; width: 100%; max-width: 400px;">
+          <option value="GBP" {% if request.organization.preferred_currency == 'GBP' %}selected{% endif %}>
+            🇬🇧 British Pound (£)
+          </option>
+          <option value="USD" {% if request.organization.preferred_currency == 'USD' %}selected{% endif %}>
+            🇺🇸 US Dollar ($)
+          </option>
+          <option value="EUR" {% if request.organization.preferred_currency == 'EUR' %}selected{% endif %}>
+            🇪🇺 Euro (€)
+          </option>
+          <option value="JPY" {% if request.organization.preferred_currency == 'JPY' %}selected{% endif %}>
+            🇯🇵 Japanese Yen (¥)
+          </option>
+          <option value="AUD" {% if request.organization.preferred_currency == 'AUD' %}selected{% endif %}>
+            🇦🇺 Australian Dollar (A$)
+          </option>
+          <option value="CAD" {% if request.organization.preferred_currency == 'CAD' %}selected{% endif %}>
+            🇨🇦 Canadian Dollar (C$)
+          </option>
+          <option value="CHF" {% if request.organization.preferred_currency == 'CHF' %}selected{% endif %}>
+            🇨🇭 Swiss Franc (CHF)
+          </option>
+          <option value="INR" {% if request.organization.preferred_currency == 'INR' %}selected{% endif %}>
+            🇮🇳 Indian Rupee (₹)
+          </option>
+        </select>
+        <p class="help-text" style="margin-top: 0.5rem; color: #6b7280; font-size: 0.875rem;">
+          All amounts will be displayed in this currency throughout the application.
+          Historical transactions will be converted using exchange rates from the transaction date.
+        </p>
+      </div>
+
+      <div style="margin-top:.75rem">
+        <button class="btn btn-primary" type="submit">Save Organization Settings</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  <style>
+    .form-input {
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 0.375rem;
+      font-size: 0.875rem;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .help-text {
+      margin: 0;
+      font-size: 0.875rem;
+      color: #6b7280;
+    }
+  </style>
 {% endblock %}
 

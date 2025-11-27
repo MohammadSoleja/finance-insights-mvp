@@ -32,8 +32,40 @@ class Organization(models.Model):
 
     # Settings
     currency = models.CharField(max_length=3, default='GBP', help_text="Default currency code")
+
+    # Multi-currency support
+    preferred_currency = models.CharField(
+        max_length=3,
+        default='GBP',
+        choices=[
+            ('GBP', 'British Pound (£)'),
+            ('USD', 'US Dollar ($)'),
+            ('EUR', 'Euro (€)'),
+            ('JPY', 'Japanese Yen (¥)'),
+            ('AUD', 'Australian Dollar (A$)'),
+            ('CAD', 'Canadian Dollar (C$)'),
+            ('CHF', 'Swiss Franc (CHF)'),
+            ('INR', 'Indian Rupee (₹)'),
+        ],
+        help_text="Organization's preferred currency for displaying amounts"
+    )
+
     fiscal_year_start = models.IntegerField(default=4, help_text="Fiscal year start month (1-12)")
     timezone = models.CharField(max_length=50, default='Europe/London')
+
+    def get_currency_symbol(self):
+        """Get currency symbol for this organization"""
+        symbols = {
+            'GBP': '£',
+            'USD': '$',
+            'EUR': '€',
+            'JPY': '¥',
+            'AUD': 'A$',
+            'CAD': 'C$',
+            'CHF': 'CHF ',
+            'INR': '₹',
+        }
+        return symbols.get(self.preferred_currency, '��')
 
     # Billing & Limits (for future subscription system)
     plan = models.CharField(

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static humanize %}
+{% load static humanize currency_tags %}
 {% block title %}{{ title|default:"Budgets" }} — Finance Insights{% endblock %}
 
 {% block head_extra %}
@@ -206,15 +206,15 @@
           <div class="budget-amounts">
             <div class="budget-amount">
               <span class="label">Spent</span>
-              <span class="value budget-spent {% if budget.is_over %}over{% endif %}">£{{ budget.spent|floatformat:2|intcomma }}</span>
+              <span class="value budget-spent {% if budget.is_over %}over{% endif %}">{% currency_symbol %}{{ budget.spent|floatformat:2|intcomma }}</span>
             </div>
             <div class="budget-amount">
               <span class="label">Remaining</span>
-              <span class="value budget-remaining {% if budget.remaining >= 0 %}ok{% else %}over{% endif %}">£{{ budget.remaining|floatformat:2|intcomma }}</span>
+              <span class="value budget-remaining {% if budget.remaining >= 0 %}ok{% else %}over{% endif %}">{% currency_symbol %}{{ budget.remaining|floatformat:2|intcomma }}</span>
             </div>
             <div class="budget-amount">
               <span class="label">Budget</span>
-              <span class="value budget-total">£{{ budget.budget_amount|floatformat:2|intcomma }}</span>
+              <span class="value budget-total">{% currency_symbol %}{{ budget.budget_amount|floatformat:2|intcomma }}</span>
             </div>
             <div class="budget-amount">
               <span class="label">Period</span>

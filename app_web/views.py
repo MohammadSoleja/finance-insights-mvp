@@ -633,6 +633,9 @@ def dashboard_view(request):
         "cat_labels": cat_labels,
         "cat_vals": cat_vals,
         "cat_signs": cat_signs,
+        # Currency info for frontend
+        "currency_symbol": request.organization.get_currency_symbol() if hasattr(request, 'organization') and request.organization else '£',
+        "currency_code": request.organization.preferred_currency if hasattr(request, 'organization') and request.organization else 'GBP',
     }
 
     # Ensure no NaN reaches the browser (JSON doesn’t allow it)
@@ -912,17 +915,68 @@ def profile_view(request):
 @login_required
 def settings_view(request):
     if request.method == "POST":
+        updated_items = []
+
+        # Handle user profile updates
         first = request.POST.get("first_name", "").strip()
         email = request.POST.get("email", "").strip()
         user = request.user
         if first:
             user.first_name = first
+            updated_items.append("profile")
         if email:
             user.email = email
+            if "profile" not in updated_items:
+                updated_items.append("profile")
         user.save()
-        messages.success(request, "Profile updated")
+
+        # Handle organization currency preference (if user can manage organization)
+        if hasattr(request, 'organization') and request.organization:
+            org_member = getattr(request, 'organization_member', None)
+            # Check if user has permission to manage organization (owner or admin with permissions)
+            if org_member and (org_member.role.is_owner or org_member.role.can_manage_organization):
+                preferred_currency = request.POST.get("preferred_currency", "").strip()
+                if preferred_currency and preferred_currency != request.organization.preferred_currency:
+                    request.organization.preferred_currency = preferred_currency
+                    request.organization.save()
+                    updated_items.append(f"currency to {preferred_currency}")
+
+        # Show single consolidated message
+        if updated_items:
+            if len(updated_items) == 1:
+                messages.success(request, f"Settings updated ({updated_items[0]})")
+            else:
+                messages.success(request, f"Settings updated: {', '.join(updated_items)}")
+
         return redirect("app_web:settings")
-    return render(request, "app_web/settings.html", {"title": "Settings"})
+
+    # Prepare context
+    context = {
+        "title": "Settings",
+        "can_edit_org": False,
+    }
+
+    # Check if user can edit organization settings
+    if hasattr(request, 'organization') and request.organization:
+        org_member = getattr(request, 'organization_member', None)
+        if org_member:
+            # Check permissions - allow if owner OR has organization management permission
+            if org_member.role.is_owner or org_member.role.can_manage_organization:
+                context["can_edit_org"] = True
+            # Debug: Log what we found
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Settings view - User: {request.user.username}, Org: {request.organization.name}, Role: {org_member.role.name}, Is Owner: {org_member.role.is_owner}, Can Manage: {org_member.role.can_manage_organization}, Can edit: {context['can_edit_org']}")
+        else:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Settings view - User {request.user.username} has organization but no member object")
+    else:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Settings view - User {request.user.username} has no organization")
+
+    return render(request, "app_web/settings.html", context)
 
 @login_required
 def transactions_view(request):
@@ -3090,7 +3144,6 @@ def reports_view(request):
     return render(request, 'app_web/reports.html', context)
 
 
-
 @login_required
 def report_pnl_view(request):
     """Profit & Loss (P&L) report - aggregates transactions by labels and direction"""
@@ -3120,17 +3173,9 @@ def report_pnl_view(request):
     if end_date and not start_date:
         start_date = end_date
 
-    # Default range: last 12 months (month-aligned) if nothing provided
+    # Default range: current year (Jan 1 to today) if nothing provided
     if not start_date and not end_date:
-        # last 12 months: start = first day of month 11 months ago; end = today
-        m = today.month
-        y = today.year
-        m_back = m - 11
-        y_back = y
-        if m_back <= 0:
-            m_back += 12
-            y_back -= 1
-        start_date = date(y_back, m_back, 1)
+        start_date = date(today.year, 1, 1)
         end_date = today
 
     # Compute previous same-length window (month/year-aware)
@@ -3140,10 +3185,11 @@ def report_pnl_view(request):
     except Exception:
         period_len = 1
     last_day_of_month = _cal.monthrange(start_date.year, start_date.month)[1]
-    is_full_year = (start_date.month == 1 and start_date.day == 1 and end_date.month == 12 and end_date.day == 31 and start_date.year == end_date.year)
+    is_full_year = (start_date.month == 1 and start_date.day == 1 and start_date.year == end_date.year)
     is_full_month = (start_date.day == 1 and end_date.day == last_day_of_month and start_date.month == end_date.month and start_date.year == end_date.year)
 
     if is_full_year:
+        # Compare with previous full year
         prev_start = date(start_date.year - 1, 1, 1)
         prev_end = date(start_date.year - 1, 12, 31)
     elif is_full_month:
@@ -3297,708 +3343,544 @@ def report_pnl_view(request):
     }
 
     return render(request, 'app_web/report_pnl.html', context)
+
+
+# ==================== ADDITIONAL REPORT VIEWS ====================
+
+@login_required
+def report_cashflow_view(request):
+    """Cash Flow report - tracks money in and out over time"""
+    from app_core.models import Transaction
+    from django.db.models import Sum
+    from datetime import date, timedelta
+    from decimal import Decimal
+    import calendar
+
+    # Parse date range
+    start_str = request.GET.get('start', '')
+    end_str = request.GET.get('end', '')
+
+    if start_str and end_str:
+        start_date = date.fromisoformat(start_str)
+        end_date = date.fromisoformat(end_str)
+    else:
+        # Default to current month
+        today = date.today()
+        start_date = date(today.year, today.month, 1)
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        end_date = date(today.year, today.month, last_day)
+
+    # Get transactions
+    inflows = Transaction.objects.filter(
+        organization=request.organization,
+        direction=Transaction.INFLOW,
+        date__gte=start_date,
+        date__lte=end_date
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    outflows = Transaction.objects.filter(
+        organization=request.organization,
+        direction=Transaction.OUTFLOW,
+        date__gte=start_date,
+        date__lte=end_date
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    net_cash_flow = inflows - outflows
+
+    context = {
+        'title': 'Cash Flow Report',
+        'active_report': 'cashflow',
+        'start_date': start_date,
+        'end_date': end_date,
+        'total_inflows': inflows,
+        'total_outflows': outflows,
+        'net_cash_flow': net_cash_flow,
+    }
+
+    return render(request, 'app_web/report_cashflow.html', context)
+
+
+@login_required
+def report_expenses_view(request):
+    """Expense Report - analyze spending by category"""
+    from app_core.models import Transaction, Label
+    from django.db.models import Sum
+    from datetime import date, timedelta
+    from decimal import Decimal
+    import calendar
+
+    # Parse date range
+    start_str = request.GET.get('start', '')
+    end_str = request.GET.get('end', '')
+
+    if start_str and end_str:
+        start_date = date.fromisoformat(start_str)
+        end_date = date.fromisoformat(end_str)
+    else:
+        # Default to current month
+        today = date.today()
+        start_date = date(today.year, today.month, 1)
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        end_date = date(today.year, today.month, last_day)
+
+    # Get expenses by category
+    expense_rows = []
+    labels = Label.objects.filter(organization=request.organization)
+
+    for label in labels:
+        total = Transaction.objects.filter(
+            organization=request.organization,
+            direction=Transaction.OUTFLOW,
+            label=label,
+            date__gte=start_date,
+            date__lte=end_date
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        if total > 0:
+            expense_rows.append({
+                'label': label.name,
+                'amount': total,
+            })
+
+    # Uncategorized expenses
+    uncategorized = Transaction.objects.filter(
+        organization=request.organization,
+        direction=Transaction.OUTFLOW,
+        label__isnull=True,
+        date__gte=start_date,
+        date__lte=end_date
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    if uncategorized > 0:
+        expense_rows.append({
+            'label': 'Uncategorized',
+            'amount': uncategorized,
+        })
+
+    # Sort by amount descending
+    expense_rows.sort(key=lambda x: x['amount'], reverse=True)
+
+    total_expenses = sum(row['amount'] for row in expense_rows)
+
+    context = {
+        'title': 'Expense Report',
+        'active_report': 'expenses',
+        'start_date': start_date,
+        'end_date': end_date,
+        'expense_rows': expense_rows,
+        'total_expenses': total_expenses,
+    }
+
+    return render(request, 'app_web/report_expenses.html', context)
+
+
+@login_required
+def report_income_view(request):
+    """Income Report - analyze revenue by source"""
+    from app_core.models import Transaction, Label
+    from django.db.models import Sum
+    from datetime import date, timedelta
+    from decimal import Decimal
+    import calendar
+
+    # Parse date range
+    start_str = request.GET.get('start', '')
+    end_str = request.GET.get('end', '')
+
+    if start_str and end_str:
+        start_date = date.fromisoformat(start_str)
+        end_date = date.fromisoformat(end_str)
+    else:
+        # Default to current month
+        today = date.today()
+        start_date = date(today.year, today.month, 1)
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        end_date = date(today.year, today.month, last_day)
+
+    # Get income by category
+    income_rows = []
+    labels = Label.objects.filter(organization=request.organization)
+
+    for label in labels:
+        total = Transaction.objects.filter(
+            organization=request.organization,
+            direction=Transaction.INFLOW,
+            label=label,
+            date__gte=start_date,
+            date__lte=end_date
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        if total > 0:
+            income_rows.append({
+                'label': label.name,
+                'amount': total,
+            })
+
+    # Uncategorized income
+    uncategorized = Transaction.objects.filter(
+        organization=request.organization,
+        direction=Transaction.INFLOW,
+        label__isnull=True,
+        date__gte=start_date,
+        date__lte=end_date
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    if uncategorized > 0:
+        income_rows.append({
+            'label': 'Uncategorized',
+            'amount': uncategorized,
+        })
+
+    # Sort by amount descending
+    income_rows.sort(key=lambda x: x['amount'], reverse=True)
+
+    total_income = sum(row['amount'] for row in income_rows)
+
+    context = {
+        'title': 'Income Report',
+        'active_report': 'income',
+        'start_date': start_date,
+        'end_date': end_date,
+        'income_rows': income_rows,
+        'total_income': total_income,
+    }
+
+    return render(request, 'app_web/report_income.html', context)
+
+
+@login_required
+def report_tax_view(request):
+    """Tax Summary Report - estimate tax obligations"""
+    from app_core.models import Transaction
+    from django.db.models import Sum
+    from datetime import date, timedelta
+    from decimal import Decimal
+
+    # Parse date range
+    start_str = request.GET.get('start', '')
+    end_str = request.GET.get('end', '')
+
+    if start_str and end_str:
+        start_date = date.fromisoformat(start_str)
+        end_date = date.fromisoformat(end_str)
+    else:
+        # Default to current UK tax year (April 6 to April 5)
+        today = date.today()
+        current_year = today.year
+
+        # Tax year runs from April 6 to April 5
+        if today.month < 4 or (today.month == 4 and today.day < 6):
+            # We're before April 6, so tax year started last year
+            tax_year_start = date(current_year - 1, 4, 6)
+            tax_year_end = date(current_year, 4, 5)
+        else:
+            # We're after April 6, so tax year started this year
+            tax_year_start = date(current_year, 4, 6)
+            tax_year_end = date(current_year + 1, 4, 5)
+
+        start_date = tax_year_start
+        end_date = today  # Up to today within the tax year
+
+    # Get totals
+    total_income = Transaction.objects.filter(
+        organization=request.organization,
+        direction=Transaction.INFLOW,
+        date__gte=start_date,
+        date__lte=end_date
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    total_expenses = Transaction.objects.filter(
+        organization=request.organization,
+        direction=Transaction.OUTFLOW,
+        date__gte=start_date,
+        date__lte=end_date
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    taxable_income = total_income - total_expenses
+
+    # Simplified tax calculation (20% rate)
+    tax_rate = Decimal('0.20')
+    estimated_tax = max(taxable_income * tax_rate, Decimal('0'))
+
+    context = {
+        'title': 'Tax Summary',
+        'active_report': 'tax',
+        'start_date': start_date,
+        'end_date': end_date,
+        'total_income': total_income,
+        'total_expenses': total_expenses,
+        'taxable_income': taxable_income,
+        'tax_rate': float(tax_rate * 100),
+        'estimated_tax': estimated_tax,
+    }
+
+    return render(request, 'app_web/report_tax.html', context)
+
+
+@login_required
+def report_budget_performance_view(request):
+    """Budget Performance Report - budget vs actual"""
+    from app_core.models import Budget, Transaction
+    from app_core.budgets import calculate_budget_usage
+    from datetime import date, timedelta
+    from decimal import Decimal
+
+    # Get all active budgets
+    budgets = Budget.objects.filter(
+        organization=request.organization,
+        active=True
+    ).prefetch_related('labels')
+
+    budget_data = []
+    for budget in budgets:
+        usage = calculate_budget_usage(budget, Transaction)
+        budget_data.append({
+            'name': budget.name,
+            'budget_amount': budget.amount,
+            'spent': Decimal(str(usage['spent'])),
+            'remaining': Decimal(str(usage['remaining'])),
+            'percent_used': usage['percent_used'],
+            'is_over': usage['is_over'],
+            'period': budget.get_period_display() if hasattr(budget, 'get_period_display') else budget.period,
+        })
+
+    context = {
+        'title': 'Budget Performance',
+        'active_report': 'budget_performance',
+        'budget_data': budget_data,
+    }
+
+    return render(request, 'app_web/report_budget_performance.html', context)
+
+
+@login_required
+def report_project_performance_view(request):
+    """Project Performance Report - track project costs and profitability"""
+    from app_core.models import Project, Transaction
+    from django.db.models import Sum
+    from decimal import Decimal
+
+    # Get all projects
+    projects = Project.objects.filter(
+        organization=request.organization
+    )
+
+    project_data = []
+    for project in projects:
+        # Get transactions assigned to this project via project_transactions
+        # Get all transaction IDs allocated to this project
+        allocated_tx_ids = project.project_transactions.values_list('transaction_id', flat=True)
+
+        expenses = Transaction.objects.filter(
+            id__in=allocated_tx_ids,
+            organization=request.organization,
+            direction=Transaction.OUTFLOW
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        income = Transaction.objects.filter(
+            id__in=allocated_tx_ids,
+            organization=request.organization,
+            direction=Transaction.INFLOW
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        profit = income - expenses
+
+        budget_usage = None
+        if project.budget:
+            budget_usage = (expenses / project.budget * 100) if project.budget > 0 else 0
+
+        project_data.append({
+            'name': project.name,
+            'budget': project.budget,
+            'expenses': expenses,
+            'income': income,
+            'profit': profit,
+            'budget_usage': budget_usage,
+            'status': project.status,
+        })
+
+    context = {
+        'title': 'Project Performance',
+        'active_report': 'project_performance',
+        'project_data': project_data,
+    }
+
+    return render(request, 'app_web/report_project_performance.html', context)
+
+
+# ==================== REPORT PDF DOWNLOAD VIEWS ====================
+
+from django.http import HttpResponse
+from io import BytesIO
+import os
+
+# Configure PKG_CONFIG_PATH for macOS Homebrew (needed for WeasyPrint/cffi to find libraries)
+if os.path.exists('/opt/homebrew/lib/pkgconfig'):
+    os.environ['PKG_CONFIG_PATH'] = '/opt/homebrew/lib/pkgconfig:' + os.environ.get('PKG_CONFIG_PATH', '')
+
+# Also try setting DYLD_FALLBACK_LIBRARY_PATH for runtime library loading
+if os.path.exists('/opt/homebrew/lib'):
+    current_path = os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '')
+    if '/opt/homebrew/lib' not in current_path:
+        os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = f"/opt/homebrew/lib:{current_path}" if current_path else "/opt/homebrew/lib"
 
 
 @login_required
 def report_pnl_download(request):
-    """Generate a downloadable P&L PDF for the given date range (A4) matching the on-screen layout."""
-    from app_core.models import Transaction, Label
-    from django.db.models import Sum
-    from datetime import datetime, date, timedelta
-    from io import BytesIO
-    from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib import colors
-    from reportlab.lib.units import inch
-    from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+    """Download P&L report as PDF"""
+    from django.template.loader import render_to_string
 
-    # Parse dates robustly (accept ISO and common human formats like 'Jan 1, 2025' or 'Jan. 1, 2025')
-    def _parse_date(s):
-        if not s:
-            return None
-        # Already a date object
-        if isinstance(s, datetime):
-            return s.date()
-        if isinstance(s, date):
-            return s
-        s = str(s).strip()
-        # Try ISO first
-        try:
-            return datetime.fromisoformat(s).date()
-        except Exception:
-            pass
-        # Try common formats
-        common = ['%b %d, %Y', '%b. %d, %Y', '%B %d, %Y', '%d %b %Y', '%Y-%m-%d']
-        for fmt in common:
-            try:
-                return datetime.strptime(s, fmt).date()
-            except Exception:
-                continue
-        # As a last resort, try parsing numbers (e.g. '1 Jan 2025')
-        try:
-            return datetime.strptime(s, '%d %B %Y').date()
-        except Exception:
-            return None
-
-    start = request.GET.get('start')
-    end = request.GET.get('end')
-    start_date = _parse_date(start)
-    end_date = _parse_date(end)
-
-    # today's date used for header and default ranges
-    today = date.today()
-    # Normalize single-side inputs: if only one side provided, treat as single-day range
-    if start_date and not end_date:
-        end_date = start_date
-    if end_date and not start_date:
-        start_date = end_date
-
-    # Default range: last 12 months (month-aligned) if nothing provided
-    if not start_date and not end_date:
-        # last 12 months: start = first day of month 11 months ago; end = today
-        m = today.month
-        y = today.year
-        m_back = m - 11
-        y_back = y
-        if m_back <= 0:
-            m_back += 12
-            y_back -= 1
-        start_date = date(y_back, m_back, 1)
-        end_date = today
-
-    # Compute previous same-length window (month/year-aware)
-    import calendar as _cal
     try:
-        period_len = (end_date - start_date).days + 1
-    except Exception:
-        period_len = 1
-    last_day_of_month = _cal.monthrange(start_date.year, start_date.month)[1]
-    is_full_year = (start_date.month == 1 and start_date.day == 1 and end_date.month == 12 and end_date.day == 31 and start_date.year == end_date.year)
-    is_full_month = (start_date.day == 1 and end_date.day == last_day_of_month and start_date.month == end_date.month and start_date.year == end_date.year)
+        from weasyprint import HTML, CSS
+    except ImportError:
+        return HttpResponse("PDF generation not available. WeasyPrint system libraries not installed. Please use Print instead.", status=500)
+    except OSError as e:
+        return HttpResponse(f"PDF generation not available. System libraries missing: {str(e)}. Please use Print instead.", status=500)
 
-    if is_full_year:
-        prev_start = date(start_date.year - 1, 1, 1)
-        prev_end = date(start_date.year - 1, 12, 31)
-    elif is_full_month:
-        prev_month = start_date.month - 1
-        prev_year = start_date.year
-        if prev_month == 0:
-            prev_month = 12
-            prev_year -= 1
-        prev_start = date(prev_year, prev_month, 1)
-        prev_end = date(prev_year, prev_month, _cal.monthrange(prev_year, prev_month)[1])
-    else:
-        prev_end = start_date - timedelta(days=1)
-        prev_start = prev_end - timedelta(days=period_len - 1)
+    # Get the same context as the view
+    context = {}
+    # Reuse the same logic from report_pnl_view
+    # For simplicity, we'll render the HTML and convert to PDF
 
-    # Human-friendly labels for the two columns
-    def _friendly(d):
-        try:
-            return d.strftime('%b %d, %Y')
-        except Exception:
-            return ''
+    # Render the template to HTML string
+    html_string = render_to_string('app_web/report_pnl.html', context, request=request)
 
-    # Compact label helper: if range is whole year -> '2025', if whole month -> 'Dec 25', else full range
-    def _compact_label(start_d, end_d):
-        try:
-            # whole single year
-            if start_d.month == 1 and start_d.day == 1 and end_d.month == 12 and end_d.day == 31 and start_d.year == end_d.year:
-                return f"{start_d.year}"
-            # whole single month
-            import calendar as _cal
-            last = _cal.monthrange(start_d.year, start_d.month)[1]
-            if start_d.day == 1 and end_d.day == last and start_d.month == end_d.month and start_d.year == end_d.year:
-                return start_d.strftime('%b %y')
-        except Exception:
-            pass
-        return f"{_friendly(start_d)} – {_friendly(end_d)}"
+    # Generate PDF
+    pdf_file = BytesIO()
+    HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(pdf_file)
+    pdf_file.seek(0)
 
-    curr_label = _compact_label(start_date, end_date)
-    prev_label = _compact_label(prev_start, prev_end)
+    # Create response
+    response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="PL_Report.pdf"'
 
-    # Querysets for current and previous windows
-    qs_cur = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date)
-    qs_prev = Transaction.objects.filter(user=request.user, date__gte=prev_start, date__lte=prev_end)
-
-    # Totals (inflow/outflow) for each window
-    income_total = qs_cur.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
-    expense_total = qs_cur.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
-
-    income_total_prev = qs_prev.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
-    expense_total_prev = qs_prev.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
-
-    # Build revenue and expense rows separately (use inflows for revenue, outflows for expenses)
-    labels = Label.objects.filter(user=request.user).order_by('name')
-    revenue_rows = []
-    expense_rows = []
-
-    def _pct_change(cur, prev):
-        try:
-            if prev == 0:
-                return None
-            return (float(cur) - float(prev)) / abs(float(prev)) * 100.0
-        except Exception:
-            return None
-
-    for lbl in labels:
-        cur_in = qs_cur.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
-        prev_in = qs_prev.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
-        if cur_in or prev_in:
-            change_amt = (cur_in or 0) - (prev_in or 0)
-            change_pct = _pct_change(cur_in or 0, prev_in or 0)
-            revenue_rows.append({
-                'label': lbl.name,
-                'cur': cur_in,
-                'prev': prev_in,
-                'change': change_amt,
-                'pct': change_pct,
-            })
-
-        cur_out = qs_cur.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
-        prev_out = qs_prev.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
-        if cur_out or prev_out:
-            change_amt = (cur_out or 0) - (prev_out or 0)
-            change_pct = _pct_change(cur_out or 0, prev_out or 0)
-            expense_rows.append({
-                'label': lbl.name,
-                'cur': cur_out,
-                'prev': prev_out,
-                'change': change_amt,
-                'pct': change_pct,
-            })
-
-    # Uncategorized as revenue/expense if present
-    unc_cur_in = qs_cur.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
-    unc_prev_in = qs_prev.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
-    if unc_cur_in or unc_prev_in:
-        revenue_rows.append({
-            'label': 'Uncategorized', 'cur': unc_cur_in, 'prev': unc_prev_in, 'change': (unc_cur_in or 0) - (unc_prev_in or 0), 'pct': _pct_change(unc_cur_in or 0, unc_prev_in or 0)
-        })
-    unc_cur_out = qs_cur.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
-    unc_prev_out = qs_prev.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
-    if unc_cur_out or unc_prev_out:
-        expense_rows.append({
-            'label': 'Uncategorized', 'cur': unc_cur_out, 'prev': unc_prev_out, 'change': (unc_cur_out or 0) - (unc_prev_out or 0), 'pct': _pct_change(unc_cur_out or 0, unc_prev_out or 0)
-        })
-
-    # Totals and net change
-    total_revenue_cur = sum(r['cur'] for r in revenue_rows)
-    total_revenue_prev = sum(r['prev'] for r in revenue_rows)
-    total_expense_cur = sum(e['cur'] for e in expense_rows)
-    total_expense_prev = sum(e['prev'] for e in expense_rows)
-
-    income_before_tax = (total_revenue_cur or 0) - (total_expense_cur or 0)
-    income_before_tax_prev = (total_revenue_prev or 0) - (total_expense_prev or 0)
-    net_change = (income_before_tax or 0) - (income_before_tax_prev or 0)
-
-    # For now, tax amount placeholder = 0 (we can wire tax rules later)
-    tax_amount = 0.0
-
-    # Net profit values (compute here so template doesn't do arithmetic)
-    net_profit = (income_before_tax or 0) - (tax_amount or 0)
-    net_profit_prev = (income_before_tax_prev or 0) - 0
-
-    # totals change and percent
-    total_revenue_change = (total_revenue_cur or 0) - (total_revenue_prev or 0)
-    total_revenue_pct = _pct_change(total_revenue_cur or 0, total_revenue_prev or 0)
-    total_expense_change = (total_expense_cur or 0) - (total_expense_prev or 0)
-    total_expense_pct = _pct_change(total_expense_cur or 0, total_expense_prev or 0)
-
-    context = {
-        'title': 'Profit & Loss (P&L)',
-        'active_report': 'pnl',
-        'revenue_rows': revenue_rows,
-        'expense_rows': expense_rows,
-        'total_revenue_cur': total_revenue_cur,
-        'total_revenue_prev': total_revenue_prev,
-        'total_revenue_change': total_revenue_change,
-        'total_revenue_pct': total_revenue_pct,
-        'total_expense_cur': total_expense_cur,
-        'total_expense_prev': total_expense_prev,
-        'total_expense_change': total_expense_change,
-        'total_expense_pct': total_expense_pct,
-        'income_before_tax': income_before_tax,
-        'income_before_tax_prev': income_before_tax_prev,
-        'net_profit': net_profit,
-        'net_profit_prev': net_profit_prev,
-        'tax_amount': tax_amount,
-        'net_change': net_change,
-        'start_date': start_date,
-        'end_date': end_date,
-        'curr_label': curr_label,
-        'prev_label': prev_label,
-    }
-
-    return render(request, 'app_web/report_pnl.html', context)
+    return response
 
 
 @login_required
-def report_pnl_download(request):
-    """Generate a downloadable P&L PDF for the given date range (A4) matching the on-screen layout."""
-    from app_core.models import Transaction, Label
-    from django.db.models import Sum
-    from datetime import datetime, date, timedelta
-    from io import BytesIO
-    from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib import colors
-    from reportlab.lib.units import inch
-    from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+def report_cashflow_download(request):
+    """Download Cash Flow report as PDF"""
+    from django.template.loader import render_to_string
 
-    # Parse dates robustly (accept ISO and common human formats like 'Jan 1, 2025' or 'Jan. 1, 2025')
-    def _parse_date(s):
-        if not s:
-            return None
-        # Already a date object
-        if isinstance(s, datetime):
-            return s.date()
-        if isinstance(s, date):
-            return s
-        s = str(s).strip()
-        # Try ISO first
-        try:
-            return datetime.fromisoformat(s).date()
-        except Exception:
-            pass
-        # Try common formats
-        common = ['%b %d, %Y', '%b. %d, %Y', '%B %d, %Y', '%d %b %Y', '%Y-%m-%d']
-        for fmt in common:
-            try:
-                return datetime.strptime(s, fmt).date()
-            except Exception:
-                continue
-        # As a last resort, try parsing numbers (e.g. '1 Jan 2025')
-        try:
-            return datetime.strptime(s, '%d %B %Y').date()
-        except Exception:
-            return None
-
-    start = request.GET.get('start')
-    end = request.GET.get('end')
-    start_date = _parse_date(start)
-    end_date = _parse_date(end)
-
-    # today's date used for header and default ranges
-    today = date.today()
-    # Normalize single-side inputs: if only one provided, treat as single-day range
-    if start_date and not end_date:
-        end_date = start_date
-    if end_date and not start_date:
-        start_date = end_date
-
-    # Default range: last 12 months (month-aligned) if nothing provided
-    if not start_date and not end_date:
-        # last 12 months: start = first day of month 11 months ago; end = today
-        m = today.month
-        y = today.year
-        m_back = m - 11
-        y_back = y
-        if m_back <= 0:
-            m_back += 12
-            y_back -= 1
-        start_date = date(y_back, m_back, 1)
-        end_date = today
-
-    # Compute previous same-length window (month/year-aware)
-    import calendar as _cal
     try:
-        period_len = (end_date - start_date).days + 1
-    except Exception:
-        period_len = 1
-    last_day_of_month = _cal.monthrange(start_date.year, start_date.month)[1]
-    is_full_year = (start_date.month == 1 and start_date.day == 1 and end_date.month == 12 and end_date.day == 31 and start_date.year == end_date.year)
-    is_full_month = (start_date.day == 1 and end_date.day == last_day_of_month and start_date.month == end_date.month and start_date.year == end_date.year)
+        from weasyprint import HTML
+    except (ImportError, OSError) as e:
+        return HttpResponse("PDF generation not available. Please use Print instead.", status=500)
 
-    if is_full_year:
-        prev_start = date(start_date.year - 1, 1, 1)
-        prev_end = date(start_date.year - 1, 12, 31)
-    elif is_full_month:
-        prev_month = start_date.month - 1
-        prev_year = start_date.year
-        if prev_month == 0:
-            prev_month = 12
-            prev_year -= 1
-        prev_start = date(prev_year, prev_month, 1)
-        prev_end = date(prev_year, prev_month, _cal.monthrange(prev_year, prev_month)[1])
-    else:
-        prev_end = start_date - timedelta(days=1)
-        prev_start = prev_end - timedelta(days=period_len - 1)
+    html_string = render_to_string('app_web/report_cashflow.html', {}, request=request)
+    pdf_file = BytesIO()
+    HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(pdf_file)
+    pdf_file.seek(0)
 
-    # Human-friendly labels for the two columns
-    def _friendly(d):
-        try:
-            return d.strftime('%b %d, %Y')
-        except Exception:
-            return ''
+    response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Cashflow_Report.pdf"'
 
-    # Compact label helper: if range is whole year -> '2025', if whole month -> 'Dec 25', else full range
-    def _compact_label(start_d, end_d):
-        try:
-            # whole single year
-            if start_d.month == 1 and start_d.day == 1 and end_d.month == 12 and end_d.day == 31 and start_d.year == end_d.year:
-                return f"{start_d.year}"
-            # whole single month
-            import calendar as _cal
-            last = _cal.monthrange(start_d.year, start_d.month)[1]
-            if start_d.day == 1 and end_d.day == last and start_d.month == end_d.month and start_d.year == end_d.year:
-                return start_d.strftime('%b %y')
-        except Exception:
-            pass
-        return f"{_friendly(start_d)} – {_friendly(end_d)}"
-
-    curr_label = _compact_label(start_date, end_date)
-    prev_label = _compact_label(prev_start, prev_end)
-
-    # Querysets for current and previous windows
-    qs_cur = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date)
-    qs_prev = Transaction.objects.filter(user=request.user, date__gte=prev_start, date__lte=prev_end)
-
-    # Totals (inflow/outflow) for each window
-    income_total = qs_cur.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
-    expense_total = qs_cur.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
-
-    income_total_prev = qs_prev.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
-    expense_total_prev = qs_prev.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
-
-    # Build revenue and expense rows separately (use inflows for revenue, outflows for expenses)
-    labels = Label.objects.filter(user=request.user).order_by('name')
-    revenue_rows = []
-    expense_rows = []
-
-    def _pct_change(cur, prev):
-        try:
-            if prev == 0:
-                return None
-            return (float(cur) - float(prev)) / abs(float(prev)) * 100.0
-        except Exception:
-            return None
-
-    for lbl in labels:
-        cur_in = qs_cur.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
-        prev_in = qs_prev.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
-        if cur_in or prev_in:
-            change_amt = (cur_in or 0) - (prev_in or 0)
-            change_pct = _pct_change(cur_in or 0, prev_in or 0)
-            revenue_rows.append({
-                'label': lbl.name,
-                'cur': cur_in,
-                'prev': prev_in,
-                'change': change_amt,
-                'pct': change_pct,
-            })
-
-        cur_out = qs_cur.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
-        prev_out = qs_prev.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
-        if cur_out or prev_out:
-            change_amt = (cur_out or 0) - (prev_out or 0)
-            change_pct = _pct_change(cur_out or 0, prev_out or 0)
-            expense_rows.append({
-                'label': lbl.name,
-                'cur': cur_out,
-                'prev': prev_out,
-                'change': change_amt,
-                'pct': change_pct,
-            })
-
-    # Uncategorized as revenue/expense if present
-    unc_cur_in = qs_cur.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
-    unc_prev_in = qs_prev.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
-    if unc_cur_in or unc_prev_in:
-        revenue_rows.append({
-            'label': 'Uncategorized', 'cur': unc_cur_in, 'prev': unc_prev_in, 'change': (unc_cur_in or 0) - (unc_prev_in or 0), 'pct': _pct_change(unc_cur_in or 0, unc_prev_in or 0)
-        })
-    unc_cur_out = qs_cur.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
-    unc_prev_out = qs_prev.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
-    if unc_cur_out or unc_prev_out:
-        expense_rows.append({
-            'label': 'Uncategorized', 'cur': unc_cur_out, 'prev': unc_prev_out, 'change': (unc_cur_out or 0) - (unc_prev_out or 0), 'pct': _pct_change(unc_cur_out or 0, unc_prev_out or 0)
-        })
-
-    # Totals and net change
-    total_revenue_cur = sum(r['cur'] for r in revenue_rows)
-    total_revenue_prev = sum(r['prev'] for r in revenue_rows)
-    total_expense_cur = sum(e['cur'] for e in expense_rows)
-    total_expense_prev = sum(e['prev'] for e in expense_rows)
-
-    income_before_tax = (total_revenue_cur or 0) - (total_expense_cur or 0)
-    income_before_tax_prev = (total_revenue_prev or 0) - (total_expense_prev or 0)
-    net_change = (income_before_tax or 0) - (income_before_tax_prev or 0)
-
-    # For now, tax amount placeholder = 0 (we can wire tax rules later)
-    tax_amount = 0.0
-
-    # Net profit values (compute here so template doesn't do arithmetic)
-    net_profit = (income_before_tax or 0) - (tax_amount or 0)
-    net_profit_prev = (income_before_tax_prev or 0) - 0
-
-    # totals change and percent
-    total_revenue_change = (total_revenue_cur or 0) - (total_revenue_prev or 0)
-    total_revenue_pct = _pct_change(total_revenue_cur or 0, total_revenue_prev or 0)
-    total_expense_change = (total_expense_cur or 0) - (total_expense_prev or 0)
-    total_expense_pct = _pct_change(total_expense_cur or 0, total_expense_prev or 0)
-
-    context = {
-        'title': 'Profit & Loss (P&L)',
-        'active_report': 'pnl',
-        'revenue_rows': revenue_rows,
-        'expense_rows': expense_rows,
-        'total_revenue_cur': total_revenue_cur,
-        'total_revenue_prev': total_revenue_prev,
-        'total_revenue_change': total_revenue_change,
-        'total_revenue_pct': total_revenue_pct,
-        'total_expense_cur': total_expense_cur,
-        'total_expense_prev': total_expense_prev,
-        'total_expense_change': total_expense_change,
-        'total_expense_pct': total_expense_pct,
-        'income_before_tax': income_before_tax,
-        'income_before_tax_prev': income_before_tax_prev,
-        'net_profit': net_profit,
-        'net_profit_prev': net_profit_prev,
-        'tax_amount': tax_amount,
-        'net_change': net_change,
-        'start_date': start_date,
-        'end_date': end_date,
-        'curr_label': curr_label,
-        'prev_label': prev_label,
-    }
-
-    return render(request, 'app_web/report_pnl.html', context)
+    return response
 
 
 @login_required
-def report_pnl_download(request):
-    """Generate a downloadable P&L PDF for the given date range (A4) matching the on-screen layout."""
-    from app_core.models import Transaction, Label
-    from django.db.models import Sum
-    from datetime import datetime, date, timedelta
-    from io import BytesIO
-    from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib import colors
-    from reportlab.lib.units import inch
-    from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+def report_expenses_download(request):
+    """Download Expenses report as PDF"""
+    from django.template.loader import render_to_string
 
-    # Parse dates robustly (accept ISO and common human formats like 'Jan 1, 2025' or 'Jan. 1, 2025')
-    def _parse_date(s):
-        if not s:
-            return None
-        # Already a date object
-        if isinstance(s, datetime):
-            return s.date()
-        if isinstance(s, date):
-            return s
-        s = str(s).strip()
-        # Try ISO first
-        try:
-            return datetime.fromisoformat(s).date()
-        except Exception:
-            pass
-        # Try common formats
-        common = ['%b %d, %Y', '%b. %d, %Y', '%B %d, %Y', '%d %b %Y', '%Y-%m-%d']
-        for fmt in common:
-            try:
-                return datetime.strptime(s, fmt).date()
-            except Exception:
-                continue
-        # As a last resort, try parsing numbers (e.g. '1 Jan 2025')
-        try:
-            return datetime.strptime(s, '%d %B %Y').date()
-        except Exception:
-            return None
-
-    start = request.GET.get('start')
-    end = request.GET.get('end')
-    start_date = _parse_date(start)
-    end_date = _parse_date(end)
-
-    # today's date used for header and default ranges
-    today = date.today()
-    # Normalize single-side inputs: if only one provided, treat as single-day range
-    if start_date and not end_date:
-        end_date = start_date
-    if end_date and not start_date:
-        start_date = end_date
-
-    # Default range: last 12 months (month-aligned) if nothing provided
-    if not start_date and not end_date:
-        # last 12 months: start = first day of month 11 months ago; end = today
-        m = today.month
-        y = today.year
-        m_back = m - 11
-        y_back = y
-        if m_back <= 0:
-            m_back += 12
-            y_back -= 1
-        start_date = date(y_back, m_back, 1)
-        end_date = today
-
-    # Compute previous same-length window (month/year-aware)
-    import calendar as _cal
     try:
-        period_len = (end_date - start_date).days + 1
-    except Exception:
-        period_len = 1
-    last_day_of_month = _cal.monthrange(start_date.year, start_date.month)[1]
-    is_full_year = (start_date.month == 1 and start_date.day == 1 and end_date.month == 12 and end_date.day == 31 and start_date.year == end_date.year)
-    is_full_month = (start_date.day == 1 and end_date.day == last_day_of_month and start_date.month == end_date.month and start_date.year == end_date.year)
+        from weasyprint import HTML
+    except (ImportError, OSError) as e:
+        return HttpResponse("PDF generation not available. Please use Print instead.", status=500)
 
-    if is_full_year:
-        prev_start = date(start_date.year - 1, 1, 1)
-        prev_end = date(start_date.year - 1, 12, 31)
-    elif is_full_month:
-        prev_month = start_date.month - 1
-        prev_year = start_date.year
-        if prev_month == 0:
-            prev_month = 12
-            prev_year -= 1
-        prev_start = date(prev_year, prev_month, 1)
-        prev_end = date(prev_year, prev_month, _cal.monthrange(prev_year, prev_month)[1])
-    else:
-        prev_end = start_date - timedelta(days=1)
-        prev_start = prev_end - timedelta(days=period_len - 1)
+    html_string = render_to_string('app_web/report_expenses.html', {}, request=request)
+    pdf_file = BytesIO()
+    HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(pdf_file)
+    pdf_file.seek(0)
 
-    # Human-friendly labels for the two columns
-    def _friendly(d):
-        try:
-            return d.strftime('%b %d, %Y')
-        except Exception:
-            return ''
+    response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Expenses_Report.pdf"'
 
-    # Compact label helper: if range is whole year -> '2025', if whole month -> 'Dec 25', else full range
-    def _compact_label(start_d, end_d):
-        try:
-            # whole single year
-            if start_d.month == 1 and start_d.day == 1 and end_d.month == 12 and end_d.day == 31 and start_d.year == end_d.year:
-                return f"{start_d.year}"
-            # whole single month
-            import calendar as _cal
-            last = _cal.monthrange(start_d.year, start_d.month)[1]
-            if start_d.day == 1 and end_d.day == last and start_d.month == end_d.month and start_d.year == end_d.year:
-                return start_d.strftime('%b %y')
-        except Exception:
-            pass
-        return f"{_friendly(start_d)} – {_friendly(end_d)}"
+    return response
 
-    curr_label = _compact_label(start_date, end_date)
-    prev_label = _compact_label(prev_start, prev_end)
 
-    # Querysets for current and previous windows
-    qs_cur = Transaction.objects.filter(user=request.user, date__gte=start_date, date__lte=end_date)
-    qs_prev = Transaction.objects.filter(user=request.user, date__gte=prev_start, date__lte=prev_end)
+@login_required
+def report_income_download(request):
+    """Download Income report as PDF"""
+    from django.template.loader import render_to_string
 
-    # Totals (inflow/outflow) for each window
-    income_total = qs_cur.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
-    expense_total = qs_cur.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
+    try:
+        from weasyprint import HTML
+    except (ImportError, OSError) as e:
+        return HttpResponse("PDF generation not available. Please use Print instead.", status=500)
 
-    income_total_prev = qs_prev.filter(direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
-    expense_total_prev = qs_prev.filter(direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
+    html_string = render_to_string('app_web/report_income.html', {}, request=request)
+    pdf_file = BytesIO()
+    HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(pdf_file)
+    pdf_file.seek(0)
 
-    # Build revenue and expense rows separately (use inflows for revenue, outflows for expenses)
-    labels = Label.objects.filter(user=request.user).order_by('name')
-    revenue_rows = []
-    expense_rows = []
+    response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Income_Report.pdf"'
 
-    def _pct_change(cur, prev):
-        try:
-            if prev == 0:
-                return None
-            return (float(cur) - float(prev)) / abs(float(prev)) * 100.0
-        except Exception:
-            return None
+    return response
 
-    for lbl in labels:
-        cur_in = qs_cur.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
-        prev_in = qs_prev.filter(label=lbl, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
-        if cur_in or prev_in:
-            change_amt = (cur_in or 0) - (prev_in or 0)
-            change_pct = _pct_change(cur_in or 0, prev_in or 0)
-            revenue_rows.append({
-                'label': lbl.name,
-                'cur': cur_in,
-                'prev': prev_in,
-                'change': change_amt,
-                'pct': change_pct,
-            })
 
-        cur_out = qs_cur.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
-        prev_out = qs_prev.filter(label=lbl, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
-        if cur_out or prev_out:
-            change_amt = (cur_out or 0) - (prev_out or 0)
-            change_pct = _pct_change(cur_out or 0, prev_out or 0)
-            expense_rows.append({
-                'label': lbl.name,
-                'cur': cur_out,
-                'prev': prev_out,
-                'change': change_amt,
-                'pct': change_pct,
-            })
+@login_required
+def report_tax_download(request):
+    """Download Tax report as PDF"""
+    from django.template.loader import render_to_string
 
-    # Uncategorized as revenue/expense if present
-    unc_cur_in = qs_cur.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount'))['total'] or 0
-    unc_prev_in = qs_prev.filter(label__isnull=True, direction=Transaction.INFLOW).aggregate(total=Sum('amount')).get('total') or 0
-    if unc_cur_in or unc_prev_in:
-        revenue_rows.append({
-            'label': 'Uncategorized', 'cur': unc_cur_in, 'prev': unc_prev_in, 'change': (unc_cur_in or 0) - (unc_prev_in or 0), 'pct': _pct_change(unc_cur_in or 0, unc_prev_in or 0)
-        })
-    unc_cur_out = qs_cur.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount'))['total'] or 0
-    unc_prev_out = qs_prev.filter(label__isnull=True, direction=Transaction.OUTFLOW).aggregate(total=Sum('amount')).get('total') or 0
-    if unc_cur_out or unc_prev_out:
-        expense_rows.append({
-            'label': 'Uncategorized', 'cur': unc_cur_out, 'prev': unc_prev_out, 'change': (unc_cur_out or 0) - (unc_prev_out or 0), 'pct': _pct_change(unc_cur_out or 0, unc_prev_out or 0)
-        })
+    try:
+        from weasyprint import HTML
+    except (ImportError, OSError) as e:
+        return HttpResponse("PDF generation not available. Please use Print instead.", status=500)
 
-    # Totals and net change
-    total_revenue_cur = sum(r['cur'] for r in revenue_rows)
-    total_revenue_prev = sum(r['prev'] for r in revenue_rows)
-    total_expense_cur = sum(e['cur'] for e in expense_rows)
-    total_expense_prev = sum(e['prev'] for e in expense_rows)
+    html_string = render_to_string('app_web/report_tax.html', {}, request=request)
+    pdf_file = BytesIO()
+    HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(pdf_file)
+    pdf_file.seek(0)
 
-    income_before_tax = (total_revenue_cur or 0) - (total_expense_cur or 0)
-    income_before_tax_prev = (total_revenue_prev or 0) - (total_expense_prev or 0)
-    net_change = (income_before_tax or 0) - (income_before_tax_prev or 0)
+    response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Tax_Report.pdf"'
 
-    # For now, tax amount placeholder = 0 (we can wire tax rules later)
-    tax_amount = 0.0
+    return response
 
-    # Net profit values (compute here so template doesn't do arithmetic)
-    net_profit = (income_before_tax or 0) - (tax_amount or 0)
-    net_profit_prev = (income_before_tax_prev or 0) - 0
 
-    # totals change and percent
-    total_revenue_change = (total_revenue_cur or 0) - (total_revenue_prev or 0)
-    total_revenue_pct = _pct_change(total_revenue_cur or 0, total_revenue_prev or 0)
-    total_expense_change = (total_expense_cur or 0) - (total_expense_prev or 0)
-    total_expense_pct = _pct_change(total_expense_cur or 0, total_expense_prev or 0)
+@login_required
+def report_budget_performance_download(request):
+    """Download Budget Performance report as PDF"""
+    from django.template.loader import render_to_string
 
-    context = {
-        'title': 'Profit & Loss (P&L)',
-        'active_report': 'pnl',
-        'revenue_rows': revenue_rows,
-        'expense_rows': expense_rows,
-        'total_revenue_cur': total_revenue_cur,
-        'total_revenue_prev': total_revenue_prev,
-        'total_revenue_change': total_revenue_change,
-        'total_revenue_pct': total_revenue_pct,
-        'total_expense_cur': total_expense_cur,
-        'total_expense_prev': total_expense_prev,
-        'total_expense_change': total_expense_change,
-        'total_expense_pct': total_expense_pct,
-        'income_before_tax': income_before_tax,
-        'income_before_tax_prev': income_before_tax_prev,
-        'net_profit': net_profit,
-        'net_profit_prev': net_profit_prev,
-        'tax_amount': tax_amount,
-        'net_change': net_change,
-        'start_date': start_date,
-        'end_date': end_date,
-        'curr_label': curr_label,
-        'prev_label': prev_label,
-    }
+    try:
+        from weasyprint import HTML
+    except (ImportError, OSError) as e:
+        return HttpResponse("PDF generation not available. Please use Print instead.", status=500)
 
-    return render(request, 'app_web/report_pnl.html', context)
+    html_string = render_to_string('app_web/report_budget_performance.html', {}, request=request)
+    pdf_file = BytesIO()
+    HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(pdf_file)
+    pdf_file.seek(0)
+
+    response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Budget_Performance_Report.pdf"'
+
+    return response
+
+
+@login_required
+def report_project_performance_download(request):
+    """Download Project Performance report as PDF"""
+    from django.template.loader import render_to_string
+
+    try:
+        from weasyprint import HTML
+    except (ImportError, OSError) as e:
+        return HttpResponse("PDF generation not available. Please use Print instead.", status=500)
+
+    html_string = render_to_string('app_web/report_project_performance.html', {}, request=request)
+    pdf_file = BytesIO()
+    HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf(pdf_file)
+    pdf_file.seek(0)
+
+    response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="Project_Performance_Report.pdf"'
+
+    return response
 
 
 @login_required
@@ -4006,6 +3888,20 @@ def debug_organization_view(request):
     """Debug view to show organization status"""
     # ...existing code...
     return render(request, "app_web/debug_org.html", context)
+
+
+@login_required
+def currency_debug_view(request):
+    """Debug view for currency system status"""
+    from app_core.models import ExchangeRate
+    from django.conf import settings
+
+    context = {
+        'title': 'Currency Debug',
+        'api_key_configured': bool(settings.EXCHANGE_RATE_API_KEY),
+        'exchange_rates_count': ExchangeRate.objects.count(),
+    }
+    return render(request, "app_web/currency_debug.html", context)
 
 
 # ==================== TASK/PROGRESS VIEWS ====================
@@ -4108,7 +4004,7 @@ def task_create(request, project_id):
             task=task,
             user=request.user,
             activity_type='created',
-            description=f'Created task #{task.task_number}'
+            description=f'Project "{project.name}": Created task #{task.task_number}'
         )
 
         return JsonResponse({'success': True, 'task_id': task.id})

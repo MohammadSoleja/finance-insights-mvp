@@ -1,5 +1,5 @@
 {% extends "app_web/reports_base.html" %}
-{% load humanize %}
+{% load humanize currency_tags %}
 
 {% block report_title %}Income Report{% endblock %}
 
@@ -14,8 +14,8 @@
       <button class="btn btn-secondary" type="submit">Apply</button>
     </form>
 
-    {% url 'app_web:report_income_download' as base %}
-    <a class="btn btn-primary" id="pnl-download" href="{% if start_date and end_date %}{{ base }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ base }}{% endif %}">Download PDF</a>
+    {% url 'app_web:report_income_download' as download_url %}
+    <a class="btn btn-primary" href="{% if start_date and end_date %}{{ download_url }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}{% else %}{{ download_url }}{% endif %}">Download PDF</a>
     <button class="btn btn-secondary" id="printBtn">Print</button>
   </div>
 </div>
@@ -40,18 +40,18 @@
       </tr>
     </thead>
     <tbody>
-      {% for row in rows %}
+      {% for row in income_rows %}
       <tr>
-        <td>{{ row.name }}</td>
-        <td class="num change-up">£{{ row.amount|floatformat:2|intcomma }}</td>
-        <td class="num">{{ row.percent|floatformat:1 }}%</td>
+        <td>{{ row.label }}</td>
+        <td class="num change-up">{% currency_symbol %}{{ row.amount|floatformat:2|intcomma }}</td>
+        <td class="num">{% widthratio row.amount total_income 100 %}%</td>
       </tr>
       {% endfor %}
 
       <!-- Total row -->
       <tr class="total-row" style="font-weight:700; border-top:2px solid #e6e9ef;">
         <td>Total Income</td>
-        <td class="num">£{{ total|floatformat:2|intcomma }}</td>
+        <td class="num">{% currency_symbol %}{{ total_income|floatformat:2|intcomma }}</td>
         <td class="num">100%</td>
       </tr>
     </tbody>

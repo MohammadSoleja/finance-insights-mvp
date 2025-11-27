@@ -30,6 +30,10 @@ DEBUG = True
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-insecure")
     #"django-insecure-b@i@-zer8#+30d=9dzh+tutv&r(ls3*h0v=p*t0-s%w&_%wwqs"
 
+# Exchange Rate API for currency conversion
+# Get your free API key at: https://www.exchangerate-api.com/
+EXCHANGE_RATE_API_KEY = os.getenv("EXCHANGE_RATE_API_KEY", "ce2404b39ac624b2dd7350a3")
+
 # hosts from env (fallback to local dev)
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
 

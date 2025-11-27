@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static currency_tags %}
 
 {% block title %}Invoices - Finance Insights{% endblock %}
 
@@ -15,20 +15,20 @@
   <div class="stats-grid">
     <div class="stat-card">
       <div class="stat-label">Total Invoiced</div>
-      <div class="stat-value">£{{ stats.total_invoiced|floatformat:2 }}</div>
+      <div class="stat-value">{% currency_symbol %}{{ stats.total_invoiced|floatformat:2|default:"0.00" }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Paid</div>
-      <div class="stat-value text-success">£{{ stats.total_paid|floatformat:2 }}</div>
+      <div class="stat-value text-success">{% currency_symbol %}{{ stats.total_paid|floatformat:2|default:"0.00" }}</div>
       <div class="stat-meta">{{ stats.paid_count }} invoices</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Outstanding</div>
-      <div class="stat-value text-warning">£{{ stats.outstanding|floatformat:2 }}</div>
+      <div class="stat-value text-warning">{% currency_symbol %}{{ stats.outstanding|floatformat:2|default:"0.00" }}</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Overdue</div>
-      <div class="stat-value text-danger">£{{ stats.overdue|floatformat:2 }}</div>
+      <div class="stat-value text-danger">{% currency_symbol %}{{ stats.overdue|floatformat:2|default:"0.00" }}</div>
       <div class="stat-meta">{{ stats.overdue_count }} invoices</div>
     </div>
   </div>
@@ -259,19 +259,19 @@
         <div class="invoice-totals">
           <div class="total-row">
             <span>Subtotal:</span>
-            <span id="subtotal-display">£0.00</span>
+            <span id="subtotal-display">{% currency_symbol %}0.00</span>
           </div>
           <div class="total-row">
             <span>Tax:</span>
-            <span id="tax-display">£0.00</span>
+            <span id="tax-display">{% currency_symbol %}0.00</span>
           </div>
           <div class="total-row">
             <span>Discount:</span>
-            <span id="discount-display">£0.00</span>
+            <span id="discount-display">{% currency_symbol %}0.00</span>
           </div>
           <div class="total-row total-final">
             <span>Total:</span>
-            <span id="total-display">£0.00</span>
+            <span id="total-display">{% currency_symbol %}0.00</span>
           </div>
         </div>
       </form>
