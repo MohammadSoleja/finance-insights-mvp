@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Confirm Goal - Finance Insights{% endblock %}
+
+{% block content %}
+<div class="wrap" style="max-width: 800px; margin: 0 auto;">
+  <div style="margin-bottom: 2rem;">
+    <h1>Review Your Goal</h1>
+    <p style="color: #666; font-size: 1.1rem;">
+      Our AI has parsed your goal. Please review and confirm the details below.
+    </p>
+  </div>
+
+  <!-- Original Input -->
+  <div class="card" style="background: #f9fafb; margin-bottom: 1.5rem;">
+    <div style="font-weight: 600; color: #666; font-size: 0.85rem; margin-bottom: 0.5rem;">
+      YOUR INPUT:
+    </div>
+    <div style="font-style: italic; color: #374151;">
+      "{{ natural_input }}"
+    </div>
+  </div>
+
+  <!-- AI Confidence -->
+  {% if parsed_goal.confidence %}
+  {% with confidence_pct=parsed_goal.confidence|floatformat:2|add:"0"|floatformat:0 %}
+  <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <div style="font-size: 2rem;">✨</div>
+      <div>
+        <div style="font-weight: 600; margin-bottom: 0.25rem;">
+          AI Confidence: {% widthratio parsed_goal.confidence 1 100 %}%
+        </div>
+        <div style="opacity: 0.9; font-size: 0.9rem;">
+          {% if parsed_goal.confidence >= 0.8 %}
+            High confidence - goal structure looks great!
+          {% elif parsed_goal.confidence >= 0.6 %}
+            Moderate confidence - please review the details below.
+          {% else %}
+            Lower confidence - please verify the parsed values are correct.
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+  {% endif %}
+
+  <!-- Parsed Goal Form -->
+  <div class="card">
+    <h2 style="margin-top: 0;">Parsed Goal Details</h2>
+
+    <form method="post" action="{% url 'app_web:playbook_confirm_goal' %}">
+      {% csrf_token %}
+
+      <div style="margin-bottom: 1.5rem;">
+        <label for="goal_type" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+          Goal Type
+        </label>
+        <select
+          id="goal_type"
+          name="goal_type"
+          required
+          style="width: 100%; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem;"
+        >
+          {% for type_value, type_label in goal_types %}
+          <option value="{{ type_value }}" {% if parsed_goal.goal_type == type_value %}selected{% endif %}>
+            {{ type_label }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="margin-bottom: 1.5rem;">
+        <label for="name" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+          Goal Name
+        </label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          value="{{ parsed_goal.name }}"
+          required
+          maxlength="255"
+          style="width: 100%; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem;"
+        />
+      </div>
+
+      <div style="margin-bottom: 1.5rem;">
+        <label for="description" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+          Description
+        </label>
+        <textarea
+          id="description"
+          name="description"
+          rows="3"
+          style="width: 100%; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem; resize: vertical;"
+        >{{ parsed_goal.description }}</textarea>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+        <div>
+          <label for="target_value" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+            Target Value
+          </label>
+          <input
+            type="number"
+            id="target_value"
+            name="target_value"
+            value="{{ parsed_goal.target_value }}"
+            step="0.01"
+            required
+            style="width: 100%; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem;"
+          />
+          <div style="color: #666; font-size: 0.85rem; margin-top: 0.25rem;">
+            Amount, months, or percentage
+          </div>
+        </div>
+
+        <div>
+          <label for="target_date" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+            Target Date (Optional)
+          </label>
+          <input
+            type="date"
+            id="target_date"
+            name="target_date"
+            value="{{ parsed_goal.target_date }}"
+            style="width: 100%; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem;"
+          />
+        </div>
+      </div>
+
+      <!-- Advanced Parameters (JSON) - Hidden by default -->
+      <input type="hidden" name="parameters" value="{{ parsed_goal.parameters|default:'{}'|safe }}">
+
+      <!-- Suggestions -->
+      {% if parsed_goal.suggestions %}
+      <div style="background: #fef3c7; border: 2px solid #fbbf24; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+        <div style="font-weight: 600; color: #92400e; margin-bottom: 0.5rem;">💡 AI Suggestions:</div>
+        <ul style="margin: 0; padding-left: 1.5rem; color: #92400e;">
+          {% for suggestion in parsed_goal.suggestions %}
+          <li style="margin-bottom: 0.25rem;">{{ suggestion }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <!-- Action Buttons -->
+      <div style="display: flex; gap: 1rem; justify-content: space-between; align-items: center;">
+        <a href="{% url 'app_web:playbook_create_goal' %}" class="btn btn-secondary">
+          ← Back
+        </a>
+        <div style="display: flex; gap: 1rem;">
+          <button type="submit" class="btn btn-primary">
+            Create Goal ✓
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white !important;
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  }
+  .btn-secondary {
+    background: #e5e7eb;
+    color: #374151 !important;
+  }
+  .btn-secondary:hover {
+    background: #d1d5db;
+  }
+</style>
+{% endblock %}
+

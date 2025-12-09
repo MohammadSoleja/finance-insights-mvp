@@ -3,6 +3,11 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Environment variables - NEVER commit API keys!
+.env
+.env.local
+.env.*.local
+
 # C extensions
 *.so
 

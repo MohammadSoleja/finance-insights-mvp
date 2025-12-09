@@ -37,6 +37,12 @@ from app_core.team_views import (
 from .forms import LoginForm
 from django.contrib.auth import views as auth_views
 
+# Playbook views
+from .playbook_views import (
+    playbook_overview, create_goal, confirm_goal, goal_detail,
+    goal_conversation, clear_goal_conversation, refresh_goal_evaluation, delete_goal, playbook_api_insights
+)
+
 
 app_name = "app_web"
 
@@ -113,6 +119,17 @@ urlpatterns = [
     # path("reports/budget-performance/download/", report_budget_performance_download, name="report_budget_performance_download"),
     # path("reports/project-performance/", report_project_performance_view, name="report_project_performance"),
     # path("reports/project-performance/download/", report_project_performance_download, name="report_project_performance_download"),
+
+    # AI Playbook (Financial Goals)
+    path("playbook/", playbook_overview, name="playbook_overview"),
+    path("playbook/create/", create_goal, name="playbook_create_goal"),
+    path("playbook/confirm/", confirm_goal, name="playbook_confirm_goal"),
+    path("playbook/goal/<int:goal_id>/", goal_detail, name="playbook_goal_detail"),
+    path("playbook/goal/<int:goal_id>/refresh/", refresh_goal_evaluation, name="playbook_refresh_evaluation"),
+    path("playbook/goal/<int:goal_id>/conversation/", goal_conversation, name="playbook_goal_conversation"),
+    path("playbook/goal/<int:goal_id>/conversation/clear/", clear_goal_conversation, name="playbook_clear_conversation"),
+    path("playbook/goal/<int:goal_id>/delete/", delete_goal, name="playbook_delete_goal"),
+    path("api/playbook/insights/", playbook_api_insights, name="playbook_api_insights"),
 
     # Team collaboration
     path("switch-organization/<int:org_id>/", switch_organization, name="switch_organization"),

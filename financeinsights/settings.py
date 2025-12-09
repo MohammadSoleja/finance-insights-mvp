@@ -14,9 +14,13 @@ import os
 from pathlib import Path
 import dj_database_url
 from django.conf.global_settings import LOGIN_URL
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / '.env')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 #DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() == "true"
@@ -165,4 +169,41 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@financeinsights.com')
+
+
+# ========== AI PLAYBOOK CONFIGURATION ==========
+
+# AI Playbook Feature Toggle
+AI_PLAYBOOK_ENABLED = os.getenv("AI_PLAYBOOK_ENABLED", "True").lower() == "true"
+
+# AI Provider Selection - Options: "openai", "gemini", "huggingface", "groq"
+AI_PROVIDER = os.getenv("AI_PROVIDER", "openai")  # Using OpenAI - most reliable for financial content
+
+# OpenAI API Configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")  # Set in .env file - NEVER commit API keys!
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # Cost-effective, fast model
+
+# Google Gemini API Configuration (FREE with generous limits!)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")  # Set in .env file
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")  # Latest stable free model
+
+# Hugging Face API Configuration (DEPRECATED - 410 Gone)
+HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")  # Set in .env file
+HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "google/flan-t5-large")  # Not available anymore
+
+# Groq API Configuration (FREE and FAST - ACTIVE!)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")  # Will be set below
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")  # Fast, free, excellent quality
+
+# Common AI Settings
+OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "1500"))
+OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0.7"))
+
+# Playbook Evaluation Settings
+PLAYBOOK_EVALUATION_RETENTION_DAYS = int(os.getenv("PLAYBOOK_EVALUATION_RETENTION_DAYS", "365"))
+PLAYBOOK_MAX_CONVERSATIONS_PER_USER = int(os.getenv("PLAYBOOK_MAX_CONVERSATIONS_PER_USER", "50"))
+
+# Feature Flags
+PLAYBOOK_ENABLE_FORECASTING = os.getenv("PLAYBOOK_ENABLE_FORECASTING", "True").lower() == "true"
+PLAYBOOK_ENABLE_CONVERSATIONS = os.getenv("PLAYBOOK_ENABLE_CONVERSATIONS", "True").lower() == "true"
 

@@ -17,6 +17,13 @@ from .team_models import (
 # Import dashboard models
 from .dashboard_models import DashboardLayout
 
+# Import playbook models (AI Financial Goals)
+from .playbook_models import (
+    FinancialGoal,
+    GoalEvaluation,
+    PlaybookConversation,
+)
+
 class Label(models.Model):
     """
     Labels (tags) for categorizing transactions.
@@ -73,6 +80,7 @@ class Transaction(models.Model):
     subcategory = models.CharField(max_length=128, blank=True, default="")
     account = models.CharField(max_length=128, blank=True, default="")
     source = models.CharField(max_length=64, blank=True, default="csv")
+    original_currency = models.CharField(max_length=3, default="GBP", help_text="Original currency code (ISO 4217)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
