@@ -17,7 +17,7 @@
 ### Configuration:
 ```python
 AI_PROVIDER = "gemini"
-GEMINI_API_KEY = "AIzaSyBMQ_fhhDiP7h4ZMgn-SawUKju2TX6wXi4"
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
 GEMINI_MODEL = "gemini-pro"  # ✅ Correct model name
 ```
 

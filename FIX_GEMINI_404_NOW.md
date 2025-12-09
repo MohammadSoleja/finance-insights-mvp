@@ -15,7 +15,7 @@ Copy and paste this into your terminal:
 ```bash
 python3 << 'EOF'
 import google.generativeai as genai
-genai.configure(api_key='AIzaSyBMQ_fhhDiP7h4ZMgn-SawUKju2TX6wXi4')
+genai.configure(api_key='')
 
 models = ['gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-1.0-pro-latest', 'gemini-1.0-pro', 'gemini-pro']
 

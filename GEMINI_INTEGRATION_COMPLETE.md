@@ -14,7 +14,7 @@ pip install google-generativeai
 Added:
 ```python
 AI_PROVIDER = "gemini"  # Using Gemini instead of OpenAI
-GEMINI_API_KEY = "AIzaSyBMQ_fhhDiP7h4ZMgn-SawUKju2TX6wXi4"
+GEMINI_API_KEY = "your-gemini-api-key-here"  # Set in .env file
 GEMINI_MODEL = "gemini-1.5-flash"
 ```
 
