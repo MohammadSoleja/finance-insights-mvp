@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% load static %}
+{% load playbook_tags %}
+{% load humanize %}
+
+{% block title %}{{ page_title }} - Finance Insights{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <!-- Header Section -->
+  <div style="margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <h1 style="margin: 0;">Financial Playbook</h1>
+      <a href="{% url 'app_web:playbook_create_goal' %}" class="btn btn-primary">
+        + Create Goal
+      </a>
+    </div>
+    <p style="color: #666; font-size: 1.1rem;">
+      AI-powered financial goals with proactive insights and recommendations.
+    </p>
+  </div>
+
+  <!-- Stats Cards -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+    <div class="card" style="text-align: center;">
+      <div style="font-size: 2.5rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem;">
+        {{ total_goals }}
+      </div>
+      <div style="color: #666;">Total Goals</div>
+    </div>
+    <div class="card" style="text-align: center;">
+      <div style="font-size: 2.5rem; font-weight: 700; color: #10b981; margin-bottom: 0.5rem;">
+        {{ achieved_goals }}
+      </div>
+      <div style="color: #666;">Achieved</div>
+    </div>
+    <div class="card" style="text-align: center;">
+      <div style="font-size: 2.5rem; font-weight: 700; color: #f59e0b; margin-bottom: 0.5rem;">
+        {{ at_risk_goals }}
+      </div>
+      <div style="color: #666;">At Risk</div>
+    </div>
+  </div>
+
+  <!-- Goals Grid -->
+  <div style="margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+      <h2 style="margin: 0;">Your Goals</h2>
+      <a href="{% url 'app_web:playbook_create_goal' %}" class="btn btn-primary">+ New Goal</a>
+    </div>
+
+    {% if goals %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem;">
+      {% for goal in goals %}
+      <div class="card goal-card" style="position: relative; overflow: hidden; border: none; transition: all 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <!-- Status Indicator Strip -->
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background:
+          {% if goal.current_status == 'achieved' %}#10b981
+          {% elif goal.current_status == 'on_track' %}#2563eb
+          {% elif goal.current_status == 'at_risk' %}#f59e0b
+          {% elif goal.current_status == 'off_track' %}#ef4444
+          {% else %}#9ca3af{% endif %};"></div>
+
+        <!-- Goal Header -->
+        <div style="margin-bottom: 1rem;">
+          <div style="display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem;">
+            <h3 style="margin: 0; font-size: 1.1rem; flex: 1;">
+              <a href="{% url 'app_web:playbook_goal_detail' goal.id %}" style="text-decoration: none; color: inherit !important;">
+                {{ goal.name }}
+              </a>
+            </h3>
+          </div>
+
+          <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: #666;">
+            <span>{{ goal.get_goal_type_display }}</span>
+            {% if goal.target_date %}
+              <span>•</span>
+              <span>{{ goal.target_date|date:"M d, Y" }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div style="margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span style="font-size: 0.85rem; color: #666;">Progress</span>
+            <span style="font-size: 1.2rem; font-weight: 700; color:
+              {% if goal.current_status == 'achieved' %}#10b981
+              {% elif goal.current_status == 'on_track' %}#2563eb
+              {% elif goal.current_status == 'at_risk' %}#f59e0b
+              {% else %}#ef4444{% endif %};">
+              {{ goal.progress_percentage|floatformat:0 }}%
+            </span>
+          </div>
+          <div style="background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden;">
+            <div style="background:
+              {% if goal.current_status == 'achieved' %}#10b981
+              {% elif goal.current_status == 'on_track' %}#2563eb
+              {% elif goal.current_status == 'at_risk' %}#f59e0b
+              {% else %}#ef4444{% endif %};
+              height: 100%; width: {{ goal.progress_percentage|floatformat:0 }}%; transition: width 0.3s ease;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Target vs Current -->
+        <div style="background: #f9fafb; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; font-size: 0.9rem;">
+            <div>
+              <div style="color: #666; font-size: 0.75rem; margin-bottom: 0.25rem;">Current</div>
+              <div style="font-weight: 600;">£{{ goal.current_value|floatformat:0|intcomma }}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="color: #666; font-size: 0.75rem; margin-bottom: 0.25rem;">Target</div>
+              <div style="font-weight: 600;">£{{ goal.target_value|floatformat:0|intcomma }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Badge -->
+        <div style="margin-bottom: 1rem;">
+          <span style="display: inline-block; padding: 0.35rem 0.75rem; border-radius: 12px; font-size: 0.8rem; font-weight: 600; text-transform: capitalize;
+            {% if goal.current_status == 'achieved' %}
+              background: #d1fae5; color: #065f46;
+            {% elif goal.current_status == 'on_track' %}
+              background: #dbeafe; color: #1e40af;
+            {% elif goal.current_status == 'at_risk' %}
+              background: #fef3c7; color: #92400e;
+            {% elif goal.current_status == 'off_track' %}
+              background: #fee2e2; color: #991b1b;
+            {% else %}
+              background: #f3f4f6; color: #6b7280;
+            {% endif %}">
+            {{ goal.current_status|replace:"_" }}
+          </span>
+          {% if goal.last_evaluated_at %}
+            <span style="color: #999; font-size: 0.75rem; margin-left: 0.5rem;">
+              {{ goal.last_evaluated_at|timesince }} ago
+            </span>
+          {% endif %}
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <button
+            onclick="openEditModal({{ goal.id }}, '{{ goal.name|escapejs }}', '{{ goal.goal_type }}', '{{ goal.target_value }}', '{{ goal.start_date|date:'Y-m-d'|default:'' }}', '{{ goal.target_date|date:'Y-m-d'|default:'' }}', '{{ goal.description|escapejs }}')"
+            class="btn btn-secondary"
+            style="width: 100%; text-align: center;">
+            Edit
+          </button>
+          <a href="{% url 'app_web:playbook_goal_detail' goal.id %}"
+             class="btn btn-primary"
+             style="width: 100%; text-align: center; text-decoration: none;">
+            View Details
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="card" style="text-align: center; padding: 3rem 1rem;">
+      <h3 style="color: #666 !important; margin-bottom: 0.5rem;">No Goals Yet</h3>
+      <p style="margin-bottom: 1.5rem; color: #999;">Create your first financial goal to get started with AI-powered insights and tracking.</p>
+      <a href="{% url 'app_web:playbook_create_goal' %}" class="btn btn-primary">
+        Create Your First Goal
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Edit Goal Modal -->
+<div id="editModal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+  <div class="modal-content" style="background-color: #fefefe; margin: 5% auto; padding: 0; border-radius: 12px; width: 90%; max-width: 600px; box-shadow: 0 4px 24px rgba(0,0,0,0.2);">
+    <div style="padding: 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+      <h2 style="margin: 0;">Edit Goal</h2>
+      <button onclick="closeEditModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">&times;</button>
+    </div>
+    <form id="editForm" method="post" style="padding: 1.5rem;">
+      {% csrf_token %}
+      <input type="hidden" id="edit_goal_id" name="goal_id">
+
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Goal Name</label>
+        <input type="text" id="edit_name" name="name" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Goal Type</label>
+        <select id="edit_goal_type" name="goal_type" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
+          {% for value, label in goal_types %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Description</label>
+        <textarea id="edit_description" name="description" rows="3" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;"></textarea>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+        <div>
+          <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Start Date</label>
+          <input type="date" id="edit_start_date" name="start_date" style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
+        </div>
+        <div>
+          <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Target Date</label>
+          <input type="date" id="edit_target_date" name="target_date" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
+        </div>
+      </div>
+
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">Target Value (£)</label>
+        <input type="number" id="edit_target_value" name="target_value" step="0.01" required style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px;">
+      </div>
+
+      <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+        <button type="button" onclick="closeEditModal()" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openEditModal(goalId, name, goalType, targetValue, startDate, targetDate, description) {
+  document.getElementById('edit_goal_id').value = goalId;
+  document.getElementById('edit_name').value = name;
+  document.getElementById('edit_goal_type').value = goalType;
+  document.getElementById('edit_target_value').value = targetValue;
+  document.getElementById('edit_start_date').value = startDate;
+  document.getElementById('edit_target_date').value = targetDate;
+  document.getElementById('edit_description').value = description || '';
+
+  // Update form action
+  document.getElementById('editForm').action = `/playbook/goal/${goalId}/edit/`;
+
+  document.getElementById('editModal').style.display = 'block';
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  const modal = document.getElementById('editModal');
+  if (event.target == modal) {
+    closeEditModal();
+  }
+}
+</script>
+
+<style>
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white !important;
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  }
+  .btn-secondary {
+    background: #6b7280;
+    color: white !important;
+  }
+  .btn-secondary:hover {
+    background: #4b5563;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+  }
+</style>
+{% endblock %}
+

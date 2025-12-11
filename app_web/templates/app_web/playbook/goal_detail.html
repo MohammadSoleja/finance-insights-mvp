@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+{% load static %}
+{% load playbook_tags %}
+
+{% block title %}{{ goal.name }} - Finance Insights{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <!-- Header with Actions -->
+  <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 2rem;">
+    <div>
+      <div style="margin-bottom: 0.5rem;">
+        <a href="{% url 'app_web:playbook_overview' %}" style="color: #666; text-decoration: none; font-size: 0.9rem;">
+          ← Back to Playbook
+        </a>
+      </div>
+      <h1 style="margin: 0 0 0.5rem 0;">{{ goal.name }}</h1>
+      <div style="color: #666;">
+        {{ goal.get_goal_type_display }}
+        {% if goal.target_date %}
+          • Target: {{ goal.target_date|date:"M d, Y" }}
+        {% endif %}
+      </div>
+    </div>
+    <div style="display: flex; gap: 1rem;">
+      <a href="{% url 'app_web:playbook_edit_goal' goal.id %}" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+        Edit Goal
+      </a>
+      <button onclick="refreshGoal()" class="btn btn-secondary" id="refresh-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+        Refresh
+      </button>
+      <button onclick="confirmDelete()" class="btn btn-danger" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+        Delete
+      </button>
+    </div>
+  </div>
+
+  <!-- Status Card -->
+  <div class="card" style="margin-bottom: 2rem; border-left: 4px solid
+    {% if goal.current_status == 'achieved' %}#10b981
+    {% elif goal.current_status == 'on_track' %}#2563eb
+    {% elif goal.current_status == 'at_risk' %}#f59e0b
+    {% else %}#ef4444{% endif %};">
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2rem;">
+      <div>
+        <div style="color: #666; font-size: 0.85rem; margin-bottom: 0.25rem;">STATUS</div>
+        <div style="font-size: 1.5rem; font-weight: 700; text-transform: capitalize;
+          color: {% if goal.current_status == 'achieved' %}#10b981
+          {% elif goal.current_status == 'on_track' %}#2563eb
+          {% elif goal.current_status == 'at_risk' %}#f59e0b
+          {% else %}#ef4444{% endif %};">
+          {{ goal.current_status|replace:"_" }}
+        </div>
+      </div>
+      <div>
+        <div style="color: #666; font-size: 0.85rem; margin-bottom: 0.25rem;">PROGRESS</div>
+        <div style="font-size: 1.5rem; font-weight: 700;">{{ goal.progress_percentage|floatformat:1 }}%</div>
+        <div style="background: #e5e7eb; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 0.5rem;">
+          <div style="background: {% if goal.current_status == 'achieved' %}#10b981
+            {% elif goal.current_status == 'on_track' %}#2563eb
+            {% elif goal.current_status == 'at_risk' %}#f59e0b
+            {% else %}#ef4444{% endif %};
+            height: 100%; width: {{ goal.progress_percentage|floatformat:0 }}%; transition: width 0.3s ease;">
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="color: #666; font-size: 0.85rem; margin-bottom: 0.25rem;">CURRENT / TARGET</div>
+        <div style="font-size: 1.5rem; font-weight: 700;">
+          {{ goal.current_value|floatformat:1 }} / {{ goal.target_value|floatformat:0 }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
+    <!-- Left Column: Charts & Explanation -->
+    <div>
+      <!-- Progress Chart -->
+      <div class="card" style="margin-bottom: 2rem;">
+        <h2 style="margin-top: 0;">Progress Over Time</h2>
+        <div style="position: relative; height: 300px;">
+          <canvas id="progressChart"></canvas>
+        </div>
+      </div>
+
+      <!-- AI Explanation -->
+      {% if goal.last_explanation %}
+      <div class="card" style="margin-bottom: 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+        <h2 style="margin-top: 0; color: white !important;">✨ AI Explanation</h2>
+        <div style="line-height: 1.8; font-size: 1.05rem; opacity: 0.95;">
+          {{ goal.last_explanation|linebreaks }}
+        </div>
+        {% if goal.last_evaluated_at %}
+        <div style="margin-top: 1rem; opacity: 0.7; font-size: 0.85rem;">
+          Last updated: {{ goal.last_evaluated_at|timesince }} ago
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Latest Evaluation Details -->
+      {% if latest_evaluation %}
+      <div class="card">
+        <h2 style="margin-top: 0;">Latest Metrics</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+          {% for key, value in latest_evaluation.metrics.items %}
+          <div style="background: #f9fafb; padding: 0.75rem; border-radius: 6px;">
+            <div style="font-size: 0.75rem; color: #666; text-transform: uppercase; margin-bottom: 0.25rem;">
+              {{ key|replace:"_" }}
+            </div>
+            <div style="font-size: 1.1rem; font-weight: 600;">
+              {% if 'date' in key %}
+                {{ value }}
+              {% elif key == 'tx_count' %}
+                {{ value }} transactions
+              {% else %}
+                £{{ value|floatformat:2 }}
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Right Column: Recommendations, Risks, Trends -->
+    <div>
+      <!-- Recommendations -->
+      {% if goal.last_recommendations %}
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 0.5rem;">
+          <span>💡</span> Recommendations
+        </h3>
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          {% for rec in goal.last_recommendations %}
+          <div style="padding: 0.75rem; background: #f0f9ff; border-left: 3px solid
+            {% if rec.priority == 'high' %}#ef4444
+            {% elif rec.priority == 'medium' %}#f59e0b
+            {% else %}#3b82f6{% endif %}; border-radius: 4px;">
+            <div style="font-weight: 600; margin-bottom: 0.5rem; color: #1e40af;">{{ rec.action }}</div>
+            <div style="font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;">
+              <strong>Impact:</strong> {{ rec.impact }}
+            </div>
+            <div style="font-size: 0.8rem; color: #64748b;">{{ rec.reasoning }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Risk Factors -->
+      {% if latest_evaluation.risk_factors %}
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 0.5rem;">
+          <span>⚠️</span> Risk Factors
+        </h3>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          {% for risk in latest_evaluation.risk_factors %}
+          <div style="padding: 0.75rem; background:
+            {% if risk.severity == 'high' %}#fef2f2
+            {% elif risk.severity == 'medium' %}#fef3c7
+            {% else %}#f0f9ff{% endif %}; border-radius: 4px;">
+            <div style="font-weight: 600; margin-bottom: 0.25rem;">{{ risk.risk }}</div>
+            <div style="font-size: 0.85rem; color: #64748b;">{{ risk.mitigation }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Trend Analysis -->
+      {% if latest_evaluation.trend_analysis %}
+      <div class="card">
+        <h3 style="margin-top: 0; display: flex; align-items: center; gap: 0.5rem;">
+          <span>📈</span> Trend Analysis
+        </h3>
+        <div style="font-size: 0.95rem; line-height: 1.6; color: #374151;">
+          {{ latest_evaluation.trend_analysis|linebreaks }}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- What-If Simulator (Simplified) -->
+  <div class="card" style="margin-top: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+      <h2 style="margin: 0;">💬 Ask What-If Questions</h2>
+      <button
+        onclick="clearChat()"
+        class="btn btn-secondary"
+        style="padding: 0.5rem 1rem; font-size: 0.9rem;"
+        title="Clear conversation and start fresh with updated data"
+      >
+        🗑️ Clear Chat
+      </button>
+    </div>
+    <p style="color: #666; margin-bottom: 1rem;">
+      Try questions like "What if I cut expenses by 15%?" or "What if we increase revenue by £5,000?"
+    </p>
+    <div id="chat-container" style="background: #f9fafb; border-radius: 8px; padding: 1rem; min-height: 200px; max-height: 400px; overflow-y: auto; margin-bottom: 1rem;">
+      <div id="chat-placeholder" style="color: #999; text-align: center; padding: 2rem;">
+        Start a conversation by asking a what-if question below...
+      </div>
+    </div>
+    <form id="chat-form" onsubmit="sendMessage(event)">
+      {% csrf_token %}
+      <div style="display: flex; gap: 0.5rem;">
+        <input
+          type="text"
+          id="chat-input"
+          placeholder="What if I..."
+          style="flex: 1; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem;"
+        />
+        <button type="submit" class="btn btn-primary">Send</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Evaluation History -->
+  {% if evaluations %}
+  <div class="card" style="margin-top: 2rem;">
+    <h2 style="margin-top: 0;">Evaluation History</h2>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="border-bottom: 2px solid #e5e7eb;">
+            <th style="text-align: left; padding: 0.75rem;">Date</th>
+            <th style="text-align: left; padding: 0.75rem;">Status</th>
+            <th style="text-align: right; padding: 0.75rem;">Progress</th>
+            <th style="text-align: right; padding: 0.75rem;">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for eval in evaluations|slice:":10" %}
+          <tr style="border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 0.75rem;">{{ eval.evaluated_at|date:"M d, Y" }}</td>
+            <td style="padding: 0.75rem; text-transform: capitalize;">{{ eval.status|replace:"_" }}</td>
+            <td style="padding: 0.75rem; text-align: right;">{{ eval.progress_percentage|floatformat:1 }}%</td>
+            <td style="padding: 0.75rem; text-align: right;">{{ eval.current_value|floatformat:1 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Hidden form for delete -->
+<form id="delete-form" method="post" action="{% url 'app_web:playbook_delete_goal' goal.id %}" style="display: none;">
+  {% csrf_token %}
+</form>
+
+<style>
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white !important;
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  }
+  .btn-secondary {
+    background: #e5e7eb;
+    color: #374151 !important;
+  }
+  .btn-secondary:hover {
+    background: #d1d5db;
+  }
+  .btn-danger {
+    background: #ef4444;
+    color: white !important;
+  }
+  .btn-danger:hover {
+    background: #dc2626;
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Progress chart
+const chartData = {{ chart_data|safe }};
+const ctx = document.getElementById('progressChart');
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: chartData.labels,
+    datasets: [{
+      label: 'Progress %',
+      data: chartData.progress,
+      borderColor: '#2563eb',
+      backgroundColor: 'rgba(37, 99, 235, 0.1)',
+      tension: 0.3,
+      fill: true
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: 100,
+        ticks: { callback: value => value + '%' }
+      }
+    }
+  }
+});
+
+// Refresh goal
+function refreshGoal() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Refreshing...';
+
+  fetch('{% url "app_web:playbook_refresh_evaluation" goal.id %}', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/json'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      location.reload();
+    } else {
+      alert('Error: ' + data.error);
+      btn.disabled = false;
+      btn.textContent = 'Refresh';
+    }
+  })
+  .catch(error => {
+    alert('Error refreshing goal');
+    btn.disabled = false;
+    btn.textContent = 'Refresh';
+  });
+}
+
+// Delete confirmation
+function confirmDelete() {
+  if (confirm('Are you sure you want to delete this goal? This action cannot be undone.')) {
+    document.getElementById('delete-form').submit();
+  }
+}
+
+// Chat functionality
+function loadConversationHistory() {
+  // Load existing conversation history for this goal
+  fetch('{% url "app_web:playbook_goal_conversation" goal.id %}?format=json', {
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success && data.messages && data.messages.length > 0) {
+        const container = document.getElementById('chat-container');
+        container.innerHTML = ''; // Clear placeholder
+
+        // Display all messages
+        data.messages.forEach(msg => {
+          addChatMessage(msg.role, msg.content, false); // false = don't scroll yet
+        });
+
+        // Scroll to bottom once
+        container.scrollTop = container.scrollHeight;
+      }
+    })
+    .catch(error => console.error('Error loading conversation history:', error));
+}
+
+function sendMessage(event) {
+  event.preventDefault();
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  if (!message) return;
+
+  const container = document.getElementById('chat-container');
+
+  // Add user message
+  addChatMessage('user', message);
+  input.value = '';
+
+  // Add loading indicator
+  const loadingId = addChatMessage('assistant', '⏳ Thinking...');
+
+  // Send to server
+  fetch('{% url "app_web:playbook_goal_conversation" goal.id %}', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: 'message=' + encodeURIComponent(message)
+  })
+  .then(response => response.json())
+  .then(data => {
+    // Remove loading
+    document.getElementById(loadingId)?.remove();
+
+    if (data.success) {
+      addChatMessage('assistant', data.assistant_message);
+    } else {
+      addChatMessage('assistant', 'Error: ' + (data.error || 'Unknown error'));
+    }
+  })
+  .catch(error => {
+    document.getElementById(loadingId)?.remove();
+    addChatMessage('assistant', 'Error sending message. Please try again.');
+  });
+}
+
+function addChatMessage(role, content, scroll = true) {
+  const container = document.getElementById('chat-container');
+  const messageId = 'msg-' + Date.now() + '-' + Math.random();
+
+  // Clear placeholder if exists
+  if (container.children.length === 1 && container.children[0].textContent.includes('Start a conversation')) {
+    container.innerHTML = '';
+  }
+
+  const messageDiv = document.createElement('div');
+  messageDiv.id = messageId;
+  messageDiv.style.cssText = `
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    ${role === 'user' ? 'background: #dbeafe; margin-left: 2rem; text-align: right;' : 'background: white; margin-right: 2rem; white-space: pre-wrap;'}
+  `;
+
+  // Use innerHTML for assistant messages to support markdown formatting
+  if (role === 'assistant') {
+    // Convert markdown to HTML
+    let html = content
+      .replace(/\n/g, '<br>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^### (.*?)$/gm, '<h3 style="margin: 1rem 0 0.5rem 0; font-size: 1.1rem;">$1</h3>')
+      .replace(/^## (.*?)$/gm, '<h2 style="margin: 1rem 0 0.5rem 0; font-size: 1.2rem;">$1</h2>')
+      .replace(/^# (.*?)$/gm, '<h1 style="margin: 1rem 0 0.5rem 0; font-size: 1.3rem;">$1</h1>');
+    messageDiv.innerHTML = html;
+  } else {
+    messageDiv.textContent = content;
+  }
+
+  container.appendChild(messageDiv);
+
+  if (scroll) {
+    container.scrollTop = container.scrollHeight;
+  }
+
+  return messageId;
+}
+
+// Clear chat conversation
+function clearChat() {
+  if (!confirm('Are you sure you want to clear this conversation? This will reset the chat with fresh context and data.')) {
+    return;
+  }
+
+  fetch('{% url "app_web:playbook_clear_conversation" goal.id %}', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': '{{ csrf_token }}',
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Clear the chat container
+      const container = document.getElementById('chat-container');
+      container.innerHTML = '<div id="chat-placeholder" style="color: #999; text-align: center; padding: 2rem;">Start a conversation by asking a what-if question below...</div>';
+
+      // Show success message briefly
+      const placeholder = container.querySelector('#chat-placeholder');
+      const originalText = placeholder.textContent;
+      placeholder.innerHTML = '<div style="color: #10b981; font-weight: 600;">✅ Chat cleared! Fresh context loaded.</div>';
+
+      setTimeout(() => {
+        placeholder.textContent = originalText;
+        placeholder.style.color = '#999';
+      }, 2000);
+    } else {
+      alert('Error clearing chat. Please try again.');
+    }
+  })
+  .catch(error => {
+    alert('Error clearing chat. Please try again.');
+  });
+}
+
+// Load conversation history when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  loadConversationHistory();
+});
+</script>
+{% endblock %}
+

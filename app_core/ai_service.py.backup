@@ -1,0 +1,884 @@
+# app_core/ai_service.py
+"""
+AI Financial Playbook - AI Service
+Handles all LLM interactions with OpenAI or Google Gemini for goal parsing, explanations, and insights.
+Supports multiple AI providers with automatic fallback.
+"""
+
+import json
+import logging
+from typing import Dict, List, Optional
+from datetime import datetime, date
+from decimal import Decimal
+
+from django.conf import settings
+from django.utils import timezone
+
+logger = logging.getLogger(__name__)
+
+# Check if OpenAI is available
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    logger.warning("OpenAI library not installed.")
+
+# Check if Google Gemini is available
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    logger.warning("Google Generative AI library not installed.")
+
+def _check_ai_available() -> bool:
+    """Check if AI features are available and configured"""
+    if not settings.AI_PLAYBOOK_ENABLED:
+        return False
+
+    provider = settings.AI_PROVIDER.lower()
+
+    if provider == "gemini":
+        if not GEMINI_AVAILABLE:
+            logger.warning("Gemini library not available")
+            return False
+        if not settings.GEMINI_API_KEY:
+            logger.warning("Gemini API key not configured")
+            return False
+        return True
+    elif provider == "openai":
+        if not OPENAI_AVAILABLE:
+            logger.warning("OpenAI library not available")
+            return False
+        if not settings.OPENAI_API_KEY:
+            logger.warning("OpenAI API key not configured")
+            return False
+        return True
+    else:
+        logger.warning(f"Unknown AI provider: {provider}")
+        return False
+
+
+def _get_openai_client():
+    """Get configured OpenAI client"""
+    if settings.AI_PROVIDER.lower() != "openai":
+        return None
+    if not OPENAI_AVAILABLE or not settings.OPENAI_API_KEY:
+        return None
+    return OpenAI(api_key=settings.OPENAI_API_KEY)
+
+
+def _get_gemini_model():
+    """Get configured Gemini model"""
+    if settings.AI_PROVIDER.lower() != "gemini":
+        return None
+    if not GEMINI_AVAILABLE or not settings.GEMINI_API_KEY:
+        return None
+
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    return genai.GenerativeModel(settings.GEMINI_MODEL)
+
+
+def _call_ai(prompt: str, max_tokens: int = None) -> str:
+    """
+    Universal AI call function that works with any configured provider.
+
+    Args:
+        prompt: The prompt to send to the AI
+        max_tokens: Maximum tokens to generate (optional)
+
+    Returns:
+        AI generated text response
+    """
+    if not _check_ai_available():
+        return None
+
+    provider = settings.AI_PROVIDER.lower()
+    max_tokens = max_tokens or settings.OPENAI_MAX_TOKENS
+
+    try:
+        if provider == "gemini":
+            model = _get_gemini_model()
+            if not model:
+                return None
+
+            # Configure generation settings
+            generation_config = {
+                "max_output_tokens": max_tokens,
+                "temperature": settings.OPENAI_TEMPERATURE,
+            }
+
+            response = model.generate_content(
+                prompt,
+                generation_config=generation_config
+            )
+
+            # Log token usage if available
+            if hasattr(response, 'usage_metadata'):
+                total_tokens = response.usage_metadata.total_token_count
+                logger.info(f"Gemini API call used {total_tokens} tokens")
+
+            return response.text
+
+        elif provider == "openai":
+            client = _get_openai_client()
+            if not client:
+                return None
+
+            response = client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=settings.OPENAI_TEMPERATURE
+            )
+
+            # Log token usage
+            logger.info(f"OpenAI API call used {response.usage.total_tokens} tokens")
+
+            return response.choices[0].message.content
+
+    except Exception as e:
+        logger.error(f"{provider.upper()} API error: {e}")
+        return None
+
+    return None
+
+
+def parse_natural_language_goal(user_input: str, organization) -> Dict:
+    """
+    Parse natural language input into structured goal.
+
+    Args:
+        user_input: User's goal description in natural language
+        organization: Organization instance for context
+
+    Returns:
+        dict with: goal_type, name, description, target_value, target_date,
+                   parameters, confidence, suggestions
+    """
+    if not _check_ai_available():
+        return _fallback_parse_goal(user_input)
+
+    try:
+        prompt = f"""You are a financial goal parsing assistant. Parse the user's financial goal into a structured format.
+
+Goal Types:
+- runway: Cash runway (months of operating expenses in reserve)
+- savings: Savings target (specific amount to save)
+- spending_limit: Spending limit (max spend in category/period)
+- budget_compliance: Budget compliance (stay within budget)
+- revenue_target: Revenue target (achieve specific revenue)
+- profit_margin: Profit margin (achieve % profit margin)
+
+Return ONLY valid JSON with this exact structure:
+{{
+  "goal_type": "runway|savings|spending_limit|budget_compliance|revenue_target|profit_margin",
+  "name": "Short goal name (max 50 chars)",
+  "description": "Detailed description of what this goal means",
+  "target_value": numeric value (amount, months, or percentage),
+  "target_date": "YYYY-MM-DD" or null,
+  "parameters": {{}},
+  "confidence": 0.0-1.0,
+  "suggestions": ["suggestion1", "suggestion2"]
+}}
+
+User's goal: {user_input}
+
+Return ONLY the JSON, no other text."""
+
+        response_text = _call_ai(prompt, max_tokens=800)
+
+        if not response_text:
+            logger.warning("AI goal parsing failed, using fallback")
+            return _fallback_parse_goal(user_input)
+            ],
+            temperature=settings.OPENAI_TEMPERATURE,
+            max_tokens=settings.OPENAI_MAX_TOKENS,
+            response_format={"type": "json_object"}
+        )
+
+        response_text = _call_ai(prompt, max_tokens=800)
+
+        if not response_text:
+            logger.warning("AI goal parsing failed, using fallback")
+            return _fallback_parse_goal(user_input)
+
+        # Parse JSON response
+        # Clean up response if it has markdown code blocks
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0].strip()
+
+        result = json.loads(response_text)
+        return result
+
+    except Exception as e:
+        logger.error(f"Error parsing goal with AI: {str(e)}")
+        return _fallback_parse_goal(user_input)
+
+
+def _fallback_parse_goal(user_input: str) -> Dict:
+    """Fallback goal parsing using simple keyword matching"""
+    user_input_lower = user_input.lower()
+
+    # Simple keyword detection
+    goal_type = "savings"  # Default
+    if "runway" in user_input_lower or "months" in user_input_lower:
+        goal_type = "runway"
+    elif "save" in user_input_lower or "savings" in user_input_lower:
+        goal_type = "savings"
+    elif "spend" in user_input_lower or "limit" in user_input_lower:
+        goal_type = "spending_limit"
+    elif "budget" in user_input_lower:
+        goal_type = "budget_compliance"
+    elif "revenue" in user_input_lower or "income" in user_input_lower:
+        goal_type = "revenue_target"
+    elif "margin" in user_input_lower or "profit" in user_input_lower:
+        goal_type = "profit_margin"
+
+    # Extract numbers
+    import re
+    numbers = re.findall(r'\d+(?:,\d{3})*(?:\.\d+)?', user_input)
+    target_value = float(numbers[0].replace(',', '')) if numbers else 10000
+
+    # Extract dates (very basic)
+    date_patterns = re.findall(r'\d{4}-\d{2}-\d{2}', user_input)
+    target_date = date_patterns[0] if date_patterns else None
+
+    return {
+        "goal_type": goal_type,
+        "name": user_input[:50],  # First 50 chars
+        "description": f"Goal: {user_input}",
+        "target_value": target_value,
+        "target_date": target_date,
+        "parameters": {},
+        "confidence": 0.5,
+        "suggestions": [
+            "AI parsing unavailable. Please review and edit the parsed goal.",
+            "Consider adding specific dates and amounts for better tracking."
+        ]
+    }
+
+
+def generate_goal_explanation(goal, evaluation_data: Dict, historical_evaluations: List) -> str:
+    """
+    Generate narrative explanation of goal status with WHY analysis.
+
+    Args:
+        goal: FinancialGoal instance
+        evaluation_data: Latest evaluation dict from playbook_engine
+        historical_evaluations: List of recent GoalEvaluation instances
+
+    Returns:
+        Detailed narrative explanation string
+    """
+    if not _check_ai_available():
+        return _fallback_explanation(goal, evaluation_data)
+
+    try:
+        client = _get_openai_client()
+
+        # Build context from historical data
+        history_context = ""
+        if historical_evaluations:
+            recent = historical_evaluations[:5]  # Last 5 evaluations
+            history_context = "\n\nHistorical Progress:\n"
+            for eval in recent:
+                history_context += f"- {eval.evaluated_at.strftime('%Y-%m-%d')}: {eval.status}, {eval.progress_percentage}% complete\n"
+
+        system_prompt = """You are a financial advisor providing clear, actionable explanations.
+Explain WHY the goal is in its current state using the data provided.
+
+Guidelines:
+- Be concise but thorough (2-3 paragraphs)
+- Focus on WHY, not just WHAT
+- Reference specific numbers and trends
+- Use plain English, avoid jargon
+- Be encouraging but realistic
+- Point out both positives and concerns"""
+
+        user_message = f"""Goal: {goal.name}
+Type: {goal.get_goal_type_display()}
+Target: {goal.target_value} by {goal.target_date or 'no date set'}
+Current Status: {evaluation_data['status']}
+Progress: {evaluation_data['progress_percentage']}%
+Current Value: {evaluation_data['current_value']}
+
+Metrics:
+{json.dumps(evaluation_data['metrics'], indent=2)}
+{history_context}
+
+Explain WHY this goal is {evaluation_data['status']} and what's driving the current progress."""
+
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=settings.OPENAI_TEMPERATURE,
+            max_tokens=settings.OPENAI_MAX_TOKENS,
+        )
+
+        explanation = response.choices[0].message.content.strip()
+        logger.info(f"Explanation generation used {response.usage.total_tokens} tokens")
+
+        return explanation
+
+    except Exception as e:
+        logger.error(f"Error generating explanation: {str(e)}")
+        return _fallback_explanation(goal, evaluation_data)
+
+
+def _fallback_explanation(goal, evaluation_data: Dict) -> str:
+    """Fallback template-based explanation"""
+    status = evaluation_data['status']
+    progress = evaluation_data['progress_percentage']
+    current = evaluation_data['current_value']
+    target = evaluation_data['target_value']
+
+    if status == 'achieved':
+        return f"Congratulations! You've achieved your goal of {target}. Your current value is {current}, which meets or exceeds your target."
+    elif status == 'on_track':
+        return f"Your goal is on track. You're currently at {current} ({progress}% of your {target} target). Keep up the good work and you should reach your goal on schedule."
+    elif status == 'at_risk':
+        return f"Your goal is at risk. You're at {current} ({progress}% of your {target} target). You may need to adjust your approach to reach your goal by the target date."
+    elif status == 'off_track':
+        return f"Your goal is off track. You're currently at {current}, which is {progress}% of your {target} target. Significant changes may be needed to achieve this goal."
+    else:
+        return f"Goal tracking has started. Current value: {current}. Target: {target}."
+
+
+def generate_recommendations(goal, evaluation_data: Dict) -> List[Dict]:
+    """
+    Generate actionable recommendations.
+
+    Returns:
+        List of dicts: [{action, impact, priority, reasoning}]
+    """
+    if not _check_ai_available():
+        return _fallback_recommendations(goal, evaluation_data)
+
+    try:
+        client = _get_openai_client()
+
+        system_prompt = """You are a financial advisor providing actionable recommendations.
+Generate 3-5 specific, actionable recommendations to help achieve the goal.
+
+Return JSON array:
+[
+  {
+    "action": "Specific action to take",
+    "impact": "Expected impact/benefit",
+    "priority": "high|medium|low",
+    "reasoning": "Why this recommendation makes sense"
+  }
+]
+
+Make recommendations practical and specific to the goal type and current situation."""
+
+        user_message = f"""Goal: {goal.name}
+Type: {goal.get_goal_type_display()}
+Status: {evaluation_data['status']}
+Progress: {evaluation_data['progress_percentage']}%
+Current: {evaluation_data['current_value']}
+Target: {evaluation_data['target_value']}
+
+Metrics:
+{json.dumps(evaluation_data['metrics'], indent=2)}
+
+Generate 3-5 actionable recommendations to help achieve this goal."""
+
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=settings.OPENAI_TEMPERATURE,
+            max_tokens=settings.OPENAI_MAX_TOKENS,
+            response_format={"type": "json_object"}
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        recommendations = result.get('recommendations', [])
+
+        logger.info(f"Recommendations generation used {response.usage.total_tokens} tokens")
+
+        return recommendations
+
+    except Exception as e:
+        logger.error(f"Error generating recommendations: {str(e)}")
+        return _fallback_recommendations(goal, evaluation_data)
+
+
+def _fallback_recommendations(goal, evaluation_data: Dict) -> List[Dict]:
+    """Fallback template-based recommendations"""
+    recommendations = []
+    status = evaluation_data['status']
+    goal_type = goal.goal_type
+
+    if status in ['at_risk', 'off_track']:
+        if goal_type == 'runway':
+            recommendations.append({
+                "action": "Reduce monthly expenses by 10-15%",
+                "impact": "Extends runway and improves financial stability",
+                "priority": "high",
+                "reasoning": "Current burn rate is too high to reach target runway"
+            })
+        elif goal_type == 'savings':
+            recommendations.append({
+                "action": "Increase monthly savings allocation",
+                "impact": "Accelerates progress toward savings goal",
+                "priority": "high",
+                "reasoning": "Current savings rate won't reach target on time"
+            })
+        elif goal_type == 'spending_limit':
+            recommendations.append({
+                "action": "Review and cut non-essential expenses",
+                "impact": "Brings spending back within limit",
+                "priority": "high",
+                "reasoning": "Currently over or approaching spending limit"
+            })
+
+    if not recommendations:
+        recommendations.append({
+            "action": "Continue current approach",
+            "impact": "Maintains progress toward goal",
+            "priority": "low",
+            "reasoning": "Goal is on track with current strategy"
+        })
+
+    return recommendations
+
+
+def generate_trend_analysis(goal, historical_evaluations: List) -> str:
+    """
+    Analyze trends over time.
+
+    Returns:
+        Narrative trend analysis string
+    """
+    if not historical_evaluations or len(historical_evaluations) < 2:
+        return "Not enough historical data for trend analysis yet. Check back after a few evaluations."
+
+    if not _check_ai_available():
+        return _fallback_trend_analysis(historical_evaluations)
+
+    try:
+        client = _get_openai_client()
+
+        # Build trend data
+        trend_data = []
+        for eval in historical_evaluations[:10]:  # Last 10 evaluations
+            trend_data.append({
+                "date": eval.evaluated_at.strftime('%Y-%m-%d'),
+                "status": eval.status,
+                "progress": float(eval.progress_percentage),
+                "value": float(eval.current_value) if eval.current_value else 0
+            })
+
+        system_prompt = """You are a financial analyst identifying trends and patterns.
+Analyze the historical data and identify:
+- Overall trend direction (improving/declining/stable)
+- Rate of change (accelerating/decelerating)
+- Any notable patterns or anomalies
+- Seasonality if present
+
+Be concise (1-2 paragraphs) and focus on actionable insights."""
+
+        user_message = f"""Goal: {goal.name}
+Historical Data (most recent first):
+{json.dumps(trend_data, indent=2)}
+
+Analyze the trend and provide insights."""
+
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=settings.OPENAI_TEMPERATURE,
+            max_tokens=800,
+        )
+
+        analysis = response.choices[0].message.content.strip()
+        logger.info(f"Trend analysis used {response.usage.total_tokens} tokens")
+
+        return analysis
+
+    except Exception as e:
+        logger.error(f"Error generating trend analysis: {str(e)}")
+        return _fallback_trend_analysis(historical_evaluations)
+
+
+def _fallback_trend_analysis(historical_evaluations: List) -> str:
+    """Fallback trend analysis using simple statistics"""
+    if len(historical_evaluations) < 2:
+        return "Not enough data for trend analysis."
+
+    recent = historical_evaluations[:5]
+    progress_values = [float(e.progress_percentage) for e in recent]
+
+    if len(progress_values) >= 2:
+        trend = progress_values[0] - progress_values[-1]
+        if trend > 5:
+            return f"Positive trend: Progress has increased by {trend:.1f}% over recent evaluations. Keep up the momentum!"
+        elif trend < -5:
+            return f"Concerning trend: Progress has decreased by {abs(trend):.1f}% recently. Consider reviewing your strategy."
+        else:
+            return "Progress is relatively stable with minor fluctuations. Maintain current approach."
+
+    return "Trend data available but insufficient for analysis."
+
+
+def identify_risk_factors(goal, evaluation_data: Dict) -> List[Dict]:
+    """
+    Identify risks to goal achievement.
+
+    Returns:
+        List of dicts: [{risk, severity, mitigation}]
+    """
+    if not _check_ai_available():
+        return _fallback_risk_factors(goal, evaluation_data)
+
+    try:
+        client = _get_openai_client()
+
+        system_prompt = """You are a risk analyst identifying potential threats to goal achievement.
+Identify 2-4 key risk factors.
+
+Return JSON array:
+[
+  {
+    "risk": "Description of the risk",
+    "severity": "high|medium|low",
+    "mitigation": "Suggested mitigation strategy"
+  }
+]
+
+Focus on realistic, actionable risks."""
+
+        user_message = f"""Goal: {goal.name}
+Type: {goal.get_goal_type_display()}
+Status: {evaluation_data['status']}
+Target Date: {goal.target_date or 'Not set'}
+Current Progress: {evaluation_data['progress_percentage']}%
+
+Metrics:
+{json.dumps(evaluation_data['metrics'], indent=2)}
+
+Identify key risks to achieving this goal."""
+
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=settings.OPENAI_TEMPERATURE,
+            max_tokens=settings.OPENAI_MAX_TOKENS,
+            response_format={"type": "json_object"}
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        risks = result.get('risks', [])
+
+        logger.info(f"Risk analysis used {response.usage.total_tokens} tokens")
+
+        return risks
+
+    except Exception as e:
+        logger.error(f"Error identifying risks: {str(e)}")
+        return _fallback_risk_factors(goal, evaluation_data)
+
+
+def _fallback_risk_factors(goal, evaluation_data: Dict) -> List[Dict]:
+    """Fallback risk identification"""
+    risks = []
+    status = evaluation_data['status']
+
+    if status in ['at_risk', 'off_track']:
+        risks.append({
+            "risk": "Goal may not be achieved by target date",
+            "severity": "high" if status == 'off_track' else "medium",
+            "mitigation": "Review and adjust strategy, consider extending timeline or revising target"
+        })
+
+    if goal.target_date:
+        days_left = (goal.target_date - timezone.now().date()).days
+        if days_left < 30:
+            risks.append({
+                "risk": "Limited time remaining to achieve goal",
+                "severity": "high",
+                "mitigation": "Focus on high-impact actions, accelerate progress"
+            })
+
+    if not risks:
+        risks.append({
+            "risk": "No significant risks identified",
+            "severity": "low",
+            "mitigation": "Continue monitoring and maintain current approach"
+        })
+
+    return risks
+
+
+def generate_forecast(goal, evaluation_data: Dict, historical_evaluations: List) -> Dict:
+    """
+    Forecast future outcomes.
+
+    Returns:
+        dict: {predicted_date, predicted_value, confidence, scenarios}
+    """
+    if not settings.PLAYBOOK_ENABLE_FORECASTING:
+        return {"error": "Forecasting disabled"}
+
+    if len(historical_evaluations) < 3:
+        return {
+            "predicted_date": None,
+            "predicted_value": None,
+            "confidence": 0,
+            "message": "Not enough historical data for forecasting (need at least 3 evaluations)"
+        }
+
+    if not _check_ai_available():
+        return _fallback_forecast(goal, evaluation_data, historical_evaluations)
+
+    try:
+        client = _get_openai_client()
+
+        # Build historical data
+        history = []
+        for eval in historical_evaluations[:10]:
+            history.append({
+                "date": eval.evaluated_at.strftime('%Y-%m-%d'),
+                "value": float(eval.current_value) if eval.current_value else 0,
+                "progress": float(eval.progress_percentage)
+            })
+
+        system_prompt = """You are a financial forecaster predicting future outcomes.
+Based on historical data, predict when the goal will be achieved and provide scenarios.
+
+Return JSON:
+{
+  "predicted_date": "YYYY-MM-DD" or null,
+  "predicted_value": numeric value at target date,
+  "confidence": 0.0-1.0,
+  "trend": "improving|declining|stable",
+  "scenarios": {
+    "optimistic": "Best case scenario description",
+    "realistic": "Most likely scenario description",
+    "pessimistic": "Worst case scenario description"
+  }
+}
+
+Base predictions on the trend in the data."""
+
+        user_message = f"""Goal: {goal.name}
+Target: {evaluation_data['target_value']}
+Target Date: {goal.target_date or 'Not set'}
+Current: {evaluation_data['current_value']}
+
+Historical Progress:
+{json.dumps(history, indent=2)}
+
+Generate forecast."""
+
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message}
+            ],
+            temperature=settings.OPENAI_TEMPERATURE,
+            max_tokens=settings.OPENAI_MAX_TOKENS,
+            response_format={"type": "json_object"}
+        )
+
+        forecast = json.loads(response.choices[0].message.content)
+        logger.info(f"Forecast generation used {response.usage.total_tokens} tokens")
+
+        return forecast
+
+    except Exception as e:
+        logger.error(f"Error generating forecast: {str(e)}")
+        return _fallback_forecast(goal, evaluation_data, historical_evaluations)
+
+
+def _fallback_forecast(goal, evaluation_data: Dict, historical_evaluations: List) -> Dict:
+    """Simple linear projection forecast"""
+    if len(historical_evaluations) < 2:
+        return {
+            "predicted_date": None,
+            "predicted_value": None,
+            "confidence": 0,
+            "message": "Insufficient data for forecasting"
+        }
+
+    # Simple linear trend
+    recent = historical_evaluations[:5]
+    progress_values = [float(e.progress_percentage) for e in recent]
+
+    if len(progress_values) >= 2:
+        rate = (progress_values[0] - progress_values[-1]) / len(progress_values)
+
+        current_progress = float(evaluation_data['progress_percentage'])
+        remaining = 100 - current_progress
+
+        if rate > 0:
+            periods_to_goal = remaining / rate
+            trend = "improving"
+        else:
+            periods_to_goal = None
+            trend = "declining" if rate < 0 else "stable"
+
+        return {
+            "predicted_date": None,  # Would need date calculations
+            "predicted_value": None,
+            "confidence": 0.5,
+            "trend": trend,
+            "message": f"Based on recent trend, progress is {trend}"
+        }
+
+    return {
+        "predicted_date": None,
+        "predicted_value": None,
+        "confidence": 0,
+        "trend": "unknown",
+        "message": "Unable to determine trend"
+    }
+
+
+def chat_conversation(conversation, user_message: str) -> str:
+    """
+    Handle conversational what-if simulations and Q&A.
+
+    Args:
+        conversation: PlaybookConversation instance
+        user_message: User's message
+
+    Returns:
+        AI assistant's response
+    """
+    if not settings.PLAYBOOK_ENABLE_CONVERSATIONS:
+        return "Conversational features are currently disabled."
+
+    if not _check_ai_available():
+        return "AI conversation features require OpenAI API configuration. Please contact your administrator."
+
+    try:
+        client = _get_openai_client()
+
+        # Build conversation context
+        goal_context = ""
+        if conversation.goal:
+            goal = conversation.goal
+            goal_context = f"""
+Current Goal Context:
+- Goal: {goal.name}
+- Type: {goal.get_goal_type_display()}
+- Target: {goal.target_value} by {goal.target_date or 'no date'}
+- Current Status: {goal.current_status}
+- Progress: {goal.progress_percentage}%
+"""
+
+        system_prompt = f"""You are a financial planning assistant helping with what-if scenarios and goal planning.
+You can answer questions about financial goals, run hypothetical scenarios, and provide guidance.
+
+{goal_context}
+
+Guidelines:
+- Be conversational and helpful
+- Provide specific, actionable advice
+- When doing what-if scenarios, explain assumptions clearly
+- Reference actual data when available
+- Be realistic but encouraging"""
+
+        # Build message history
+        messages = [{"role": "system", "content": system_prompt}]
+
+        # Add conversation history (last 10 messages)
+        for msg in conversation.messages[-10:]:
+            messages.append({
+                "role": msg['role'],
+                "content": msg['content']
+            })
+
+        # Add new user message
+        messages.append({"role": "user", "content": user_message})
+
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            messages=messages,
+            temperature=settings.OPENAI_TEMPERATURE,
+            max_tokens=settings.OPENAI_MAX_TOKENS,
+        )
+
+        assistant_message = response.choices[0].message.content.strip()
+        logger.info(f"Conversation used {response.usage.total_tokens} tokens")
+
+        # Save messages to conversation
+        conversation.add_message('user', user_message)
+        conversation.add_message('assistant', assistant_message)
+
+        return assistant_message
+
+    except Exception as e:
+        logger.error(f"Error in conversation: {str(e)}")
+        return "Sorry, I encountered an error processing your message. Please try again."
+
+
+def get_playbook_insights(organization, context: str = 'dashboard') -> List[Dict]:
+    """
+    Generate AI insights for display on Playbook page or dashboard.
+    Enhances/replaces existing insights.py functionality.
+
+    Args:
+        organization: Organization instance
+        context: 'dashboard' or 'playbook' - determines scope and detail
+
+    Returns:
+        List of dicts: [{title, content, severity, goal_id, action}]
+    """
+    from .models import FinancialGoal
+
+    insights = []
+
+    # Get active goals
+    goals = FinancialGoal.objects.filter(
+        organization=organization,
+        active=True
+    ).order_by('-last_evaluated_at')[:5]
+
+    for goal in goals:
+        severity = 'info'
+        if goal.current_status == 'achieved':
+            severity = 'good'
+        elif goal.current_status == 'at_risk':
+            severity = 'warn'
+        elif goal.current_status == 'off_track':
+            severity = 'bad'
+
+        insights.append({
+            'title': f"{goal.name}",
+            'content': goal.last_explanation or f"{goal.current_status.replace('_', ' ').title()} - {goal.progress_percentage}% complete",
+            'severity': severity,
+            'goal_id': goal.id,
+            'action': f'View goal details'
+        })
+
+    if not insights:
+        insights.append({
+            'title': 'No Active Goals',
+            'content': 'Create your first financial goal to get AI-powered insights and guidance.',
+            'severity': 'info',
+            'goal_id': None,
+            'action': 'Create a goal'
+        })
+
+    return insights
+

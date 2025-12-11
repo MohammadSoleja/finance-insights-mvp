@@ -63,7 +63,11 @@ class DashboardLayout(models.Model):
                 # Row 3: Secondary Charts and Lists (4+4+4 = 12 columns)
                 {'id': 'chart-expense-pie', 'x': 0, 'y': 4, 'w': 4, 'h': 3},
                 {'id': 'chart-budget-performance', 'x': 4, 'y': 4, 'w': 4, 'h': 3},
-                {'id': 'list-recent-transactions', 'x': 8, 'y': 4, 'w': 4, 'h': 3}
+                {'id': 'list-recent-transactions', 'x': 8, 'y': 4, 'w': 4, 'h': 3},
+
+                # Row 4: Playbook Widgets (6+6 = 12 columns, h:5 for ~2 items)
+                {'id': 'widget-playbook-goals', 'x': 0, 'y': 7, 'w': 6, 'h': 5},
+                {'id': 'widget-playbook-insights', 'x': 6, 'y': 7, 'w': 6, 'h': 5}
             ],
             'density': 'comfortable',
             'autoRefresh': 30

@@ -200,6 +200,21 @@
             </div>
           </div>
         </div>
+
+        <!-- Playbook Widgets -->
+        <div class="widget-category">
+          <h3>🎯 Playbook Widgets</h3>
+          <div class="widget-grid">
+            <div class="widget-item" data-widget-id="widget-playbook-goals" onclick="addWidget('widget-playbook-goals')">
+              <div class="widget-icon">🎯</div>
+              <div class="widget-name">Financial Goals</div>
+            </div>
+            <div class="widget-item" data-widget-id="widget-playbook-insights" onclick="addWidget('widget-playbook-insights')">
+              <div class="widget-icon">💡</div>
+              <div class="widget-name">AI Insights</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -216,7 +231,7 @@
 <!-- Chart.js for charts -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <!-- Dashboard Widgets JS -->
-<script src="{% static 'app_web/dashboard_widgets.js' %}?v=20251125i"></script>
+<script src="{% static 'app_web/dashboard_widgets.js' %}?v=20251211scrollable"></script>
 <script>
   // Initialize flatpickr on dashboard date inputs for modern date pickers
   (function(){

@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ page_title }} - Finance Insights{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div style="margin-bottom: 2rem;">
+    <h1 style="margin: 0 0 0.5rem 0;">Edit Goal</h1>
+    <p style="color: #666;">
+      Update your goal's details, dates, and target values.
+    </p>
+  </div>
+
+  <div class="card">
+    <form method="post">
+      {% csrf_token %}
+
+      <!-- Goal Name -->
+      <div style="margin-bottom: 1.5rem;">
+        <label for="name" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+          Goal Name *
+        </label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          value="{{ goal.name }}"
+          class="form-input"
+          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
+          required
+        />
+      </div>
+
+      <!-- Goal Type -->
+      <div style="margin-bottom: 1.5rem;">
+        <label for="goal_type" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+          Goal Type *
+        </label>
+        <select
+          id="goal_type"
+          name="goal_type"
+          class="form-select"
+          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
+          required
+        >
+          {% for value, label in goal_types %}
+            <option value="{{ value }}" {% if goal.goal_type == value %}selected{% endif %}>
+              {{ label }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Description -->
+      <div style="margin-bottom: 1.5rem;">
+        <label for="description" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+          Description
+        </label>
+        <textarea
+          id="description"
+          name="description"
+          rows="3"
+          class="form-input"
+          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
+        >{{ goal.description }}</textarea>
+      </div>
+
+      <!-- Start Date (NEW) -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+        <div>
+          <label for="start_date" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+            Start Date
+          </label>
+          <input
+            type="date"
+            id="start_date"
+            name="start_date"
+            value="{{ goal.start_date|date:'Y-m-d' }}"
+            class="form-input"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
+          />
+          <small style="color: #666; display: block; margin-top: 0.25rem;">
+            When to start tracking this goal
+          </small>
+        </div>
+
+        <!-- Target Date -->
+        <div>
+          <label for="target_date" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+            Target Date *
+          </label>
+          <input
+            type="date"
+            id="target_date"
+            name="target_date"
+            value="{{ goal.target_date|date:'Y-m-d' }}"
+            class="form-input"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
+            required
+          />
+          <small style="color: #666; display: block; margin-top: 0.25rem;">
+            When to achieve this goal by
+          </small>
+        </div>
+      </div>
+
+      <!-- Target Value -->
+      <div style="margin-bottom: 1.5rem;">
+        <label for="target_value" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+          Target Value (£) *
+        </label>
+        <input
+          type="number"
+          id="target_value"
+          name="target_value"
+          value="{{ goal.target_value }}"
+          step="0.01"
+          class="form-input"
+          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem;"
+          required
+        />
+      </div>
+
+      <!-- Parameters (Advanced) -->
+      <details style="margin-bottom: 1.5rem;">
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 0.5rem;">
+          Advanced Parameters (JSON)
+        </summary>
+        <textarea
+          id="parameters"
+          name="parameters"
+          rows="5"
+          class="form-input"
+          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; font-family: monospace;"
+          placeholder='{"period": "monthly", "label_ids": []}'
+        >{{ parameters_json }}</textarea>
+        <small style="color: #666; display: block; margin-top: 0.25rem;">
+          Optional: Configure goal-specific parameters in JSON format
+        </small>
+      </details>
+
+      <!-- Action Buttons -->
+      <div style="display: flex; gap: 1rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+        <button type="submit" class="btn btn-primary">
+          Save Changes
+        </button>
+        <a href="{% url 'app_web:playbook_goal_detail' goal.id %}" class="btn btn-secondary">
+          Cancel
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white !important;
+  }
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  }
+  .btn-secondary {
+    background: #6b7280;
+    color: white !important;
+  }
+  .btn-secondary:hover {
+    background: #4b5563;
+  }
+</style>
+{% endblock %}
+

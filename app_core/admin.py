@@ -3,7 +3,8 @@ from django.contrib import admin
 from .models import (
     Transaction, Rule, Budget, Label, RecurringTransaction,
     Project, ProjectTransaction, ProjectMilestone, ProjectBudgetCategory, ProjectActivity,
-    Client, Invoice, InvoiceItem, InvoicePayment, InvoiceTemplate, InvoiceTemplateItem
+    Client, Invoice, InvoiceItem, InvoicePayment, InvoiceTemplate, InvoiceTemplateItem,
+    FinancialGoal, GoalEvaluation, PlaybookConversation
 )
 from .task_models import Task, TaskComment, TaskTimeEntry, TaskActivity
 
@@ -236,3 +237,95 @@ class TaskActivityAdmin(admin.ModelAdmin):
     list_filter = ("activity_type", "user", "created_at")
     search_fields = ("task__title", "description", "user__username")
     ordering = ("-created_at",)
+
+
+# ========== AI PLAYBOOK ADMIN ==========
+
+class GoalEvaluationInline(admin.TabularInline):
+    model = GoalEvaluation
+    extra = 0
+    fields = ("evaluated_at", "status", "current_value", "progress_percentage")
+    readonly_fields = ("evaluated_at",)
+    ordering = ("-evaluated_at",)
+    can_delete = False
+
+
+@admin.register(FinancialGoal)
+class FinancialGoalAdmin(admin.ModelAdmin):
+    list_display = ("name", "goal_type", "current_status", "progress_percentage", "target_date", "organization", "created_by", "active", "created_at")
+    list_filter = ("goal_type", "current_status", "active", "organization", "target_date")
+    search_fields = ("name", "description", "natural_language_input", "organization__name")
+    ordering = ("-created_at",)
+    readonly_fields = ("created_at", "updated_at", "last_evaluated_at")
+    inlines = [GoalEvaluationInline]
+
+    fieldsets = (
+        ("Basic Information", {
+            "fields": ("organization", "created_by", "name", "goal_type", "active")
+        }),
+        ("Natural Language Input", {
+            "fields": ("natural_language_input",)
+        }),
+        ("Goal Parameters", {
+            "fields": ("description", "target_value", "target_date", "parameters")
+        }),
+        ("Current Status", {
+            "fields": ("current_status", "current_value", "progress_percentage")
+        }),
+        ("AI Insights (Cached)", {
+            "fields": ("last_explanation", "last_recommendations", "last_evaluated_at"),
+            "classes": ("collapse",)
+        }),
+        ("Metadata", {
+            "fields": ("created_at", "updated_at"),
+            "classes": ("collapse",)
+        }),
+    )
+
+
+@admin.register(GoalEvaluation)
+class GoalEvaluationAdmin(admin.ModelAdmin):
+    list_display = ("goal", "evaluated_at", "status", "current_value", "progress_percentage")
+    list_filter = ("status", "evaluated_at", "goal__goal_type")
+    search_fields = ("goal__name", "explanation", "trend_analysis")
+    ordering = ("-evaluated_at",)
+    readonly_fields = ("evaluated_at",)
+
+    fieldsets = (
+        ("Basic Information", {
+            "fields": ("goal", "evaluated_at", "status", "current_value", "progress_percentage")
+        }),
+        ("Metrics Snapshot", {
+            "fields": ("metrics",)
+        }),
+        ("AI Analysis", {
+            "fields": ("explanation", "recommendations", "risk_factors", "trend_analysis", "forecast")
+        }),
+    )
+
+
+@admin.register(PlaybookConversation)
+class PlaybookConversationAdmin(admin.ModelAdmin):
+    list_display = ("title", "conversation_type", "user", "goal", "message_count", "organization", "updated_at")
+    list_filter = ("conversation_type", "organization", "created_at", "updated_at")
+    search_fields = ("title", "user__username", "goal__name")
+    ordering = ("-updated_at",)
+    readonly_fields = ("created_at", "updated_at", "message_count")
+
+    def message_count(self, obj):
+        return len(obj.messages)
+    message_count.short_description = "Messages"
+
+    fieldsets = (
+        ("Basic Information", {
+            "fields": ("organization", "user", "goal", "title", "conversation_type")
+        }),
+        ("Messages", {
+            "fields": ("messages",)
+        }),
+        ("Metadata", {
+            "fields": ("created_at", "updated_at", "message_count"),
+            "classes": ("collapse",)
+        }),
+    )
+
