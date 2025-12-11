@@ -372,8 +372,8 @@ None at this time. All major features are working as expected.
 ## 📚 Related Documentation
 
 - [Feature Roadmap](FEATURE_ROADMAP.md) - Full list of planned features
-- [Team Collaboration](../README.md) - Multi-user and organization features
-- [Projects & Cost Centers](../README.md) - Parent project management feature
+- [Team Collaboration](../../README.md) - Multi-user and organization features
+- [Projects & Cost Centers](../../README.md) - Parent project management feature
 
 ---
 

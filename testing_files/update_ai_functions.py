@@ -7,7 +7,7 @@ This makes the code work with both OpenAI and Gemini seamlessly.
 import re
 
 # Read the file
-with open('/Users/mohammadsoleja/Documents/GitHub/finance-insights-mvp/app_core/ai_service.py', 'r') as f:
+with open('/app_core/ai_service.py', 'r') as f:
     content = f.read()
 
 # Pattern to find OpenAI client calls

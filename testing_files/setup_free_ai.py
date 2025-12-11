@@ -35,7 +35,7 @@ print("\n✓ Token looks valid!")
 print("\nNow I'll update your settings...")
 
 # Read settings
-with open('/Users/mohammadsoleja/Documents/GitHub/finance-insights-mvp/financeinsights/settings.py', 'r') as f:
+with open('/financeinsights/settings.py', 'r') as f:
     settings = f.read()
 
 # Check if already has Hugging Face config
@@ -71,7 +71,7 @@ settings = settings.replace(
 )
 
 # Write back
-with open('/Users/mohammadsoleja/Documents/GitHub/finance-insights-mvp/financeinsights/settings.py', 'w') as f:
+with open('/financeinsights/settings.py', 'w') as f:
     f.write(settings)
 
 print("\n✅ SETTINGS UPDATED!")
