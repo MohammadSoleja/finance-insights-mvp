@@ -23,10 +23,13 @@
       </div>
     </div>
     <div style="display: flex; gap: 1rem;">
-      <button onclick="refreshGoal()" class="btn btn-secondary" id="refresh-btn">
-        🔄 Refresh
+      <a href="{% url 'app_web:playbook_edit_goal' goal.id %}" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+        Edit Goal
+      </a>
+      <button onclick="refreshGoal()" class="btn btn-secondary" id="refresh-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+        Refresh
       </button>
-      <button onclick="confirmDelete()" class="btn btn-danger">
+      <button onclick="confirmDelete()" class="btn btn-danger" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
         Delete
       </button>
     </div>
@@ -341,13 +344,13 @@ function refreshGoal() {
     } else {
       alert('Error: ' + data.error);
       btn.disabled = false;
-      btn.textContent = '🔄 Refresh';
+      btn.textContent = 'Refresh';
     }
   })
   .catch(error => {
     alert('Error refreshing goal');
     btn.disabled = false;
-    btn.textContent = '🔄 Refresh';
+    btn.textContent = 'Refresh';
   });
 }
 

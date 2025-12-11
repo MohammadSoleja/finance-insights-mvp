@@ -117,6 +117,25 @@
             Amount, months, or percentage
           </div>
         </div>
+      </div>
+
+      <!-- Date Fields -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+        <div>
+          <label for="start_date" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+            Start Date (Optional)
+          </label>
+          <input
+            type="date"
+            id="start_date"
+            name="start_date"
+            value="{{ parsed_goal.start_date }}"
+            style="width: 100%; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem;"
+          />
+          <div style="color: #666; font-size: 0.85rem; margin-top: 0.25rem;">
+            When to start tracking
+          </div>
+        </div>
 
         <div>
           <label for="target_date" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
@@ -129,6 +148,9 @@
             value="{{ parsed_goal.target_date }}"
             style="width: 100%; padding: 0.75rem; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1rem;"
           />
+          <div style="color: #666; font-size: 0.85rem; margin-top: 0.25rem;">
+            When to achieve by
+          </div>
         </div>
       </div>
 

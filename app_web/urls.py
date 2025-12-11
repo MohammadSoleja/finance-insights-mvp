@@ -39,7 +39,7 @@ from django.contrib.auth import views as auth_views
 
 # Playbook views
 from .playbook_views import (
-    playbook_overview, create_goal, confirm_goal, goal_detail,
+    playbook_overview, create_goal, confirm_goal, goal_detail, edit_goal,
     goal_conversation, clear_goal_conversation, refresh_goal_evaluation, delete_goal, playbook_api_insights
 )
 
@@ -125,6 +125,7 @@ urlpatterns = [
     path("playbook/create/", create_goal, name="playbook_create_goal"),
     path("playbook/confirm/", confirm_goal, name="playbook_confirm_goal"),
     path("playbook/goal/<int:goal_id>/", goal_detail, name="playbook_goal_detail"),
+    path("playbook/goal/<int:goal_id>/edit/", edit_goal, name="playbook_edit_goal"),
     path("playbook/goal/<int:goal_id>/refresh/", refresh_goal_evaluation, name="playbook_refresh_evaluation"),
     path("playbook/goal/<int:goal_id>/conversation/", goal_conversation, name="playbook_goal_conversation"),
     path("playbook/goal/<int:goal_id>/conversation/clear/", clear_goal_conversation, name="playbook_clear_conversation"),

@@ -50,6 +50,7 @@ def playbook_overview(request):
         'total_goals': total_goals,
         'achieved_goals': achieved_goals,
         'at_risk_goals': at_risk_goals,
+        'goal_types': FinancialGoal.GOAL_TYPES,
     }
 
     return render(request, 'app_web/playbook/overview.html', context)
@@ -111,6 +112,7 @@ def confirm_goal(request):
                 name=request.POST.get('name'),
                 description=request.POST.get('description', ''),
                 target_value=Decimal(request.POST.get('target_value', '0')),
+                start_date=request.POST.get('start_date') or None,
                 target_date=request.POST.get('target_date') or None,
                 parameters=json.loads(request.POST.get('parameters', '{}')),
                 active=True,
@@ -163,10 +165,16 @@ def goal_detail(request, goal_id):
         organization=request.organization
     )
 
-    # Get evaluation history for chart
-    evaluations = GoalEvaluation.objects.filter(
-        goal=goal
-    ).order_by('-evaluated_at')[:30]  # Last 30 evaluations
+    # Get evaluation history for chart - filter by start_date if set
+    evaluations_query = GoalEvaluation.objects.filter(goal=goal)
+    
+    # Only show evaluations from start_date onwards if start_date is set
+    if goal.start_date:
+        evaluations_query = evaluations_query.filter(
+            evaluated_at__date__gte=goal.start_date
+        )
+    
+    evaluations = evaluations_query.order_by('-evaluated_at')[:30]  # Last 30 evaluations
 
     # Reverse for chronological order in chart
     evaluations_list = list(reversed(evaluations))
@@ -298,6 +306,76 @@ def refresh_goal_evaluation(request, goal_id):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+@login_required
+@organization_required
+def edit_goal(request, goal_id):
+    """
+    Edit an existing goal - all fields including start_date, target_date, name, etc.
+    """
+    goal = get_object_or_404(
+        FinancialGoal,
+        id=goal_id,
+        organization=request.organization
+    )
+
+    if request.method == 'POST':
+        try:
+            # Update goal fields
+            goal.name = request.POST.get('name', goal.name)
+            goal.description = request.POST.get('description', goal.description)
+            goal.goal_type = request.POST.get('goal_type', goal.goal_type)
+
+            # Update dates
+            start_date = request.POST.get('start_date')
+            if start_date:
+                goal.start_date = start_date
+
+            target_date = request.POST.get('target_date')
+            if target_date:
+                goal.target_date = target_date
+
+            # Update target value
+            target_value = request.POST.get('target_value')
+            if target_value:
+                goal.target_value = Decimal(target_value)
+
+            # Update parameters if provided
+            parameters = request.POST.get('parameters')
+            if parameters:
+                try:
+                    goal.parameters = json.loads(parameters)
+                except:
+                    pass  # Keep existing if invalid JSON
+
+            goal.save()
+
+            # Re-evaluate the goal with new parameters
+            try:
+                evaluation_data = evaluate_goal(goal)
+                goal.current_status = evaluation_data['status']
+                goal.current_value = evaluation_data.get('current_value')
+                goal.progress_percentage = evaluation_data.get('progress_percentage', Decimal('0'))
+                goal.last_evaluated_at = timezone.now()
+                goal.save()
+            except Exception as e:
+                messages.warning(request, f'Goal updated but evaluation failed: {str(e)}')
+
+            messages.success(request, f'Goal "{goal.name}" updated successfully!')
+            return redirect('app_web:playbook_goal_detail', goal_id=goal.id)
+
+        except Exception as e:
+            messages.error(request, f'Error updating goal: {str(e)}')
+
+    context = {
+        'page_title': f'Edit {goal.name}',
+        'goal': goal,
+        'goal_types': FinancialGoal.GOAL_TYPES,
+        'parameters_json': json.dumps(goal.parameters) if goal.parameters else '{}',
+    }
+
+    return render(request, 'app_web/playbook/edit_goal.html', context)
 
 
 @login_required

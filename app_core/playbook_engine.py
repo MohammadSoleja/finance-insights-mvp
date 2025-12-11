@@ -67,7 +67,8 @@ def evaluate_runway_goal(goal, as_of_date: date) -> Dict:
     # Calculate runway
     runway_data = calculate_runway(organization, as_of_date)
 
-    current_months = runway_data['runway_months']
+    # Convert to Decimal for calculation (runway_months is float from calculate_runway)
+    current_months = Decimal(str(runway_data['runway_months']))
     target_months = goal.target_value or Decimal('6')  # Default 6 months
 
     # Calculate progress percentage
@@ -97,16 +98,18 @@ def evaluate_savings_goal(goal, as_of_date: date) -> Dict:
 
     Goal parameters:
     - target_value: Amount to save
-    - parameters.start_date: When to start tracking
+    - start_date: When to start tracking (model field or parameters)
     - parameters.label_ids: Optional labels to track for savings
     """
     organization = goal.organization
     params = goal.parameters or {}
 
-    # Get date range
-    start_date = params.get('start_date')
-    if start_date:
-        start_date = datetime.strptime(start_date, '%Y-%m-%d').date() if isinstance(start_date, str) else start_date
+    # Get start date - prioritize model field, then parameters, then created_at
+    if goal.start_date:
+        start_date = goal.start_date
+    elif params.get('start_date'):
+        param_start = params.get('start_date')
+        start_date = datetime.strptime(param_start, '%Y-%m-%d').date() if isinstance(param_start, str) else param_start
     else:
         start_date = goal.created_at.date()
 
@@ -135,15 +138,34 @@ def evaluate_savings_goal(goal, as_of_date: date) -> Dict:
     else:
         progress = Decimal('0')
 
-    progress = max(Decimal('0'), min(progress, Decimal('100')))  # Clamp 0-100%
+    # Clamp progress to 0-100% for display
+    progress_clamped = max(Decimal('0'), min(progress, Decimal('100')))
 
-    # Determine status
-    status = _determine_status(progress, goal.target_date, as_of_date)
+    # Determine status - don't mark as achieved until target date is reached
+    if goal.target_date and as_of_date < goal.target_date:
+        # Goal hasn't reached target date yet - can't be achieved even if at 100%+
+        if progress_clamped >= 90:
+            status = 'on_track'
+        elif progress_clamped >= 75:
+            status = 'on_track'
+        elif progress_clamped >= 50:
+            status = 'at_risk'
+        else:
+            status = 'off_track'
+    elif goal.target_date and as_of_date >= goal.target_date:
+        # Past target date - check if goal was achieved
+        if progress >= 100:
+            status = 'achieved'
+        else:
+            status = 'off_track'
+    else:
+        # No target date - use standard status determination
+        status = _determine_status(progress_clamped, goal.target_date, as_of_date)
 
     return {
         'current_value': current_savings,
         'target_value': target_savings,
-        'progress_percentage': round(progress, 2),
+        'progress_percentage': round(progress_clamped, 2),
         'status': status,
         'metrics': {
             'inflow': metrics['inflow'],
@@ -162,6 +184,7 @@ def evaluate_spending_limit_goal(goal, as_of_date: date) -> Dict:
 
     Goal parameters:
     - target_value: Maximum allowed spending
+    - start_date: When goal tracking begins
     - parameters.period: 'daily', 'weekly', 'monthly', 'yearly'
     - parameters.label_ids: Labels to track
     - parameters.category: Optional category filter
@@ -169,14 +192,37 @@ def evaluate_spending_limit_goal(goal, as_of_date: date) -> Dict:
     organization = goal.organization
     params = goal.parameters or {}
 
+    # Check if goal has started yet
+    if goal.start_date and as_of_date < goal.start_date:
+        # Goal hasn't started yet
+        return {
+            'current_value': Decimal('0'),
+            'target_value': goal.target_value or Decimal('5000'),
+            'progress_percentage': Decimal('0'),
+            'status': 'not_started',
+            'metrics': {
+                'spending': 0,
+                'limit': float(goal.target_value or Decimal('5000')),
+                'usage_percentage': 0,
+                'over_limit': False,
+                'period': params.get('period', 'monthly'),
+                'start_date': goal.start_date.isoformat() if goal.start_date else None,
+                'tx_count': 0,
+            },
+        }
+
     # Get period
     period = params.get('period', 'monthly')
-    start_date = _get_period_start(as_of_date, period)
+    period_start = _get_period_start(as_of_date, period)
+
+    # Respect goal.start_date - don't track transactions before it
+    if goal.start_date and period_start < goal.start_date:
+        period_start = goal.start_date
 
     # Get transactions in period
     txs = Transaction.objects.filter(
         organization=organization,
-        date__gte=start_date,
+        date__gte=period_start,
         date__lte=as_of_date,
         direction='outflow'  # Only track outflows
     )
@@ -211,19 +257,27 @@ def evaluate_spending_limit_goal(goal, as_of_date: date) -> Dict:
     # Determine status - spending limits are special
     # They should only be "achieved" if we've passed the target date AND stayed under budget
     if goal.target_date and as_of_date < goal.target_date:
-        # Still in progress - can't be achieved yet
-        if usage_pct <= 75:
-            status = 'on_track'
-        elif usage_pct <= 90:
-            status = 'at_risk'
+        # Still in progress - can't be achieved yet even if currently under budget
+        if current_spending > target_limit:
+            status = 'off_track'  # Already over limit
+        elif usage_pct >= 90:
+            status = 'at_risk'  # Close to limit
+        elif usage_pct >= 75:
+            status = 'on_track'  # Reasonable usage
         else:
-            status = 'off_track'  # Over or near limit
-    else:
-        # Past target date or no target date
-        if usage_pct <= 100:
-            status = 'achieved'  # Successfully stayed within limit
+            status = 'on_track'  # Well under limit
+    elif goal.target_date and as_of_date >= goal.target_date:
+        # Past target date - check if we stayed within limit for the full period
+        if current_spending <= target_limit:
+            status = 'achieved'  # Successfully stayed within limit for the full period
         else:
             status = 'off_track'  # Went over limit
+    else:
+        # No target date - treat as ongoing monitoring
+        if current_spending <= target_limit:
+            status = 'on_track'
+        else:
+            status = 'off_track'
 
     return {
         'current_value': current_spending,
@@ -236,7 +290,7 @@ def evaluate_spending_limit_goal(goal, as_of_date: date) -> Dict:
             'usage_percentage': float(usage_pct),
             'over_limit': usage_pct > 100,
             'period': period,
-            'start_date': start_date.isoformat(),
+            'start_date': period_start.isoformat(),
             'tx_count': metrics['tx_count'],
         },
     }
@@ -356,20 +410,42 @@ def evaluate_revenue_target_goal(goal, as_of_date: date) -> Dict:
 
     Goal parameters:
     - target_value: Revenue target
+    - start_date: When goal tracking begins
     - parameters.period: 'monthly', 'quarterly', 'yearly'
     - parameters.label_ids: Optional labels to track
     """
     organization = goal.organization
     params = goal.parameters or {}
 
+    # Check if goal has started yet
+    if goal.start_date and as_of_date < goal.start_date:
+        # Goal hasn't started yet
+        return {
+            'current_value': Decimal('0'),
+            'target_value': goal.target_value or Decimal('10000'),
+            'progress_percentage': Decimal('0'),
+            'status': 'not_started',
+            'metrics': {
+                'revenue': 0,
+                'target': float(goal.target_value or Decimal('10000')),
+                'period': params.get('period', 'monthly'),
+                'start_date': goal.start_date.isoformat() if goal.start_date else None,
+                'tx_count': 0,
+            },
+        }
+
     # Get period
     period = params.get('period', 'monthly')
-    start_date = _get_period_start(as_of_date, period)
+    period_start = _get_period_start(as_of_date, period)
+
+    # Respect goal.start_date - don't track transactions before it
+    if goal.start_date and period_start < goal.start_date:
+        period_start = goal.start_date
 
     # Get inflow transactions
     txs = Transaction.objects.filter(
         organization=organization,
-        date__gte=start_date,
+        date__gte=period_start,
         date__lte=as_of_date,
         direction='inflow'
     )
@@ -407,7 +483,7 @@ def evaluate_revenue_target_goal(goal, as_of_date: date) -> Dict:
             'target': float(target_revenue),
             'remaining': float(target_revenue - current_revenue),
             'period': period,
-            'start_date': start_date.isoformat(),
+            'start_date': period_start.isoformat(),
             'tx_count': metrics['tx_count'],
         },
     }
@@ -536,13 +612,13 @@ def calculate_runway(organization: Organization, as_of_date: Optional[date] = No
     runway_months = max(Decimal('0'), min(runway_months, Decimal('999')))
 
     return {
-        'runway_months': round(runway_months, 1),
+        'runway_months': float(round(runway_months, 1)),
         'current_balance': float(current_balance),
         'monthly_burn': float(monthly_burn),
         'daily_burn': float(daily_burn) if days_in_period > 0 else 0,
         'lookback_days': days_in_period,
-        'total_inflow_90d': metrics['inflow'],
-        'total_outflow_90d': metrics['outflow'],
+        'total_inflow_90d': float(metrics['inflow']),
+        'total_outflow_90d': float(metrics['outflow']),
     }
 
 

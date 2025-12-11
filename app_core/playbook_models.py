@@ -75,6 +75,11 @@ class FinancialGoal(models.Model):
         blank=True,
         help_text="Target value (amount, percentage, months, etc.)"
     )
+    start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date when goal tracking should start (defaults to creation date)"
+    )
     target_date = models.DateField(
         null=True,
         blank=True,

@@ -1268,9 +1268,30 @@ def get_playbook_insights(organization, context: str = 'dashboard') -> List[Dict
         elif goal.current_status == 'off_track':
             severity = 'bad'
 
+        # Create concise summary instead of full explanation
+        status_text = goal.current_status.replace('_', ' ').title()
+        progress_text = f"{goal.progress_percentage:.1f}% complete"
+
+        # Generate brief, actionable summary based on status
+        if goal.current_status == 'achieved':
+            summary = f"Goal achieved! {progress_text}."
+        elif goal.current_status == 'on_track':
+            summary = f"On track - {progress_text}. Continue current approach."
+        elif goal.current_status == 'at_risk':
+            summary = f"At risk - {progress_text}. Monitor closely and consider adjustments."
+        elif goal.current_status == 'off_track':
+            # Calculate gap
+            if goal.target_value and goal.current_value:
+                gap = float(goal.target_value - goal.current_value)
+                summary = f"Off track - {progress_text}. £{gap:,.0f} remaining. Needs significant action."
+            else:
+                summary = f"Off track - {progress_text}. Significant action needed."
+        else:
+            summary = f"{status_text} - {progress_text}"
+
         insights.append({
             'title': f"{goal.name}",
-            'content': goal.last_explanation or f"{goal.current_status.replace('_', ' ').title()} - {goal.progress_percentage}% complete",
+            'content': summary,  # Use brief summary instead of full explanation
             'severity': severity,
             'goal_id': goal.id,
             'action': f'View goal details'

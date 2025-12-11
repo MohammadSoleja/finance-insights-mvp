@@ -51,6 +51,10 @@
     // Summary Widgets - 4 columns × 6 cells (6 × 50px = 300px)
     'summary-financial': { title: 'Financial Summary', w: 4, h: 6, type: 'summary', minW: 3, minH: 4 },
     'summary-month-comparison': { title: 'Month Comparison', w: 4, h: 6, type: 'summary', minW: 3, minH: 4 },
+
+    // Playbook Widgets - 6 columns × 5 cells (5 × 50px = 250px, fits ~2 items)
+    'widget-playbook-goals': { title: 'Financial Goals', w: 6, h: 5, type: 'playbook', minW: 4, minH: 4 },
+    'widget-playbook-insights': { title: 'AI Insights', w: 6, h: 5, type: 'playbook', minW: 4, minH: 4 },
   };
 
   // Configure Chart.js defaults for modern tooltips
@@ -443,10 +447,22 @@
   }
 
   function renderWidget(widgetId, data) {
+    console.log('Rendering widget:', widgetId, 'with data:', data);
+
     const meta = WIDGET_META[widgetId];
     const bodyEl = document.getElementById(`widget-body-${widgetId}`);
 
-    if (!bodyEl || !meta) return;
+    if (!bodyEl) {
+      console.error('Widget body element not found:', widgetId);
+      return;
+    }
+
+    if (!meta) {
+      console.error('Widget metadata not found:', widgetId);
+      return;
+    }
+
+    console.log('Widget type:', meta.type);
 
     // Route to appropriate render function
     switch (meta.type) {
@@ -462,6 +478,12 @@
       case 'summary':
         renderSummaryWidget(widgetId, bodyEl, data);
         break;
+      case 'playbook':
+        console.log('Calling renderPlaybookWidget');
+        renderPlaybookWidget(widgetId, bodyEl, data);
+        break;
+      default:
+        console.error('Unknown widget type:', meta.type);
     }
   }
 
@@ -997,6 +1019,116 @@
     bodyEl.innerHTML = html;
   }
 
+  // ==================== PLAYBOOK WIDGET RENDERING ====================
+
+  function renderPlaybookWidget(widgetId, bodyEl, data) {
+    if (widgetId === 'widget-playbook-goals') {
+      renderPlaybookGoals(bodyEl, data);
+    } else if (widgetId === 'widget-playbook-insights') {
+      renderPlaybookInsights(bodyEl, data);
+    }
+  }
+
+  function renderPlaybookGoals(bodyEl, data) {
+    if (!data.goals || data.goals.length === 0) {
+      bodyEl.innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: #9ca3af;">
+          <p style="margin-bottom: 1rem;">No goals created yet</p>
+          <a href="/playbook/create/" class="btn btn-primary" style="display: inline-block; padding: 0.5rem 1rem; background: var(--accent); color: white; text-decoration: none; border-radius: 6px;">
+            Create Your First Goal
+          </a>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '<div style="padding: 0.5rem; max-height: 100%; overflow-y: auto;">';
+
+    data.goals.forEach(goal => {
+      const statusColor = {
+        'achieved': '#10b981',
+        'on_track': '#2563eb',
+        'at_risk': '#f59e0b',
+        'off_track': '#ef4444',
+        'not_started': '#9ca3af'
+      }[goal.status] || '#9ca3af';
+
+      const statusLabel = goal.status.replace('_', ' ');
+
+      html += `
+        <div style="border-left: 3px solid ${statusColor}; padding: 0.75rem; margin-bottom: 0.75rem; background: #f9fafb; border-radius: 4px;">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+            <div style="flex: 1;">
+              <a href="/playbook/goal/${goal.id}/" style="font-weight: 600; color: #111827; text-decoration: none; font-size: 0.95rem;">
+                ${goal.name}
+              </a>
+              <div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">
+                ${goal.type}
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-weight: 700; color: ${statusColor}; font-size: 1rem;">
+                ${Math.round(goal.progress)}%
+              </div>
+              <div style="font-size: 0.7rem; color: #6b7280; text-transform: capitalize;">
+                ${statusLabel}
+              </div>
+            </div>
+          </div>
+          <div style="background: #e5e7eb; height: 4px; border-radius: 2px; overflow: hidden; margin-bottom: 0.5rem;">
+            <div style="background: ${statusColor}; height: 100%; width: ${Math.min(goal.progress, 100)}%; transition: width 0.3s;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #6b7280;">
+            <span>£${formatNumber(goal.current_value)}</span>
+            <span>£${formatNumber(goal.target_value)}</span>
+          </div>
+        </div>
+      `;
+    });
+
+    html += '</div>';
+
+    bodyEl.innerHTML = html;
+  }
+
+  function renderPlaybookInsights(bodyEl, data) {
+    if (!data.insights || data.insights.length === 0) {
+      bodyEl.innerHTML = `
+        <div style="text-align: center; padding: 2rem; color: #9ca3af;">
+          <p>No insights available yet</p>
+          <p style="font-size: 0.85rem; margin-top: 0.5rem;">Create goals to get AI-powered insights</p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '<div style="padding: 0.5rem; max-height: 100%; overflow-y: auto;">';
+
+    data.insights.forEach(insight => {
+      const severityConfig = {
+        'good': { color: '#10b981', bg: '#d1fae5', icon: '✓' },
+        'warn': { color: '#f59e0b', bg: '#fef3c7', icon: '⚠' },
+        'bad': { color: '#ef4444', bg: '#fee2e2', icon: '✗' },
+        'info': { color: '#3b82f6', bg: '#dbeafe', icon: 'ℹ' }
+      }[insight.severity] || { color: '#6b7280', bg: '#f3f4f6', icon: 'ℹ' };
+
+      html += `
+        <div style="border-left: 3px solid ${severityConfig.color}; padding: 0.75rem; margin-bottom: 0.75rem; background: ${severityConfig.bg}; border-radius: 4px;">
+          <div style="font-weight: 600; color: #111827; margin-bottom: 0.35rem; font-size: 0.9rem;">
+            ${insight.icon || severityConfig.icon} ${insight.title}
+          </div>
+          <div style="font-size: 0.8rem; color: #374151; line-height: 1.4;">
+            ${insight.content}
+          </div>
+        </div>
+      `;
+    });
+
+    html += '</div>';
+
+    bodyEl.innerHTML = html;
+  }
+
   // ==================== WIDGET MANAGEMENT ====================
 
   let currentDraggedWidget = null;
@@ -1065,6 +1197,8 @@
   }
 
   window.addWidget = function(widgetId) {
+    console.log('Adding widget:', widgetId);
+
     // Check if widget already exists
     if (widgets[widgetId]) {
       alert('Widget already added to dashboard');
@@ -1072,6 +1206,14 @@
     }
 
     const meta = WIDGET_META[widgetId];
+
+    if (!meta) {
+      console.error('Widget metadata not found for:', widgetId);
+      alert('Widget configuration error: ' + widgetId);
+      return;
+    }
+
+    console.log('Widget metadata:', meta);
 
     // Find an empty position on the grid
     const nodes = grid.engine.nodes;

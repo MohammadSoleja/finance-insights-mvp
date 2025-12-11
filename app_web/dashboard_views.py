@@ -155,6 +155,10 @@ def get_widget_data(request, widget_id):
             # Summary Widgets
             'summary-financial': get_summary_financial,
             'summary-month-comparison': get_summary_month_comparison,
+
+            # Playbook Widgets
+            'widget-playbook-goals': get_widget_playbook_goals,
+            'widget-playbook-insights': get_widget_playbook_insights,
         }
 
         if widget_id not in widget_data_functions:
@@ -959,4 +963,106 @@ def get_summary_month_comparison(request, start_date, end_date):
         },
         'currency': '£'
     }
+
+
+# ==================== PLAYBOOK WIDGET DATA FUNCTIONS ====================
+
+def get_widget_playbook_goals(request, start_date, end_date):
+    """
+    Playbook Goals Widget - Shows ALL active goals
+    Sorted by priority: off_track → at_risk → on_track → achieved → not_started
+    Widget is scrollable to see all goals
+    """
+    from app_core.models import FinancialGoal
+    from django.db.models import Case, When, IntegerField
+
+    # Get ALL active goals, sorted by status priority
+    # Order: off_track (most critical) → at_risk → on_track → achieved → not_started (least urgent)
+    goals = FinancialGoal.objects.filter(
+        organization=request.organization,
+        active=True
+    ).annotate(
+        status_priority=Case(
+            When(current_status='off_track', then=1),
+            When(current_status='at_risk', then=2),
+            When(current_status='on_track', then=3),
+            When(current_status='achieved', then=4),
+            When(current_status='not_started', then=5),
+            default=6,
+            output_field=IntegerField()
+        )
+    ).order_by('status_priority', '-last_evaluated_at')
+
+    # Format all goals
+    goals_data = []
+    for goal in goals:
+        goals_data.append({
+            'id': goal.id,
+            'name': goal.name,
+            'type': goal.get_goal_type_display(),
+            'status': goal.current_status,
+            'progress': float(goal.progress_percentage) if goal.progress_percentage else 0,
+            'current_value': float(goal.current_value) if goal.current_value else 0,
+            'target_value': float(goal.target_value) if goal.target_value else 0,
+            'target_date': goal.target_date.isoformat() if goal.target_date else None,
+            'last_updated': goal.last_evaluated_at.isoformat() if goal.last_evaluated_at else None,
+        })
+
+    # Get counts by status
+    total_goals = goals.count()
+    on_track_count = goals.filter(current_status='on_track').count()
+    critical_count = goals.filter(current_status__in=['at_risk', 'off_track']).count()
+
+    return {
+        'goals': goals_data,
+        'total_goals': total_goals,
+        'on_track_count': on_track_count,
+        'critical_count': critical_count,
+        'has_critical': critical_count > 0
+    }
+
+
+def get_widget_playbook_insights(request, start_date, end_date):
+    """
+    Playbook AI Insights Widget - Shows AI-generated insights for goals
+    Displays brief summaries of goal status with actionable insights
+    """
+    from app_core import ai_service
+
+    # Get AI insights using existing function
+    insights = ai_service.get_playbook_insights(
+        request.organization,
+        context='dashboard'
+    )
+
+    # Limit to top 3 most important insights for dashboard
+    dashboard_insights = insights[:3] if insights else []
+
+    # Format for dashboard widget
+    formatted_insights = []
+    for insight in dashboard_insights:
+        formatted_insights.append({
+            'title': insight.get('title', ''),
+            'content': insight.get('content', ''),
+            'severity': insight.get('severity', 'info'),
+            'goal_id': insight.get('goal_id'),
+            'icon': _get_insight_icon(insight.get('severity', 'info'))
+        })
+
+    return {
+        'insights': formatted_insights,
+        'has_insights': len(formatted_insights) > 0
+    }
+
+
+def _get_insight_icon(severity):
+    """Helper function to get icon based on insight severity"""
+    icon_map = {
+        'good': '✓',
+        'warn': '⚠',
+        'bad': '✗',
+        'info': 'ℹ'
+    }
+    return icon_map.get(severity, 'ℹ')
+
 
