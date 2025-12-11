@@ -6,7 +6,7 @@ This makes it work with both OpenAI and Gemini.
 
 import re
 
-file_path = '/Users/mohammadsoleja/Documents/GitHub/finance-insights-mvp/app_core/ai_service.py'
+file_path = '/app_core/ai_service.py'
 
 # Read the file
 with open(file_path, 'r') as f:
