@@ -548,3 +548,166 @@ def playbook_api_insights(request):
         'insights': insights[:3]  # Top 3 for dashboard widget
     })
 
+
+@login_required
+@organization_required
+def goal_templates(request):
+    """
+    Browse goal templates library
+    """
+    from app_core.goal_templates import GOAL_TEMPLATES
+
+    context = {
+        'page_title': 'Goal Templates',
+        'templates': GOAL_TEMPLATES,
+    }
+
+    return render(request, 'app_web/playbook/templates.html', context)
+
+
+@login_required
+@organization_required
+def create_from_template(request, template_id):
+    """
+    Create a goal from a template
+    """
+    from app_core.goal_templates import get_template, calculate_dynamic_target
+    from datetime import timedelta
+
+    template = get_template(template_id)
+
+    if not template:
+        messages.error(request, 'Template not found.')
+        return redirect('app_web:goal_templates')
+
+    # Calculate dynamic target if needed
+    target_value = template.get('target_value')
+    if target_value is None:
+        target_value = calculate_dynamic_target(request.organization, template)
+
+    # Calculate target date
+    duration_months = template.get('duration_months', 6)
+    target_date = timezone.now().date() + timedelta(days=duration_months * 30)
+
+    # Create goal
+    goal = FinancialGoal.objects.create(
+        organization=request.organization,
+        name=template['name'],
+        description=template['description'],
+        goal_type=template['goal_type'],
+        target_value=target_value,
+        target_date=target_date,
+        start_date=timezone.now().date(),
+        natural_language_input=f"Created from template: {template['name']}",
+        created_by=request.user,
+    )
+
+    # Evaluate immediately
+    try:
+        evaluation_data = evaluate_goal(goal)
+        goal.current_status = evaluation_data['status']
+        goal.current_value = evaluation_data.get('current_value')
+        goal.progress_percentage = evaluation_data.get('progress_percentage', Decimal('0'))
+        goal.last_evaluated_at = timezone.now()
+        goal.save()
+    except Exception as e:
+        messages.warning(request, f'Goal created but evaluation failed: {str(e)}')
+
+    messages.success(request, f'Goal "{goal.name}" created from template!')
+    return redirect('app_web:playbook_goal_detail', goal_id=goal.id)
+
+
+@login_required
+@organization_required
+def health_score_dashboard(request):
+    """
+    Health Score dashboard with trends and breakdown
+    """
+    from app_core.health_score import calculate_health_score, get_score_trend
+
+    organization = request.organization
+
+    # Get current health score
+    current_score = calculate_health_score(organization)
+
+    # Get trend data (last 30 days)
+    trend_data = get_score_trend(organization, days=30)
+
+    context = {
+        'page_title': 'Financial Health Score',
+        'health_score': current_score,
+        'trend_data': trend_data,
+    }
+
+    return render(request, 'app_web/health/dashboard.html', context)
+
+
+@login_required
+@organization_required
+def runway_intelligence(request):
+    """
+    Enhanced runway intelligence dashboard
+    """
+    from app_core.playbook_engine import calculate_runway_enhanced
+
+    organization = request.organization
+
+    # Get enhanced runway data
+    runway_data = calculate_runway_enhanced(organization)
+
+    context = {
+        'page_title': 'Runway Intelligence',
+        'runway_data': runway_data,
+    }
+
+    return render(request, 'app_web/runway/dashboard.html', context)
+
+
+@login_required
+@organization_required
+def api_health_score(request):
+    """
+    API endpoint for health score widget
+    """
+    from app_core.health_score import calculate_health_score
+
+    health_data = calculate_health_score(request.organization)
+
+    return JsonResponse({
+        'success': True,
+        'data': health_data
+    })
+
+
+@login_required
+@organization_required
+def api_runway_enhanced(request):
+    """
+    API endpoint for enhanced runway data
+    """
+    from app_core.playbook_engine import calculate_runway_enhanced
+
+    runway_data = calculate_runway_enhanced(request.organization)
+
+    return JsonResponse({
+        'success': True,
+        'data': runway_data
+    })
+
+
+@login_required
+@organization_required
+def api_weekly_briefing(request):
+    """
+    API endpoint to get weekly briefing data
+    """
+    from app_core.weekly_briefing import generate_weekly_briefing
+
+    briefing_data = generate_weekly_briefing(request.organization)
+
+    return JsonResponse({
+        'success': True,
+        'briefing': briefing_data
+    })
+
+

@@ -5,6 +5,21 @@
 
 {% block content %}
 <div class="wrap" style="max-width: 800px; margin: 0 auto;">
+  <!-- Messages -->
+  {% if messages %}
+    <div style="margin-bottom: 1.5rem;">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" style="padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem;
+          {% if message.tags == 'success' %}background: #d1fae5; color: #065f46; border: 1px solid #10b981;
+          {% elif message.tags == 'error' %}background: #fee2e2; color: #991b1b; border: 1px solid #ef4444;
+          {% elif message.tags == 'warning' %}background: #fef3c7; color: #92400e; border: 1px solid #f59e0b;
+          {% else %}background: #dbeafe; color: #1e40af; border: 1px solid #3b82f6;{% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   <div style="margin-bottom: 2rem;">
     <h1>Review Your Goal</h1>
     <p style="color: #666; font-size: 1.1rem;">

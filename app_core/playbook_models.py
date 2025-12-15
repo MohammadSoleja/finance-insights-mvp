@@ -318,3 +318,100 @@ class PlaybookConversation(models.Model):
         """Get number of messages in conversation"""
         return len(self.messages)
 
+
+class HealthScore(models.Model):
+    """
+    Financial Health Score snapshot for historical tracking.
+    Calculates overall business health (0-100) from multiple components.
+    """
+    LEVEL_CHOICES = [
+        ('excellent', 'Excellent'),
+        ('great', 'Great'),
+        ('good', 'Good'),
+        ('fair', 'Fair'),
+        ('needs_improvement', 'Needs Improvement'),
+    ]
+
+    organization = models.ForeignKey(
+        'Organization',
+        on_delete=models.CASCADE,
+        related_name='health_scores',
+        help_text="Organization this score belongs to"
+    )
+
+    # Score data
+    date = models.DateField(
+        help_text="Date this score was calculated for"
+    )
+    total_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Overall health score (0-100)"
+    )
+    level = models.CharField(
+        max_length=20,
+        choices=LEVEL_CHOICES,
+        help_text="Score level/category"
+    )
+
+    # Component scores
+    runway_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Runway component score (30% weight)"
+    )
+    revenue_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Revenue growth component score (25% weight)"
+    )
+    expense_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Expense control component score (20% weight)"
+    )
+    goal_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Goal progress component score (15% weight)"
+    )
+    stability_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        help_text="Financial stability component score (10% weight)"
+    )
+
+    # Analysis
+    explanation = models.TextField(
+        blank=True,
+        help_text="AI-generated explanation of the score"
+    )
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('organization', 'date')
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['organization', 'date']),
+            models.Index(fields=['date']),
+        ]
+        verbose_name = "Health Score"
+        verbose_name_plural = "Health Scores"
+
+    def __str__(self):
+        return f"{self.organization.name} - {self.date} - {self.total_score}/100 ({self.get_level_display()})"
+
+    def get_badge(self):
+        """Get emoji badge for score level"""
+        badges = {
+            'excellent': '🥇',
+            'great': '🥈',
+            'good': '🥉',
+            'fair': '⚠️',
+            'needs_improvement': '🔴',
+        }
+        return badges.get(self.level, '⚪')
+
+

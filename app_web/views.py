@@ -4411,4 +4411,3 @@ def task_time_entry_create(request, task_id):
     except Exception as e:
         logger.error(f"Error creating time entry: {e}")
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
-

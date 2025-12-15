@@ -159,6 +159,12 @@ def get_widget_data(request, widget_id):
             # Playbook Widgets
             'widget-playbook-goals': get_widget_playbook_goals,
             'widget-playbook-insights': get_widget_playbook_insights,
+
+            # Phase 1 New Widgets
+            'widget-health-score': get_widget_health_score,
+            'widget-runway-enhanced': get_widget_runway_enhanced,
+            'widget-weekly-briefing': get_widget_weekly_briefing,
+            'widget-goal-templates': get_widget_goal_templates,
         }
 
         if widget_id not in widget_data_functions:
@@ -1064,5 +1070,194 @@ def _get_insight_icon(severity):
         'info': 'ℹ'
     }
     return icon_map.get(severity, 'ℹ')
+
+
+# ========== NEW PHASE 1 WIDGETS ==========
+
+def get_widget_health_score(request, start_date, end_date):
+    """
+    Financial Health Score Widget
+    Displays overall business health (0-100) with component breakdown
+    """
+    from app_core.health_score import calculate_health_score, get_score_trend
+
+    # Get current health score
+    health_data = calculate_health_score(request.organization, end_date)
+
+    # Get trend (last 30 days)
+    trend_data = get_score_trend(request.organization, days=30)
+
+    # Format components for display
+    components = []
+    for key, data in health_data['components'].items():
+        component_name = key.replace('_', ' ').title()
+        components.append({
+            'name': component_name,
+            'score': data['score'],
+            'status': data['status'],
+            'weight': data['weight'],
+            'icon': _get_component_icon(key)
+        })
+
+    return {
+        'total_score': health_data['total_score'],
+        'level': health_data['level_text'],
+        'badge': health_data['badge'],
+        'change': trend_data.get('change', 0),
+        'trend': trend_data.get('trend', 'stable'),
+        'components': components,
+        'explanation': health_data['explanation'],
+        'trend_dates': trend_data.get('dates', []),
+        'trend_scores': trend_data.get('scores', []),
+    }
+
+
+def get_widget_runway_enhanced(request, start_date, end_date):
+    """
+    Enhanced Runway Intelligence Widget
+    Shows runway scenarios, burn breakdown, and savings opportunities
+    """
+    from app_core.playbook_engine import calculate_runway_enhanced
+
+    runway_data = calculate_runway_enhanced(request.organization, end_date)
+
+    # Format scenarios
+    scenarios = [
+        {
+            'name': 'Best Case',
+            'months': runway_data['scenarios']['best_case']['runway_months'],
+            'description': runway_data['scenarios']['best_case']['description'],
+            'change_pct': runway_data['scenarios']['best_case']['change_pct'],
+            'color': 'success'
+        },
+        {
+            'name': 'Expected',
+            'months': runway_data['scenarios']['expected']['runway_months'],
+            'description': runway_data['scenarios']['expected']['description'],
+            'change_pct': 0,
+            'color': 'primary'
+        },
+        {
+            'name': 'Worst Case',
+            'months': runway_data['scenarios']['worst_case']['runway_months'],
+            'description': runway_data['scenarios']['worst_case']['description'],
+            'change_pct': runway_data['scenarios']['worst_case']['change_pct'],
+            'color': 'danger'
+        }
+    ]
+
+    # Get top burn categories
+    burn_breakdown = runway_data['burn_breakdown'][:5]  # Top 5
+
+    # Get top 3 savings opportunities
+    opportunities = runway_data['savings_opportunities'][:3]
+
+    # Critical dates
+    critical_dates = runway_data['critical_dates']
+
+    return {
+        'current_runway': runway_data['current']['runway_months'],
+        'monthly_burn': runway_data['current']['monthly_burn'],
+        'current_balance': runway_data['current']['current_balance'],
+        'scenarios': scenarios,
+        'burn_breakdown': burn_breakdown,
+        'opportunities': opportunities,
+        'runway_end_date': critical_dates.get('runway_end_date'),
+        'days_until_end': critical_dates.get('days_until_end'),
+        'threshold_3_months': critical_dates.get('threshold_3_months'),
+    }
+
+
+def get_widget_weekly_briefing(request, start_date, end_date):
+    """
+    Weekly Briefing Summary Widget
+    Shows key metrics, concerns, and action items from latest briefing
+    """
+    from app_core.weekly_briefing import generate_weekly_briefing
+
+    briefing_data = generate_weekly_briefing(request.organization, end_date)
+
+    # Format for widget display
+    return {
+        'health_score': briefing_data['health_score'],
+        'runway': briefing_data['key_metrics']['runway'],
+        'revenue': briefing_data['key_metrics']['revenue'],
+        'expenses': briefing_data['key_metrics']['expenses'],
+        'concerns': briefing_data['concerns'][:3],  # Top 3
+        'good_news': briefing_data['good_news'][:2],  # Top 2
+        'action_items': briefing_data['action_items'],  # Top 3 already
+        'upcoming_dates': briefing_data['upcoming_dates'][:3],  # Next 3
+        'week_of': briefing_data['week_of'],
+    }
+
+
+def get_widget_goal_templates(request, start_date, end_date):
+    """
+    Goal Templates Quick Start Widget
+    Shows popular templates for quick goal creation
+    """
+    from app_core.goal_templates import GOAL_TEMPLATES
+    from app_core.models import FinancialGoal
+
+    # Get popular templates (one from each category)
+    popular_templates = [
+        {
+            'id': 'build_6_month_runway',
+            'name': 'Build 6 months runway',
+            'category': 'Cash Management',
+            'icon': '🛡️',
+            'difficulty': 'medium',
+            'description': 'Maintain 6 months of operating expenses in cash reserves'
+        },
+        {
+            'id': 'revenue_50k',
+            'name': 'Reach £50k monthly revenue',
+            'category': 'Growth',
+            'icon': '📈',
+            'difficulty': 'medium',
+            'description': 'Scale monthly recurring revenue to £50,000'
+        },
+        {
+            'id': 'overhead_20_pct',
+            'name': 'Keep overhead under 20%',
+            'category': 'Operational',
+            'icon': '⚙️',
+            'difficulty': 'medium',
+            'description': 'Maintain operational efficiency'
+        },
+        {
+            'id': 'marketing_roi_3x',
+            'name': 'Achieve 3:1 marketing ROI',
+            'category': 'Marketing',
+            'icon': '🎯',
+            'difficulty': 'medium',
+            'description': 'Generate £3 for every £1 spent'
+        }
+    ]
+
+    # Get user's goal stats
+    total_goals = FinancialGoal.objects.filter(
+        organization=request.organization,
+        active=True
+    ).count()
+
+    return {
+        'templates': popular_templates,
+        'total_templates': 20,
+        'user_goal_count': total_goals,
+        'has_goals': total_goals > 0
+    }
+
+
+def _get_component_icon(component_key):
+    """Helper to get icon for health score components"""
+    icons = {
+        'runway': '🛡️',
+        'revenue_growth': '📈',
+        'expense_control': '💰',
+        'goal_progress': '🎯',
+        'stability': '⚖️',
+    }
+    return icons.get(component_key, '📊')
 
 

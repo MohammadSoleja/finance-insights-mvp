@@ -56,7 +56,7 @@ def evaluate_goal(goal, as_of_date: Optional[date] = None) -> Dict:
 def evaluate_runway_goal(goal, as_of_date: date) -> Dict:
     """
     Evaluate cash runway goal.
-    Calculates months of runway based on current burn rate.
+    Calculates months of runway based on current burn rate with enhanced intelligence.
 
     Goal parameters:
     - target_value: Number of months of runway desired
@@ -64,8 +64,9 @@ def evaluate_runway_goal(goal, as_of_date: date) -> Dict:
     """
     organization = goal.organization
 
-    # Calculate runway
-    runway_data = calculate_runway(organization, as_of_date)
+    # Calculate enhanced runway with scenarios and breakdown
+    runway_enhanced = calculate_runway_enhanced(organization, as_of_date)
+    runway_data = runway_enhanced['current']
 
     # Convert to Decimal for calculation (runway_months is float from calculate_runway)
     current_months = Decimal(str(runway_data['runway_months']))
@@ -87,7 +88,7 @@ def evaluate_runway_goal(goal, as_of_date: date) -> Dict:
         'target_value': target_months,
         'progress_percentage': round(progress, 2),
         'status': status,
-        'metrics': runway_data,
+        'metrics': runway_enhanced,  # Include all enhanced data
     }
 
 
@@ -620,6 +621,235 @@ def calculate_runway(organization: Organization, as_of_date: Optional[date] = No
         'total_inflow_90d': float(metrics['inflow']),
         'total_outflow_90d': float(metrics['outflow']),
     }
+
+
+def calculate_runway_enhanced(organization: Organization, as_of_date: Optional[date] = None) -> Dict:
+    """
+    Enhanced runway calculation with multi-scenario analysis, burn breakdown, and critical dates.
+
+    Args:
+        organization: Organization to calculate for
+        as_of_date: Date to calculate as of
+
+    Returns:
+        dict with:
+            - current: baseline runway data
+            - scenarios: best/expected/worst case projections
+            - burn_breakdown: spending by category
+            - critical_dates: key dates and milestones
+            - savings_opportunities: potential runway improvements
+    """
+    if as_of_date is None:
+        as_of_date = timezone.now().date()
+
+    # Get baseline runway
+    baseline = calculate_runway(organization, as_of_date)
+
+    # Calculate scenario projections
+    scenarios = _calculate_runway_scenarios(organization, baseline, as_of_date)
+
+    # Get burn rate breakdown by category
+    burn_breakdown = _calculate_burn_breakdown(organization, as_of_date)
+
+    # Calculate critical dates
+    critical_dates = _calculate_critical_dates(
+        as_of_date,
+        baseline['runway_months'],
+        baseline['monthly_burn'],
+        organization
+    )
+
+    # Identify savings opportunities
+    savings_opportunities = _calculate_savings_opportunities(burn_breakdown, baseline['runway_months'])
+
+    return {
+        'current': baseline,
+        'scenarios': scenarios,
+        'burn_breakdown': burn_breakdown,
+        'critical_dates': critical_dates,
+        'savings_opportunities': savings_opportunities,
+    }
+
+
+def _calculate_runway_scenarios(organization: Organization, baseline: Dict, as_of_date: date) -> Dict:
+    """Calculate best/expected/worst case runway scenarios"""
+    from django.db.models import Sum
+
+    lookback_start = as_of_date - timedelta(days=90)
+
+    # Get average monthly revenue and expenses
+    monthly_revenue = Decimal(str(baseline.get('total_inflow_90d', 0))) / Decimal('3')  # 3 months
+    monthly_expenses = Decimal(str(baseline.get('monthly_burn', 0)))
+    current_balance = Decimal(str(baseline.get('current_balance', 0)))
+
+    # Best case: 20% revenue increase
+    best_revenue = monthly_revenue * Decimal('1.20')
+    best_net = best_revenue - monthly_expenses
+    if best_net > 0:
+        best_runway = Decimal('999')  # Positive cash flow
+    elif monthly_expenses > 0:
+        best_runway = current_balance / monthly_expenses
+    else:
+        best_runway = Decimal('999')
+
+    # Expected case: current trajectory
+    expected_runway = Decimal(str(baseline.get('runway_months', 0)))
+
+    # Worst case: 10% revenue decline
+    worst_revenue = monthly_revenue * Decimal('0.90')
+    worst_net = worst_revenue - monthly_expenses
+    worst_burn = abs(worst_net) if worst_net < 0 else monthly_expenses
+    if worst_burn > 0:
+        worst_runway = current_balance / worst_burn
+    else:
+        worst_runway = Decimal('999')
+
+    # Cap scenarios
+    best_runway = max(Decimal('0'), min(best_runway, Decimal('999')))
+    worst_runway = max(Decimal('0'), min(worst_runway, Decimal('999')))
+
+    return {
+        'best_case': {
+            'runway_months': float(round(best_runway, 1)),
+            'description': '+20% revenue growth',
+            'change_pct': float(((best_runway - expected_runway) / expected_runway * 100) if expected_runway > 0 else 0),
+        },
+        'expected': {
+            'runway_months': float(round(expected_runway, 1)),
+            'description': 'Current trajectory',
+            'change_pct': 0,
+        },
+        'worst_case': {
+            'runway_months': float(round(worst_runway, 1)),
+            'description': '-10% revenue decline',
+            'change_pct': float(((worst_runway - expected_runway) / expected_runway * 100) if expected_runway > 0 else 0),
+        },
+    }
+
+
+def _calculate_burn_breakdown(organization: Organization, as_of_date: date) -> List[Dict]:
+    """Calculate burn rate breakdown by category"""
+    from django.db.models import Sum
+
+    lookback_start = as_of_date - timedelta(days=90)
+
+    # Get outflow transactions grouped by category
+    category_spending = Transaction.objects.filter(
+        organization=organization,
+        date__gte=lookback_start,
+        date__lte=as_of_date,
+        direction='outflow'
+    ).values('category').annotate(
+        total=Sum('amount')
+    ).order_by('-total')
+
+    total_spend = sum(item['total'] for item in category_spending) if category_spending else Decimal('0')
+
+    # Calculate monthly average and percentage for each category
+    breakdown = []
+    for item in category_spending[:10]:  # Top 10 categories
+        monthly_avg = item['total'] / Decimal('3')  # 3 months
+        percentage = (item['total'] / total_spend * 100) if total_spend > 0 else 0
+
+        breakdown.append({
+            'category': item['category'] or 'Uncategorized',
+            'monthly_amount': float(monthly_avg),
+            'total_90d': float(item['total']),
+            'percentage': float(round(percentage, 1)),
+        })
+
+    return breakdown
+
+
+def _calculate_critical_dates(as_of_date: date, runway_months: float, monthly_burn: float, organization: Organization) -> Dict:
+    """Calculate critical dates and milestones"""
+    from django.db.models import Sum
+
+    # Calculate runway end date
+    if runway_months > 0 and runway_months < 999:
+        days_remaining = int(runway_months * 30)
+        runway_end_date = as_of_date + timedelta(days=days_remaining)
+    else:
+        runway_end_date = None
+
+    # Calculate when runway hits critical thresholds
+    threshold_3_months = None
+    threshold_6_months = None
+
+    if runway_months > 3:
+        months_until_3 = runway_months - 3
+        days_until_3 = int(months_until_3 * 30)
+        threshold_3_months = as_of_date + timedelta(days=days_until_3)
+
+    if runway_months > 6:
+        months_until_6 = runway_months - 6
+        days_until_6 = int(months_until_6 * 30)
+        threshold_6_months = as_of_date + timedelta(days=days_until_6)
+
+    # Find upcoming large expenses (next 90 days)
+    future_end = as_of_date + timedelta(days=90)
+    upcoming = Transaction.objects.filter(
+        organization=organization,
+        date__gt=as_of_date,
+        date__lte=future_end,
+        direction='outflow'
+    ).order_by('date')[:5]
+
+    upcoming_events = []
+    for tx in upcoming:
+        upcoming_events.append({
+            'date': tx.date.isoformat(),
+            'description': tx.description or tx.category,
+            'amount': float(tx.amount),
+            'days_away': (tx.date - as_of_date).days,
+        })
+
+    return {
+        'runway_end_date': runway_end_date.isoformat() if runway_end_date else None,
+        'days_until_end': (runway_end_date - as_of_date).days if runway_end_date else None,
+        'threshold_3_months': threshold_3_months.isoformat() if threshold_3_months else None,
+        'threshold_6_months': threshold_6_months.isoformat() if threshold_6_months else None,
+        'upcoming_expenses': upcoming_events,
+    }
+
+
+def _calculate_savings_opportunities(burn_breakdown: List[Dict], current_runway: float) -> List[Dict]:
+    """Identify potential savings and runway impact"""
+    opportunities = []
+
+    for category in burn_breakdown[:5]:  # Top 5 categories
+        monthly_amount = Decimal(str(category['monthly_amount']))
+
+        # Calculate impact of 10%, 15%, and 20% cuts
+        for cut_pct in [10, 15, 20]:
+            savings = monthly_amount * (Decimal(str(cut_pct)) / Decimal('100'))
+
+            # Calculate total current monthly burn (sum of all categories)
+            total_burn = sum(Decimal(str(c['monthly_amount'])) for c in burn_breakdown)
+
+            if total_burn > 0:
+                # Calculate new runway with reduced burn
+                new_burn = total_burn - savings
+                if new_burn > 0:
+                    # Approximate current balance from runway
+                    current_balance = total_burn * Decimal(str(current_runway))
+                    new_runway = current_balance / new_burn
+                    runway_gain = float(new_runway - Decimal(str(current_runway)))
+                else:
+                    runway_gain = 999  # Positive cash flow
+
+                opportunities.append({
+                    'category': category['category'],
+                    'action': f"Cut {category['category']} by {cut_pct}%",
+                    'monthly_savings': float(savings),
+                    'runway_gain_months': round(runway_gain, 1),
+                    'cut_percentage': cut_pct,
+                })
+
+    # Sort by runway gain
+    opportunities.sort(key=lambda x: x['runway_gain_months'], reverse=True)
+
+    return opportunities[:5]  # Top 5 opportunities
 
 
 def _get_period_start(as_of_date: date, period: str) -> date:

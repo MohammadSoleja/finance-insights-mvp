@@ -55,6 +55,12 @@
     // Playbook Widgets - 6 columns × 5 cells (5 × 50px = 250px, fits ~2 items)
     'widget-playbook-goals': { title: 'Financial Goals', w: 6, h: 5, type: 'playbook', minW: 4, minH: 4 },
     'widget-playbook-insights': { title: 'AI Insights', w: 6, h: 5, type: 'playbook', minW: 4, minH: 4 },
+
+    // Phase 1 New Widgets
+    'widget-health-score': { title: 'Financial Health Score', w: 6, h: 6, type: 'phase1', minW: 4, minH: 5 },
+    'widget-runway-enhanced': { title: 'Runway Intelligence', w: 6, h: 6, type: 'phase1', minW: 4, minH: 5 },
+    'widget-weekly-briefing': { title: 'Weekly Briefing', w: 6, h: 8, type: 'phase1', minW: 4, minH: 6 },
+    'widget-goal-templates': { title: 'Goal Templates', w: 6, h: 8, type: 'phase1', minW: 4, minH: 5 },
   };
 
   // Configure Chart.js defaults for modern tooltips
@@ -481,6 +487,10 @@
       case 'playbook':
         console.log('Calling renderPlaybookWidget');
         renderPlaybookWidget(widgetId, bodyEl, data);
+        break;
+      case 'phase1':
+        console.log('Calling renderPhase1Widget');
+        renderPhase1Widget(widgetId, bodyEl, data);
         break;
       default:
         console.error('Unknown widget type:', meta.type);
@@ -1125,6 +1135,273 @@
     });
 
     html += '</div>';
+
+    bodyEl.innerHTML = html;
+  }
+
+  // ==================== PHASE 1 NEW WIDGETS ====================
+
+  function renderPhase1Widget(widgetId, bodyEl, data) {
+    if (widgetId === 'widget-health-score') {
+      renderHealthScoreWidget(bodyEl, data);
+    } else if (widgetId === 'widget-runway-enhanced') {
+      renderRunwayEnhancedWidget(bodyEl, data);
+    } else if (widgetId === 'widget-weekly-briefing') {
+      renderWeeklyBriefingWidget(bodyEl, data);
+    } else if (widgetId === 'widget-goal-templates') {
+      renderGoalTemplatesWidget(bodyEl, data);
+    }
+  }
+
+  function renderHealthScoreWidget(bodyEl, data) {
+    const badgeMap = {
+      'Excellent': '🥇',
+      'Great': '🥈',
+      'Good': '🥉',
+      'Fair': '⚠️',
+      'Needs Improvement': '🔴'
+    };
+
+    const badge = badgeMap[data.level] || data.badge || '⚪';
+    const trendIcon = data.trend === 'improving' ? '↑' : data.trend === 'declining' ? '↓' : '→';
+    const trendColor = data.trend === 'improving' ? '#10b981' : data.trend === 'declining' ? '#ef4444' : '#6b7280';
+
+    let html = `
+      <div style="padding: 0.75rem;">
+        <!-- Health Score Display -->
+        <div style="text-align: center; padding: 1rem 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white; margin-bottom: 0.75rem;">
+          <div style="font-size: 2.5rem; font-weight: 700; margin-bottom: 0.25rem;">
+            <span style="font-size: 1.75rem; margin-right: 0.5rem;">${badge}</span>
+            ${data.total_score}/100
+          </div>
+          <div style="font-size: 1rem; opacity: 0.9; margin-bottom: 0.25rem;">${data.level}</div>
+          <div style="font-size: 0.8rem; opacity: 0.7;">
+            <span style="color: ${trendColor};">${trendIcon}</span> ${data.change > 0 ? '+' : ''}${data.change.toFixed(1)} this week
+          </div>
+        </div>
+
+        <!-- Component Breakdown -->
+        <div>
+    `;
+
+    if (data.components && data.components.length > 0) {
+      data.components.forEach(comp => {
+        const statusColor = comp.status === 'excellent' ? '#10b981' :
+                          comp.status === 'good' ? '#3b82f6' :
+                          comp.status === 'fair' ? '#f59e0b' : '#ef4444';
+
+        html += `
+          <div style="margin-bottom: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
+              <span style="font-size: 0.8rem; color: #6b7280;">
+                ${comp.icon} ${comp.name}
+              </span>
+              <span style="font-weight: 600; color: ${statusColor}; font-size: 0.85rem;">
+                ${comp.score.toFixed(0)}/100
+              </span>
+            </div>
+            <div style="background: #e5e7eb; height: 4px; border-radius: 2px; overflow: hidden;">
+              <div style="background: ${statusColor}; height: 100%; width: ${comp.score}%; transition: width 0.3s;"></div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    bodyEl.innerHTML = html;
+  }
+
+  function renderRunwayEnhancedWidget(bodyEl, data) {
+    const runwayMonths = data.current_runway || 0;
+    const runwayColor = runwayMonths < 3 ? '#ef4444' : runwayMonths < 6 ? '#f59e0b' : '#10b981';
+
+    let html = `
+      <div style="padding: 1rem;">
+        <!-- Current Runway -->
+        <div style="text-align: center; padding: 1rem; background: #f9fafb; border-radius: 8px; margin-bottom: 1rem;">
+          <div style="font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;">Current Runway</div>
+          <div style="font-size: 2.5rem; font-weight: 700; color: ${runwayColor};">
+            ${runwayMonths.toFixed(1)} <span style="font-size: 1.5rem;">months</span>
+          </div>
+          ${data.days_until_end ? `
+            <div style="font-size: 0.85rem; color: #6b7280; margin-top: 0.5rem;">
+              ${data.days_until_end} days remaining
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Scenarios -->
+        ${data.scenarios && data.scenarios.length > 0 ? `
+          <div style="margin-bottom: 1rem;">
+            <div style="font-size: 0.9rem; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">Scenarios</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
+              ${data.scenarios.map(scenario => {
+                const color = scenario.color === 'success' ? '#10b981' : 
+                             scenario.color === 'danger' ? '#ef4444' : '#2563eb';
+                return `
+                  <div style="text-align: center; padding: 0.5rem; background: #f9fafb; border-radius: 6px;">
+                    <div style="font-size: 0.7rem; color: #6b7280; margin-bottom: 0.25rem;">${scenario.name}</div>
+                    <div style="font-size: 1.1rem; font-weight: 700; color: ${color};">
+                      ${scenario.months.toFixed(1)}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Top Burn Categories -->
+        ${data.burn_breakdown && data.burn_breakdown.length > 0 ? `
+          <div style="margin-bottom: 1rem;">
+            <div style="font-size: 0.9rem; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">Top Cash Burners</div>
+            <div style="max-height: 150px; overflow-y: auto;">
+              ${data.burn_breakdown.slice(0, 3).map(item => `
+                <div style="margin-bottom: 0.5rem;">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem;">
+                    <span style="color: #374151;">${item.category}</span>
+                    <span style="font-weight: 600; color: #111827;">£${formatNumber(item.monthly_amount)}/mo</span>
+                  </div>
+                  <div style="background: #e5e7eb; height: 4px; border-radius: 2px; overflow: hidden;">
+                    <div style="background: #ef4444; height: 100%; width: ${item.percentage}%; transition: width 0.3s;"></div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    bodyEl.innerHTML = html;
+  }
+
+  function renderWeeklyBriefingWidget(bodyEl, data) {
+    let html = `
+      <div style="padding: 0.5rem 1rem;">
+        <div style="font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem;">Week of ${data.week_of}</div>
+
+        <!-- Key Metrics -->
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
+          <div style="background: #f9fafb; padding: 0.75rem; border-radius: 6px;">
+            <div style="font-size: 0.75rem; color: #6b7280;">Runway</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: #111827;">${data.runway ? data.runway.current.toFixed(1) : '0'}mo</div>
+            ${data.runway && data.runway.change ? `
+              <div style="font-size: 0.75rem; color: ${data.runway.change < 0 ? '#ef4444' : '#10b981'};">
+                ${data.runway.change_label}
+              </div>
+            ` : ''}
+          </div>
+          <div style="background: #f9fafb; padding: 0.75rem; border-radius: 6px;">
+            <div style="font-size: 0.75rem; color: #6b7280;">Health Score</div>
+            <div style="font-size: 1.5rem; font-weight: 700; color: #111827;">${data.health_score ? data.health_score.current : '0'}/100</div>
+            ${data.health_score && data.health_score.change ? `
+              <div style="font-size: 0.75rem; color: ${data.health_score.change < 0 ? '#ef4444' : '#10b981'};">
+                ${data.health_score.change > 0 ? '+' : ''}${data.health_score.change.toFixed(1)} pts
+              </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- Concerns -->
+        ${data.concerns && data.concerns.length > 0 ? `
+          <div style="margin-bottom: 1rem;">
+            <div style="font-size: 0.9rem; font-weight: 600; color: #ef4444; margin-bottom: 0.5rem;">⚠️ Attention Needed</div>
+            <div style="max-height: 120px; overflow-y: auto;">
+              ${data.concerns.slice(0, 3).map(concern => `
+                <div style="font-size: 0.8rem; color: #374151; padding: 0.5rem; background: #fef2f2; border-left: 2px solid #ef4444; border-radius: 4px; margin-bottom: 0.5rem;">
+                  ${concern}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Good News -->
+        ${data.good_news && data.good_news.length > 0 ? `
+          <div style="margin-bottom: 1rem;">
+            <div style="font-size: 0.9rem; font-weight: 600; color: #10b981; margin-bottom: 0.5rem;">📈 Good News</div>
+            <div>
+              ${data.good_news.slice(0, 2).map(news => `
+                <div style="font-size: 0.8rem; color: #374151; padding: 0.5rem; background: #f0fdf4; border-left: 2px solid #10b981; border-radius: 4px; margin-bottom: 0.5rem;">
+                  ${news}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Action Items -->
+        ${data.action_items && data.action_items.length > 0 ? `
+          <div style="margin-bottom: 1rem;">
+            <div style="font-size: 0.9rem; font-weight: 600; color: #2563eb; margin-bottom: 0.5rem;">🎯 Top Actions</div>
+            <div>
+              ${data.action_items.map((action, idx) => `
+                <div style="font-size: 0.8rem; color: #374151; padding: 0.5rem; background: #eff6ff; border-left: 2px solid #2563eb; border-radius: 4px; margin-bottom: 0.5rem;">
+                  <strong>${idx + 1}.</strong> ${action}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    bodyEl.innerHTML = html;
+  }
+
+  function renderGoalTemplatesWidget(bodyEl, data) {
+    // Limit to first 2 templates
+    const templatesToShow = data.templates && data.templates.length > 0 ? data.templates.slice(0, 2) : [];
+
+    let html = `
+      <div style="padding: 1rem;">
+        <div style="margin-bottom: 1rem;">
+          <div style="font-size: 1.1rem; font-weight: 600; color: #111827; margin-bottom: 0.5rem;">Quick Start Templates</div>
+          <div style="font-size: 0.85rem; color: #6b7280;">Create goals in seconds with pre-built templates</div>
+        </div>
+
+        ${templatesToShow.length > 0 ? `
+          <div style="max-height: 250px; overflow-y: auto; padding-right: 0.5rem;">
+            ${templatesToShow.map(template => `
+              <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem; background: #ffffff; transition: all 0.2s; cursor: pointer;" 
+                   onmouseover="this.style.borderColor='#2563eb'; this.style.background='#f9fafb';" 
+                   onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='#ffffff';">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                  <div style="flex: 1;">
+                    <div style="font-weight: 600; color: #111827; margin-bottom: 0.25rem; font-size: 0.9rem;">
+                      ${template.icon} ${template.name}
+                    </div>
+                    <div style="font-size: 0.75rem; color: #6b7280;">
+                      ${template.description}
+                    </div>
+                  </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">
+                    ${template.category}
+                  </span>
+                  <a href="/playbook/templates/${template.id}/create/" 
+                     style="font-size: 0.75rem; color: #2563eb; text-decoration: none; font-weight: 600;"
+                     onclick="event.stopPropagation();">
+                    Use Template →
+                  </a>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div style="text-align: center; padding: 2rem; color: #9ca3af;">
+            <p>No templates available</p>
+          </div>
+        `}
+      </div>
+    `;
 
     bodyEl.innerHTML = html;
   }

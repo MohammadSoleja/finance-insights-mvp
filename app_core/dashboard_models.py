@@ -56,18 +56,26 @@ class DashboardLayout(models.Model):
                 {'id': 'kpi-burn-rate', 'x': 8, 'y': 0, 'w': 2, 'h': 1},
                 {'id': 'kpi-active-projects', 'x': 10, 'y': 0, 'w': 2, 'h': 1},
 
-                # Row 2: Main Charts (6+6 = 12 columns)
-                {'id': 'chart-revenue-expense', 'x': 0, 'y': 1, 'w': 6, 'h': 3},
-                {'id': 'chart-trend-line', 'x': 6, 'y': 1, 'w': 6, 'h': 3},
+                # Row 2: NEW - Health Score & Runway Intelligence (6+6 = 12 columns)
+                {'id': 'widget-health-score', 'x': 0, 'y': 1, 'w': 6, 'h': 3},
+                {'id': 'widget-runway-enhanced', 'x': 6, 'y': 1, 'w': 6, 'h': 3},
 
-                # Row 3: Secondary Charts and Lists (4+4+4 = 12 columns)
-                {'id': 'chart-expense-pie', 'x': 0, 'y': 4, 'w': 4, 'h': 3},
-                {'id': 'chart-budget-performance', 'x': 4, 'y': 4, 'w': 4, 'h': 3},
-                {'id': 'list-recent-transactions', 'x': 8, 'y': 4, 'w': 4, 'h': 3},
+                # Row 3: Main Charts (6+6 = 12 columns)
+                {'id': 'chart-revenue-expense', 'x': 0, 'y': 4, 'w': 6, 'h': 3},
+                {'id': 'chart-trend-line', 'x': 6, 'y': 4, 'w': 6, 'h': 3},
 
-                # Row 4: Playbook Widgets (6+6 = 12 columns, h:5 for ~2 items)
-                {'id': 'widget-playbook-goals', 'x': 0, 'y': 7, 'w': 6, 'h': 5},
-                {'id': 'widget-playbook-insights', 'x': 6, 'y': 7, 'w': 6, 'h': 5}
+                # Row 4: NEW - Weekly Briefing & Goal Templates (6+6 = 12 columns)
+                {'id': 'widget-weekly-briefing', 'x': 0, 'y': 7, 'w': 6, 'h': 4},
+                {'id': 'widget-goal-templates', 'x': 6, 'y': 7, 'w': 6, 'h': 4},
+
+                # Row 5: Secondary Charts and Lists (4+4+4 = 12 columns)
+                {'id': 'chart-expense-pie', 'x': 0, 'y': 11, 'w': 4, 'h': 3},
+                {'id': 'chart-budget-performance', 'x': 4, 'y': 11, 'w': 4, 'h': 3},
+                {'id': 'list-recent-transactions', 'x': 8, 'y': 11, 'w': 4, 'h': 3},
+
+                # Row 6: Playbook Widgets (6+6 = 12 columns, h:5 for ~2 items)
+                {'id': 'widget-playbook-goals', 'x': 0, 'y': 14, 'w': 6, 'h': 5},
+                {'id': 'widget-playbook-insights', 'x': 6, 'y': 14, 'w': 6, 'h': 5}
             ],
             'density': 'comfortable',
             'autoRefresh': 30
